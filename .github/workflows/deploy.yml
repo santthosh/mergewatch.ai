@@ -96,7 +96,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: SAM build
         working-directory: infra
@@ -109,6 +109,7 @@ jobs:
         run: |
           sam deploy \
             --stack-name mergewatch-dev \
+            --region "$AWS_REGION" \
             --parameter-overrides "Stage=dev" \
             --capabilities CAPABILITY_NAMED_IAM \
             --resolve-s3 \
@@ -167,7 +168,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: SAM build
         working-directory: infra
@@ -180,6 +181,7 @@ jobs:
         run: |
           sam deploy \
             --stack-name mergewatch \
+            --region "$AWS_REGION" \
             --parameter-overrides "Stage=prod" \
             --capabilities CAPABILITY_NAMED_IAM \
             --resolve-s3 \

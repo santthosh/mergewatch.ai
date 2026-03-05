@@ -37,7 +37,7 @@ stack_name = "mergewatch"
 # AWS Region — change this to your preferred region.
 # Make sure Amazon Bedrock is available in your chosen region.
 # Bedrock availability: https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-regions.html
-region = "us-east-1"
+region = "us-west-2"
 
 # S3 bucket for deployment artifacts.
 # SAM will create a managed bucket if this is true.
@@ -66,7 +66,7 @@ tags = "Project=MergeWatch Environment=prod"
 # Deploy with: sam deploy --config-env staging
 [staging.deploy.parameters]
 stack_name = "mergewatch-staging"
-region = "us-east-1"
+region = "us-west-2"
 resolve_s3 = true
 capabilities = "CAPABILITY_NAMED_IAM"
 confirm_changeset = true
@@ -77,7 +77,7 @@ tags = "Project=MergeWatch Environment=staging"
 # Deploy with: sam deploy --config-env dev
 [dev.deploy.parameters]
 stack_name = "mergewatch-dev"
-region = "us-east-1"
+region = "us-west-2"
 resolve_s3 = true
 capabilities = "CAPABILITY_NAMED_IAM"
 # Skip confirmation for faster iteration in dev
