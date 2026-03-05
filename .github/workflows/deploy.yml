@@ -3,7 +3,7 @@
 # =============================================================================
 #
 # Pipeline:
-#   push to main → build & test → deploy to dev → (manual approval) → deploy to prod
+#   push to main → build & test → deploy to dev → (optional) deploy to prod
 #
 # Required GitHub Secrets:
 #   AWS_ROLE_ARN           — IAM role ARN for OIDC (e.g. arn:aws:iam::123456789012:role/mergewatch-github-deploy)
@@ -21,6 +21,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      deploy_prod:
+        description: 'Deploy to production after dev?'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-pipeline
@@ -144,6 +150,7 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: deploy-dev
+    if: github.event.inputs.deploy_prod == 'true'
     environment: production
 
     steps:
