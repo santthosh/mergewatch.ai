@@ -521,6 +521,9 @@ Resources:
               Service: amplify.amazonaws.com
             Action: sts:AssumeRole
 
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess-Amplify
+
       Policies:
         # DynamoDB read-only access to both tables (dashboard is read-only)
         - PolicyName: DynamoDBReadAccess
