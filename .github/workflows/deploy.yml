@@ -134,6 +134,27 @@ jobs:
             --no-fail-on-empty-changeset \
             --tags "Project=MergeWatch Environment=dev"
 
+      - name: Set Amplify compute role
+        if: success()
+        run: |
+          APP_ID=$(aws cloudformation describe-stacks \
+            --stack-name mergewatch-dev \
+            --query 'Stacks[0].Outputs[?OutputKey==`AmplifyAppId`].OutputValue' \
+            --output text 2>/dev/null) || true
+          if [ -n "$APP_ID" ] && [ "$APP_ID" != "None" ]; then
+            ROLE_ARN=$(aws cloudformation describe-stacks \
+              --stack-name mergewatch-dev \
+              --query 'Stacks[0].Outputs[?OutputKey==`AmplifyRoleArn`].OutputValue' \
+              --output text)
+            aws amplify update-app \
+              --app-id "$APP_ID" \
+              --compute-role-arn "$ROLE_ARN"
+            aws amplify start-job \
+              --app-id "$APP_ID" \
+              --branch-name main \
+              --job-type RELEASE
+          fi
+
       - name: Print dev outputs
         if: success()
         run: |
@@ -213,6 +234,27 @@ jobs:
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --tags "Project=MergeWatch Environment=prod"
+
+      - name: Set Amplify compute role
+        if: success()
+        run: |
+          APP_ID=$(aws cloudformation describe-stacks \
+            --stack-name mergewatch \
+            --query 'Stacks[0].Outputs[?OutputKey==`AmplifyAppId`].OutputValue' \
+            --output text 2>/dev/null) || true
+          if [ -n "$APP_ID" ] && [ "$APP_ID" != "None" ]; then
+            ROLE_ARN=$(aws cloudformation describe-stacks \
+              --stack-name mergewatch \
+              --query 'Stacks[0].Outputs[?OutputKey==`AmplifyRoleArn`].OutputValue' \
+              --output text)
+            aws amplify update-app \
+              --app-id "$APP_ID" \
+              --compute-role-arn "$ROLE_ARN"
+            aws amplify start-job \
+              --app-id "$APP_ID" \
+              --branch-name main \
+              --job-type RELEASE
+          fi
 
       - name: Print prod outputs
         if: success()

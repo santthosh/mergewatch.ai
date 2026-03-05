@@ -585,7 +585,7 @@ Resources:
 
       # Amplify service role for DynamoDB/SSM access
       IAMServiceRole: !GetAtt AmplifyServiceRole.Arn
-      ComputeRoleArn: !GetAtt AmplifyServiceRole.Arn
+      # Note: ComputeRoleArn must be set via CLI post-deploy (not supported in CFN)
 
       # Build settings — tells Amplify how to build the Next.js app.
       # The app lives in the web/ subdirectory, so we set appRoot.
@@ -732,3 +732,8 @@ Outputs:
     Condition: DeployDashboard
     Description: Amplify App ID (needed for CLI operations and setup-web-ssm.sh)
     Value: !GetAtt AmplifyApp.AppId
+
+  AmplifyRoleArn:
+    Condition: DeployDashboard
+    Description: ARN of the Amplify service/compute role
+    Value: !GetAtt AmplifyServiceRole.Arn
