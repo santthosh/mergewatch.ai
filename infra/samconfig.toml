@@ -51,8 +51,11 @@ confirm_changeset = true
 # Useful for reviewing what will change
 disable_rollback = false
 
-# Parameter overrides — uncomment and modify to customize
-# parameter_overrides = "Stage=prod DefaultBedrockModelId=anthropic.claude-sonnet-4-20250514-v1:0"
+# Parameter overrides — uncomment and modify to customize.
+# To deploy with the web dashboard, add GitHubRepository and GitHubAccessToken:
+# parameter_overrides = "Stage=prod GitHubRepository=https://github.com/your-org/mergewatch.ai GitHubAccessToken=ghp_xxxx"
+# Without dashboard (backend only):
+# parameter_overrides = "Stage=prod"
 
 # Tags applied to all resources in the stack
 tags = "Project=MergeWatch Environment=prod"

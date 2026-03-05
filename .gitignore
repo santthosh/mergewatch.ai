@@ -5,6 +5,7 @@ dist/
 *.js.map
 .env
 .env.*
+!.env.example
 package-lock.json
 web/node_modules/
 web/.next/
