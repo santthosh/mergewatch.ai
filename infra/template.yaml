@@ -55,36 +55,6 @@ Parameters:
     Default: anthropic.claude-sonnet-4-20250514-v1:0
     Description: Default Amazon Bedrock model ID for PR reviews
 
-  # ===========================================================================
-  # Amplify Hosting Parameters (web dashboard)
-  # ===========================================================================
-
-  # GitHub repository for the Amplify app to pull source from.
-  # Format: https://github.com/owner/repo
-  GitHubRepository:
-    Type: String
-    Default: ''
-    Description: GitHub repository URL for the web dashboard (e.g. https://github.com/owner/repo)
-
-  # A GitHub personal access token with `repo` scope so Amplify can clone
-  # the repo and set up webhooks for auto-deploys on push.
-  # Create one at https://github.com/settings/tokens
-  GitHubAccessToken:
-    Type: String
-    Default: ''
-    NoEcho: true
-    Description: GitHub PAT for Amplify repo access (needs repo scope)
-
-# =============================================================================
-# Conditions
-# =============================================================================
-# Control optional resource creation based on parameter values.
-
-Conditions:
-  # Only deploy the Amplify web dashboard if a GitHub repo URL is provided.
-  # This lets you deploy the backend-only stack first and add the dashboard later.
-  DeployDashboard: !Not [!Equals [!Ref GitHubRepository, '']]
-
 # =============================================================================
 # Global Configuration
 # =============================================================================
@@ -480,212 +450,16 @@ Resources:
   # ===========================================================================
   # AWS Amplify Hosting — Next.js Dashboard
   # ===========================================================================
-  # Hosts the web/ Next.js app on AWS Amplify Hosting. Amplify natively
-  # supports Next.js SSR (server-side rendering), API routes, and ISR.
+  # The web dashboard is managed via the Amplify Console (not CloudFormation).
+  # Amplify's WEB_COMPUTE platform requires console-level role configuration
+  # that CloudFormation does not fully support.
   #
-  # How it works:
-  #   1. Amplify connects to the GitHub repo using the provided PAT
-  #   2. On every push to main, Amplify pulls the code, runs `npm run build`
-  #      inside the web/ directory, and deploys the output
-  #   3. SSR routes run as Lambda@Edge functions (managed by Amplify)
-  #   4. The Amplify service role grants DynamoDB read access so the
-  #      dashboard can display installation and review data
-  #
-  # The dashboard needs these environment variables:
-  #   - NEXTAUTH_SECRET: Random secret for signing session cookies
-  #   - NEXTAUTH_URL: The Amplify app URL (set after first deploy)
-  #   - GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET: GitHub OAuth App credentials
-  #   - DYNAMODB_TABLE_INSTALLATIONS / DYNAMODB_TABLE_REVIEWS: Table names
-  #   - AWS_REGION: For the DynamoDB client
-  #
-  # Secrets (NEXTAUTH_SECRET, GITHUB_CLIENT_*) are stored in SSM Parameter
-  # Store and referenced at build/runtime via the Amplify environment config.
-
-  # --- IAM Role for Amplify ---
-  # Amplify needs a service role to:
-  #   1. Read DynamoDB tables (dashboard queries)
-  #   2. Read SSM parameters (GitHub OAuth secrets at build time)
-  #   3. Write CloudWatch logs
-  AmplifyServiceRole:
-    Type: AWS::IAM::Role
-    Condition: DeployDashboard
-    Properties:
-      RoleName: !Sub 'mergewatch-amplify-role-${Stage}'
-      Description: Service role for MergeWatch Amplify dashboard
-
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - amplify.amazonaws.com
-                - amplify.us-west-2.amazonaws.com
-                - codebuild.amazonaws.com
-            Action:
-              - sts:AssumeRole
-              - sts:TagSession
-              - sts:SetSourceIdentity
-
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess-Amplify
-
-      Policies:
-        # DynamoDB read-only access to both tables (dashboard is read-only)
-        - PolicyName: DynamoDBReadAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:GetItem
-                  - dynamodb:Query
-                  - dynamodb:Scan
-                  - dynamodb:BatchGetItem
-                Resource:
-                  - !GetAtt InstallationsTable.Arn
-                  - !GetAtt ReviewsTable.Arn
-                  - !Sub '${InstallationsTable.Arn}/index/*'
-                  - !Sub '${ReviewsTable.Arn}/index/*'
-
-        # SSM read access for web dashboard secrets
-        - PolicyName: SSMReadAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ssm:GetParameter
-                  - ssm:GetParameters
-                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mergewatch/${Stage}/web/*'
-
-        # CloudWatch Logs for Amplify SSR functions
-        - PolicyName: CloudWatchLogs
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/amplify/*'
-
-  # --- Amplify App ---
-  AmplifyApp:
-    Type: AWS::Amplify::App
-    Condition: DeployDashboard
-    Properties:
-      Name: !Sub 'mergewatch-dashboard-${Stage}'
-      Description: MergeWatch web dashboard — review history, repo management
-
-      # Connect to the GitHub repository
-      Repository: !Ref GitHubRepository
-      AccessToken: !Ref GitHubAccessToken
-
-      # Amplify service role for DynamoDB/SSM access
-      IAMServiceRole: !GetAtt AmplifyServiceRole.Arn
-      # Note: ComputeRoleArn must be set via CLI post-deploy (not supported in CFN)
-
-      # Build settings — tells Amplify how to build the Next.js app.
-      # The app lives in the web/ subdirectory, so we set appRoot.
-      BuildSpec: |
-        version: 1
-        applications:
-          - appRoot: web
-            frontend:
-              phases:
-                preBuild:
-                  commands:
-                    - npm ci
-                build:
-                  commands:
-                    - npm run build
-              artifacts:
-                baseDirectory: .next
-                files:
-                  - '**/*'
-              cache:
-                paths:
-                  - node_modules/**/*
-                  - .next/cache/**/*
-
-      # Platform — WEB_COMPUTE enables SSR support for Next.js
-      Platform: WEB_COMPUTE
-
-      # Environment variables available to the Next.js app at build and runtime.
-      # Non-secret values are set directly here. Secrets are stored in SSM and
-      # loaded by the setup-web-ssm.sh script, then referenced here by path.
-      EnvironmentVariables:
-        # DynamoDB table names — resolved from the tables in this stack
-        - Name: DYNAMODB_TABLE_INSTALLATIONS
-          Value: !Ref InstallationsTable
-        - Name: DYNAMODB_TABLE_REVIEWS
-          Value: !Ref ReviewsTable
-
-        # Region for the DynamoDB client (Amplify reserves the AWS_ prefix)
-        - Name: APP_REGION
-          Value: !Ref AWS::Region
-
-        # Stage identifier
-        - Name: STAGE
-          Value: !Ref Stage
-
-        # GitHub App install URL — users are redirected here to connect repos.
-        # Update this after creating your GitHub App.
-        - Name: NEXT_PUBLIC_GITHUB_APP_URL
-          Value: 'https://github.com/apps/mergewatch-ai/installations/new'
-
-      # Custom response headers for security
-      CustomHeaders: |
-        customHeaders:
-          - pattern: '**/*'
-            headers:
-              - key: Strict-Transport-Security
-                value: max-age=31536000; includeSubDomains
-              - key: X-Content-Type-Options
-                value: nosniff
-              - key: X-Frame-Options
-                value: DENY
-
-      Tags:
-        - Key: Project
-          Value: MergeWatch
-        - Key: Stage
-          Value: !Ref Stage
-
-  # --- Amplify Branch (main) ---
-  # Auto-deploys the dashboard whenever code is pushed to the main branch.
-  AmplifyBranch:
-    Type: AWS::Amplify::Branch
-    Condition: DeployDashboard
-    Properties:
-      AppId: !GetAtt AmplifyApp.AppId
-      BranchName: main
-      Description: Production deployment branch
-
-      # Enable auto-build on push
-      EnableAutoBuild: true
-
-      # SSR support for Next.js API routes and server components
-      Framework: 'Next.js - SSR'
-
-      # Environment variables specific to the main branch.
-      # Secrets (GitHub OAuth, NextAuth) are loaded from SSM by the
-      # setup-web-ssm.sh script and set here. After running the script,
-      # update these values in the Amplify console or redeploy the stack
-      # with --parameter-overrides.
-      EnvironmentVariables:
-        # NextAuth needs to know its own URL for callback routing.
-        # After first deploy, update this to the real Amplify URL.
-        - Name: NEXTAUTH_URL
-          Value: !Sub 'https://main.${AmplifyApp.DefaultDomain}'
-
-      Tags:
-        - Key: Project
-          Value: MergeWatch
-        - Key: Stage
-          Value: !Ref Stage
+  # To set up the dashboard:
+  #   1. Create an Amplify app in the AWS Console
+  #   2. Connect the GitHub repo, set app root to "web"
+  #   3. Set environment variables: DYNAMODB_TABLE_INSTALLATIONS,
+  #      DYNAMODB_TABLE_REVIEWS, APP_REGION, STAGE
+  # ===========================================================================
 
 # =============================================================================
 # Stack Outputs
@@ -722,18 +496,3 @@ Outputs:
     Description: ARN of the shared Lambda execution role
     Value: !GetAtt LambdaExecutionRole.Arn
 
-  # Amplify dashboard outputs (conditional — only when DeployDashboard is true)
-  DashboardUrl:
-    Condition: DeployDashboard
-    Description: URL of the MergeWatch web dashboard
-    Value: !Sub 'https://main.${AmplifyApp.DefaultDomain}'
-
-  AmplifyAppId:
-    Condition: DeployDashboard
-    Description: Amplify App ID (needed for CLI operations and setup-web-ssm.sh)
-    Value: !GetAtt AmplifyApp.AppId
-
-  AmplifyRoleArn:
-    Condition: DeployDashboard
-    Description: ARN of the Amplify service/compute role
-    Value: !GetAtt AmplifyServiceRole.Arn

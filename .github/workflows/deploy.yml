@@ -9,13 +9,11 @@
 #   AWS_ROLE_ARN           — IAM role ARN for OIDC (e.g. arn:aws:iam::123456789012:role/mergewatch-github-deploy)
 #   AWS_REGION             — Target region (e.g. us-west-2)
 #
-# Optional GitHub Secrets (for Amplify web dashboard):
-#   APP_REPOSITORY_URL  — Repo URL (e.g. https://github.com/owner/repo)
-#   AMPLIFY_GITHUB_TOKEN   — GitHub PAT with repo scope for Amplify
-#
 # Required GitHub Environments:
 #   development            — no protection rules needed
 #   production             — add "Required reviewers" for manual approval gate
+#
+# Note: The Amplify web dashboard is managed via the AWS Console, not this pipeline.
 # =============================================================================
 
 name: Deploy
@@ -116,44 +114,16 @@ jobs:
 
       - name: SAM deploy to dev
         working-directory: infra
-        env:
-          APP_REPOSITORY_URL: ${{ secrets.APP_REPOSITORY_URL }}
-          AMPLIFY_GITHUB_TOKEN: ${{ secrets.AMPLIFY_GITHUB_TOKEN }}
         run: |
-          PARAMS="Stage=dev"
-          if [ -n "$APP_REPOSITORY_URL" ] && [ -n "$AMPLIFY_GITHUB_TOKEN" ]; then
-            PARAMS="$PARAMS GitHubRepository=$APP_REPOSITORY_URL GitHubAccessToken=$AMPLIFY_GITHUB_TOKEN"
-          fi
           sam deploy \
             --stack-name mergewatch-dev \
             --region "$AWS_REGION" \
-            --parameter-overrides "$PARAMS" \
+            --parameter-overrides "Stage=dev" \
             --capabilities CAPABILITY_NAMED_IAM \
             --resolve-s3 \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --tags "Project=MergeWatch Environment=dev"
-
-      - name: Set Amplify compute role
-        if: success()
-        run: |
-          APP_ID=$(aws cloudformation describe-stacks \
-            --stack-name mergewatch-dev \
-            --query 'Stacks[0].Outputs[?OutputKey==`AmplifyAppId`].OutputValue' \
-            --output text 2>/dev/null) || true
-          if [ -n "$APP_ID" ] && [ "$APP_ID" != "None" ]; then
-            ROLE_ARN=$(aws cloudformation describe-stacks \
-              --stack-name mergewatch-dev \
-              --query 'Stacks[0].Outputs[?OutputKey==`AmplifyRoleArn`].OutputValue' \
-              --output text)
-            aws amplify update-app \
-              --app-id "$APP_ID" \
-              --compute-role-arn "$ROLE_ARN"
-            aws amplify start-job \
-              --app-id "$APP_ID" \
-              --branch-name main \
-              --job-type RELEASE
-          fi
 
       - name: Print dev outputs
         if: success()
@@ -168,9 +138,6 @@ jobs:
           if [ -n "$WEBHOOK_URL" ] && [ "$WEBHOOK_URL" != "None" ]; then
             echo "- **Webhook URL:** \`${WEBHOOK_URL}\`" >> $GITHUB_STEP_SUMMARY
           fi
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> Waiting for production approval..." >> $GITHUB_STEP_SUMMARY
 
   # =========================================================================
   # Stage 3: Deploy to Production (requires manual approval)
@@ -217,44 +184,16 @@ jobs:
 
       - name: SAM deploy to prod
         working-directory: infra
-        env:
-          APP_REPOSITORY_URL: ${{ secrets.APP_REPOSITORY_URL }}
-          AMPLIFY_GITHUB_TOKEN: ${{ secrets.AMPLIFY_GITHUB_TOKEN }}
         run: |
-          PARAMS="Stage=prod"
-          if [ -n "$APP_REPOSITORY_URL" ] && [ -n "$AMPLIFY_GITHUB_TOKEN" ]; then
-            PARAMS="$PARAMS GitHubRepository=$APP_REPOSITORY_URL GitHubAccessToken=$AMPLIFY_GITHUB_TOKEN"
-          fi
           sam deploy \
             --stack-name mergewatch \
             --region "$AWS_REGION" \
-            --parameter-overrides "$PARAMS" \
+            --parameter-overrides "Stage=prod" \
             --capabilities CAPABILITY_NAMED_IAM \
             --resolve-s3 \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --tags "Project=MergeWatch Environment=prod"
-
-      - name: Set Amplify compute role
-        if: success()
-        run: |
-          APP_ID=$(aws cloudformation describe-stacks \
-            --stack-name mergewatch \
-            --query 'Stacks[0].Outputs[?OutputKey==`AmplifyAppId`].OutputValue' \
-            --output text 2>/dev/null) || true
-          if [ -n "$APP_ID" ] && [ "$APP_ID" != "None" ]; then
-            ROLE_ARN=$(aws cloudformation describe-stacks \
-              --stack-name mergewatch \
-              --query 'Stacks[0].Outputs[?OutputKey==`AmplifyRoleArn`].OutputValue' \
-              --output text)
-            aws amplify update-app \
-              --app-id "$APP_ID" \
-              --compute-role-arn "$ROLE_ARN"
-            aws amplify start-job \
-              --app-id "$APP_ID" \
-              --branch-name main \
-              --job-type RELEASE
-          fi
 
       - name: Print prod outputs
         if: success()
@@ -268,12 +207,4 @@ jobs:
             --output text 2>/dev/null) || true
           if [ -n "$WEBHOOK_URL" ] && [ "$WEBHOOK_URL" != "None" ]; then
             echo "- **Webhook URL:** \`${WEBHOOK_URL}\`" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          DASHBOARD_URL=$(aws cloudformation describe-stacks \
-            --stack-name mergewatch \
-            --query 'Stacks[0].Outputs[?OutputKey==`DashboardUrl`].OutputValue' \
-            --output text 2>/dev/null) || true
-          if [ -n "$DASHBOARD_URL" ] && [ "$DASHBOARD_URL" != "None" ]; then
-            echo "- **Dashboard URL:** \`${DASHBOARD_URL}\`" >> $GITHUB_STEP_SUMMARY
           fi
