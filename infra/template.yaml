@@ -518,8 +518,14 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: amplify.amazonaws.com
+              Service:
+                - amplify.amazonaws.com
+                - amplify.us-west-2.amazonaws.com
             Action: sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service: amplify.amazonaws.com
+            Action: sts:TagSession
 
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess-Amplify
