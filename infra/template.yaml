@@ -521,11 +521,10 @@ Resources:
               Service:
                 - amplify.amazonaws.com
                 - amplify.us-west-2.amazonaws.com
-            Action: sts:AssumeRole
-          - Effect: Allow
-            Principal:
-              Service: amplify.amazonaws.com
-            Action: sts:TagSession
+            Action:
+              - sts:AssumeRole
+              - sts:TagSession
+              - sts:SetSourceIdentity
 
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess-Amplify
