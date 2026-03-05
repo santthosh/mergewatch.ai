@@ -61,7 +61,9 @@ jobs:
 
       - name: SAM build
         working-directory: infra
-        run: sam build --parallel --cached
+        run: |
+          export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH"
+          sam build --parallel --cached
 
       - name: Upload SAM build artifacts
         uses: actions/upload-artifact@v4
