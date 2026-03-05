@@ -521,6 +521,7 @@ Resources:
               Service:
                 - amplify.amazonaws.com
                 - amplify.us-west-2.amazonaws.com
+                - codebuild.amazonaws.com
             Action:
               - sts:AssumeRole
               - sts:TagSession
@@ -584,6 +585,7 @@ Resources:
 
       # Amplify service role for DynamoDB/SSM access
       IAMServiceRole: !GetAtt AmplifyServiceRole.Arn
+      ComputeRoleArn: !GetAtt AmplifyServiceRole.Arn
 
       # Build settings — tells Amplify how to build the Next.js app.
       # The app lives in the web/ subdirectory, so we set appRoot.
