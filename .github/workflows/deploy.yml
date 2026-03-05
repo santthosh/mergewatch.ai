@@ -10,7 +10,7 @@
 #   AWS_REGION             — Target region (e.g. us-west-2)
 #
 # Optional GitHub Secrets (for Amplify web dashboard):
-#   GITHUB_REPOSITORY_URL  — Repo URL (e.g. https://github.com/owner/repo)
+#   APP_REPOSITORY_URL  — Repo URL (e.g. https://github.com/owner/repo)
 #   AMPLIFY_GITHUB_TOKEN   — GitHub PAT with repo scope for Amplify
 #
 # Required GitHub Environments:
@@ -117,12 +117,12 @@ jobs:
       - name: SAM deploy to dev
         working-directory: infra
         env:
-          GITHUB_REPOSITORY_URL: ${{ secrets.GITHUB_REPOSITORY_URL }}
+          APP_REPOSITORY_URL: ${{ secrets.APP_REPOSITORY_URL }}
           AMPLIFY_GITHUB_TOKEN: ${{ secrets.AMPLIFY_GITHUB_TOKEN }}
         run: |
           PARAMS="Stage=dev"
-          if [ -n "$GITHUB_REPOSITORY_URL" ] && [ -n "$AMPLIFY_GITHUB_TOKEN" ]; then
-            PARAMS="$PARAMS GitHubRepository=$GITHUB_REPOSITORY_URL GitHubAccessToken=$AMPLIFY_GITHUB_TOKEN"
+          if [ -n "$APP_REPOSITORY_URL" ] && [ -n "$AMPLIFY_GITHUB_TOKEN" ]; then
+            PARAMS="$PARAMS GitHubRepository=$APP_REPOSITORY_URL GitHubAccessToken=$AMPLIFY_GITHUB_TOKEN"
           fi
           sam deploy \
             --stack-name mergewatch-dev \
@@ -197,12 +197,12 @@ jobs:
       - name: SAM deploy to prod
         working-directory: infra
         env:
-          GITHUB_REPOSITORY_URL: ${{ secrets.GITHUB_REPOSITORY_URL }}
+          APP_REPOSITORY_URL: ${{ secrets.APP_REPOSITORY_URL }}
           AMPLIFY_GITHUB_TOKEN: ${{ secrets.AMPLIFY_GITHUB_TOKEN }}
         run: |
           PARAMS="Stage=prod"
-          if [ -n "$GITHUB_REPOSITORY_URL" ] && [ -n "$AMPLIFY_GITHUB_TOKEN" ]; then
-            PARAMS="$PARAMS GitHubRepository=$GITHUB_REPOSITORY_URL GitHubAccessToken=$AMPLIFY_GITHUB_TOKEN"
+          if [ -n "$APP_REPOSITORY_URL" ] && [ -n "$AMPLIFY_GITHUB_TOKEN" ]; then
+            PARAMS="$PARAMS GitHubRepository=$APP_REPOSITORY_URL GitHubAccessToken=$AMPLIFY_GITHUB_TOKEN"
           fi
           sam deploy \
             --stack-name mergewatch \
