@@ -475,7 +475,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - lambda:InvokeFunction
-                Resource: !GetAtt ReviewAgent.Arn
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:mergewatch-review-agent-${Stage}'
 
   # ===========================================================================
   # AWS Amplify Hosting — Next.js Dashboard
