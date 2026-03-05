@@ -1,0 +1,24 @@
+import type { Metadata } from "next";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "MergeWatch.ai — AI-Powered PR Reviews",
+  description:
+    "Bring your own model. Run in your cloud. AI code reviews that respect your infrastructure.",
+};
+
+/**
+ * Root layout — wraps every page with a consistent shell.
+ * Uses the system sans-serif stack for a clean, fast-loading UI.
+ */
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en" className="antialiased">
+      <body className="min-h-screen font-sans">{children}</body>
+    </html>
+  );
+}

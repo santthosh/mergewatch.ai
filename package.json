@@ -1,0 +1,38 @@
+{
+  "name": "mergewatch",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-powered GitHub PR review tool — runs in your AWS account via Amazon Bedrock",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "cd infra && sam build --parallel --cached",
+    "deploy": "./scripts/deploy.sh",
+    "deploy:dev": "./scripts/deploy.sh dev",
+    "deploy:staging": "./scripts/deploy.sh staging",
+    "deploy:guided": "./scripts/deploy.sh --guided",
+    "setup-ssm": "./scripts/setup-ssm.sh",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "logs:webhook": "sam logs --name mergewatch-webhook-prod --tail --stack-name mergewatch",
+    "logs:agent": "sam logs --name mergewatch-review-agent-prod --tail --stack-name mergewatch"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.721.0",
+    "@aws-sdk/client-lambda": "^3.721.0",
+    "@aws-sdk/client-ssm": "^3.721.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.721.0",
+    "@aws-sdk/lib-dynamodb": "^3.721.0",
+    "@aws-sdk/util-dynamodb": "^3.721.0",
+    "@octokit/rest": "^21.0.0",
+    "@octokit/auth-app": "^7.1.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^20.17.12",
+    "typescript": "^5.7.3",
+    "esbuild": "^0.24.0"
+  }
+}

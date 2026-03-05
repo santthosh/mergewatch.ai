@@ -1,0 +1,81 @@
+# =============================================================================
+# MergeWatch SAM CLI Configuration
+# =============================================================================
+#
+# This file configures the AWS SAM CLI for deploying MergeWatch.
+# It provides default values so you can run `sam deploy` without flags.
+#
+# To deploy with these defaults:
+#   cd infra && sam build && sam deploy
+#
+# To override for a different environment:
+#   sam deploy --config-env staging
+#
+# For first-time setup or to reconfigure:
+#   sam deploy --guided
+#
+# Documentation: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html
+# =============================================================================
+
+# --- Production Environment (default) ---
+[default.global.parameters]
+stack_name = "mergewatch"
+
+[default.build.parameters]
+# Build in parallel for faster builds
+parallel = true
+# Use a Docker container matching the Lambda runtime for native dependencies
+# Set to true if you have native Node.js modules (e.g., sharp, bcrypt)
+use_container = false
+
+[default.deploy.parameters]
+# CloudFormation stack name
+stack_name = "mergewatch"
+
+# AWS Region — change this to your preferred region.
+# Make sure Amazon Bedrock is available in your chosen region.
+# Bedrock availability: https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-regions.html
+region = "us-east-1"
+
+# S3 bucket for deployment artifacts.
+# SAM will create a managed bucket if this is true.
+resolve_s3 = true
+
+# Allow SAM to create IAM roles (required for the Lambda execution role)
+capabilities = "CAPABILITY_NAMED_IAM"
+
+# Confirm changes before deploying — set to false for CI/CD pipelines
+confirm_changeset = true
+
+# Show the CloudFormation changeset before applying
+# Useful for reviewing what will change
+disable_rollback = false
+
+# Parameter overrides — uncomment and modify to customize
+# parameter_overrides = "Stage=prod DefaultBedrockModelId=anthropic.claude-sonnet-4-20250514-v1:0"
+
+# Tags applied to all resources in the stack
+tags = "Project=MergeWatch Environment=prod"
+
+# --- Staging Environment ---
+# Deploy with: sam deploy --config-env staging
+[staging.deploy.parameters]
+stack_name = "mergewatch-staging"
+region = "us-east-1"
+resolve_s3 = true
+capabilities = "CAPABILITY_NAMED_IAM"
+confirm_changeset = true
+parameter_overrides = "Stage=staging"
+tags = "Project=MergeWatch Environment=staging"
+
+# --- Development Environment ---
+# Deploy with: sam deploy --config-env dev
+[dev.deploy.parameters]
+stack_name = "mergewatch-dev"
+region = "us-east-1"
+resolve_s3 = true
+capabilities = "CAPABILITY_NAMED_IAM"
+# Skip confirmation for faster iteration in dev
+confirm_changeset = false
+parameter_overrides = "Stage=dev"
+tags = "Project=MergeWatch Environment=dev"

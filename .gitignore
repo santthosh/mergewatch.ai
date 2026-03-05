@@ -1,0 +1,10 @@
+node_modules/
+.aws-sam/
+.build/
+dist/
+*.js.map
+.env
+.env.*
+package-lock.json
+web/node_modules/
+web/.next/

@@ -1,0 +1,483 @@
+# =============================================================================
+# MergeWatch AWS SAM Template
+# =============================================================================
+#
+# This template defines the serverless infrastructure for MergeWatch, an
+# open-source GitHub PR review tool powered by Amazon Bedrock.
+#
+# Architecture overview:
+#   GitHub Webhook -> API Gateway -> WebhookHandler Lambda -> ReviewAgent Lambda
+#                                                                  |
+#                                                           Amazon Bedrock
+#
+# Data stores:
+#   - mergewatch-installations: Tracks GitHub App installations and per-repo config
+#   - mergewatch-reviews: Tracks PR review status and results
+#
+# Security model:
+#   - NO hardcoded API keys — all AWS auth via IAM roles (instance profiles)
+#   - GitHub credentials stored in SSM Parameter Store (encrypted)
+#   - Lambda functions assume a shared role with least-privilege policies
+#
+# Deployment:
+#   sam build && sam deploy --guided
+#   Or use: ./scripts/deploy.sh
+# =============================================================================
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  MergeWatch — AI-powered GitHub PR review tool.
+  Deploys Lambda functions, API Gateway, DynamoDB tables, and IAM roles.
+
+# =============================================================================
+# Template Parameters
+# =============================================================================
+# These allow customization at deploy time without modifying the template.
+
+Parameters:
+  # The deployment stage controls naming and can be used for environment-specific
+  # configuration (e.g., different Bedrock models for dev vs prod).
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment stage (affects resource naming and configuration)
+
+  # The default Bedrock model used for PR reviews. Can be overridden per-repo
+  # via the modelId field in the mergewatch-installations table.
+  DefaultBedrockModelId:
+    Type: String
+    Default: anthropic.claude-sonnet-4-20250514-v1:0
+    Description: Default Amazon Bedrock model ID for PR reviews
+
+# =============================================================================
+# Global Configuration
+# =============================================================================
+# Settings applied to all Lambda functions unless overridden.
+
+Globals:
+  Function:
+    # All functions run on Node.js 20.x (LTS)
+    Runtime: nodejs20.x
+
+    # ARM64 (Graviton2) provides better price-performance for Lambda
+    Architectures:
+      - arm64
+
+    # Environment variables shared across all functions
+    Environment:
+      Variables:
+        # The deployment stage — used for conditional logic in application code
+        STAGE: !Ref Stage
+
+        # DynamoDB table names — injected so Lambda code doesn't hardcode them
+        INSTALLATIONS_TABLE: !Ref InstallationsTable
+        REVIEWS_TABLE: !Ref ReviewsTable
+
+        # SSM parameter paths for GitHub App credentials.
+        # The Lambda functions read these at runtime via the AWS SDK.
+        # This avoids storing secrets in environment variables or code.
+        GITHUB_APP_ID_PARAM: !Sub '/mergewatch/${Stage}/github-app-id'
+        GITHUB_PRIVATE_KEY_PARAM: !Sub '/mergewatch/${Stage}/github-private-key'
+        GITHUB_WEBHOOK_SECRET_PARAM: !Sub '/mergewatch/${Stage}/github-webhook-secret'
+
+        # Default Bedrock model — can be overridden per-repo in DynamoDB
+        DEFAULT_BEDROCK_MODEL_ID: !Ref DefaultBedrockModelId
+
+    # Tags applied to all functions for cost tracking and organization
+    Tags:
+      Project: MergeWatch
+      Stage: !Ref Stage
+
+Resources:
+  # ===========================================================================
+  # API Gateway — HTTP API
+  # ===========================================================================
+  # We use HTTP API (v2) instead of REST API (v1) because:
+  # - Lower latency and cost
+  # - Simpler configuration
+  # - Automatic CORS support
+  # - JWT authorizer support (if needed later)
+
+  WebhookApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Stage
+      Description: MergeWatch webhook endpoint for GitHub events
+
+      # CORS configuration — GitHub webhooks don't need CORS, but this is
+      # useful if we add a dashboard frontend later.
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowMethods:
+          - POST
+        AllowHeaders:
+          - Content-Type
+          - X-GitHub-Event
+          - X-GitHub-Delivery
+          - X-Hub-Signature-256
+
+  # ===========================================================================
+  # Lambda Function: WebhookHandler
+  # ===========================================================================
+  # Receives GitHub webhook events via API Gateway. Responsibilities:
+  # 1. Verify the webhook signature (X-Hub-Signature-256)
+  # 2. Parse the event payload
+  # 3. Filter for relevant events (pull_request opened/synchronize)
+  # 4. Write a "pending" record to the reviews table
+  # 5. Invoke the ReviewAgent Lambda asynchronously
+  #
+  # This function is intentionally lightweight — it should respond to GitHub
+  # within a few seconds to avoid webhook timeout/retry.
+
+  WebhookHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'mergewatch-webhook-${Stage}'
+      Description: Receives and validates GitHub webhook events, dispatches review jobs
+
+      # Path to the handler code (relative to the SAM build root)
+      CodeUri: ../src/
+      Handler: handlers/webhook.handler
+
+      # 512MB is sufficient for webhook validation and DynamoDB writes
+      MemorySize: 512
+
+      # 30 second timeout — webhook processing should be fast since the
+      # actual review work is delegated to ReviewAgent
+      Timeout: 30
+
+      # Use the shared IAM role defined below
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+      # API Gateway event source — maps POST /webhook to this function
+      Events:
+        WebhookPost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WebhookApi
+            Path: /webhook
+            Method: POST
+
+      Environment:
+        Variables:
+          # The ReviewAgent function ARN — needed to invoke it asynchronously
+          REVIEW_AGENT_FUNCTION_NAME: !Ref ReviewAgent
+
+    # Build with esbuild for TypeScript support and tree-shaking
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - handlers/webhook.ts
+
+  # ===========================================================================
+  # Lambda Function: ReviewAgent
+  # ===========================================================================
+  # Performs the actual PR review using Amazon Bedrock. Responsibilities:
+  # 1. Fetch PR diff from GitHub API
+  # 2. Load repo-specific config from the installations table
+  # 3. Send the diff to Amazon Bedrock for analysis
+  # 4. Post review comments back to the PR via GitHub API
+  # 5. Update the review record status in DynamoDB
+  #
+  # This function is invoked asynchronously by WebhookHandler, so it can
+  # take up to 5 minutes without blocking the webhook response.
+
+  ReviewAgent:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'mergewatch-review-agent-${Stage}'
+      Description: AI-powered PR review agent using Amazon Bedrock
+
+      CodeUri: ../src/
+      Handler: handlers/review-agent.handler
+
+      # 1024MB — Bedrock responses can be large, and we may need to process
+      # large diffs in memory
+      MemorySize: 1024
+
+      # 5 minute timeout — Bedrock inference can take 30-60s per call,
+      # and we may make multiple calls for large PRs
+      Timeout: 300
+
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+      # No API Gateway event — this function is invoked programmatically
+      # by WebhookHandler using the Lambda Invoke API
+
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - handlers/review-agent.ts
+
+  # ===========================================================================
+  # DynamoDB Table: Installations
+  # ===========================================================================
+  # Tracks GitHub App installations and per-repo configuration.
+  #
+  # Schema:
+  #   PK: installationId (String) — GitHub App installation ID
+  #   SK: repoFullName (String)   — e.g., "octocat/Hello-World"
+  #
+  # Additional attributes (not defined here — DynamoDB is schemaless):
+  #   - installedAt (String)  — ISO 8601 timestamp of installation
+  #   - config (Map)          — Parsed .mergewatch.yml contents
+  #   - modelId (String)      — Bedrock model ID override for this repo
+  #
+  # Access patterns:
+  #   - Get config for a specific repo:    PK=installationId, SK=repoFullName
+  #   - List all repos for installation:   PK=installationId (query)
+
+  InstallationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'mergewatch-installations-${Stage}'
+
+      # On-demand billing — no capacity planning needed.
+      # For high-traffic deployments, consider switching to provisioned
+      # capacity with auto-scaling.
+      BillingMode: PAY_PER_REQUEST
+
+      # Key schema: composite primary key (PK + SK)
+      KeySchema:
+        - AttributeName: installationId
+          KeyType: HASH    # Partition key
+        - AttributeName: repoFullName
+          KeyType: RANGE   # Sort key
+
+      # Only key attributes need to be defined in AttributeDefinitions.
+      # Non-key attributes are added dynamically by the application.
+      AttributeDefinitions:
+        - AttributeName: installationId
+          AttributeType: S  # String
+        - AttributeName: repoFullName
+          AttributeType: S  # String
+
+      # Enable point-in-time recovery for data protection
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      # Server-side encryption using AWS-managed keys (no additional cost)
+      SSESpecification:
+        SSEEnabled: true
+
+      Tags:
+        - Key: Project
+          Value: MergeWatch
+        - Key: Stage
+          Value: !Ref Stage
+
+    # Retain the table even if the CloudFormation stack is deleted.
+    # This prevents accidental data loss during stack updates or teardown.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+
+  # ===========================================================================
+  # DynamoDB Table: Reviews
+  # ===========================================================================
+  # Tracks PR review jobs and their status.
+  #
+  # Schema:
+  #   PK: repoFullName (String)        — e.g., "octocat/Hello-World"
+  #   SK: prNumberCommitSha (String)   — e.g., "42#abc123"
+  #
+  # Additional attributes:
+  #   - status (String)      — pending | in_progress | complete | failed
+  #   - commentId (Number)   — GitHub comment ID (for editing in-place)
+  #   - createdAt (String)   — ISO 8601 timestamp
+  #   - completedAt (String) — ISO 8601 timestamp
+  #
+  # Access patterns:
+  #   - Get review for specific PR+commit: PK=repoFullName, SK=prNumber#sha
+  #   - List all reviews for a repo:       PK=repoFullName (query)
+  #   - List reviews for a PR:             PK=repoFullName, SK begins_with("42#")
+
+  ReviewsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'mergewatch-reviews-${Stage}'
+      BillingMode: PAY_PER_REQUEST
+
+      KeySchema:
+        - AttributeName: repoFullName
+          KeyType: HASH
+        - AttributeName: prNumberCommitSha
+          KeyType: RANGE
+
+      AttributeDefinitions:
+        - AttributeName: repoFullName
+          AttributeType: S
+        - AttributeName: prNumberCommitSha
+          AttributeType: S
+
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      SSESpecification:
+        SSEEnabled: true
+
+      # Time-to-live: automatically delete old review records after a
+      # configurable period. The application sets the `ttl` attribute
+      # on each item. Uncomment and set the attribute name to enable.
+      # TimeToLiveSpecification:
+      #   AttributeName: ttl
+      #   Enabled: true
+
+      Tags:
+        - Key: Project
+          Value: MergeWatch
+        - Key: Stage
+          Value: !Ref Stage
+
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+
+  # ===========================================================================
+  # IAM Role: Lambda Execution Role
+  # ===========================================================================
+  # A single shared role for both Lambda functions. This simplifies management
+  # and keeps the template DRY. If you need per-function permissions later,
+  # split this into separate roles.
+  #
+  # Permissions:
+  #   1. CloudWatch Logs — write log groups/streams/events
+  #   2. DynamoDB — read/write on both tables
+  #   3. Amazon Bedrock — full access to invoke models
+  #   4. SSM Parameter Store — read GitHub credentials
+  #   5. Lambda Invoke — WebhookHandler needs to invoke ReviewAgent
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'mergewatch-lambda-role-${Stage}'
+      Description: Execution role for MergeWatch Lambda functions
+
+      # Trust policy: allow Lambda service to assume this role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+      # Managed policies: AWS-provided policy bundles
+      ManagedPolicyArns:
+        # Full access to Amazon Bedrock — needed to invoke foundation models
+        # for PR review. If you want tighter controls, replace this with a
+        # custom policy that only allows bedrock:InvokeModel on specific models.
+        - arn:aws:iam::aws:policy/AmazonBedrockFullAccess
+
+      # Inline policies: custom permissions specific to MergeWatch
+      Policies:
+        # --- CloudWatch Logs ---
+        # Lambda needs to create log groups and write log events
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/mergewatch-*'
+
+        # --- DynamoDB Access ---
+        # Read/write access scoped to the two MergeWatch tables only.
+        # Uses specific actions instead of dynamodb:* for least privilege.
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  # Table ARNs
+                  - !GetAtt InstallationsTable.Arn
+                  - !GetAtt ReviewsTable.Arn
+                  # Index ARNs (for future GSIs)
+                  - !Sub '${InstallationsTable.Arn}/index/*'
+                  - !Sub '${ReviewsTable.Arn}/index/*'
+
+        # --- SSM Parameter Store ---
+        # Read-only access to GitHub credentials stored in SSM.
+        # Scoped to the /mergewatch/ parameter path.
+        - PolicyName: SSMParameterAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mergewatch/${Stage}/*'
+
+        # --- Lambda Invoke ---
+        # WebhookHandler needs to invoke ReviewAgent asynchronously.
+        # Scoped to the specific ReviewAgent function ARN.
+        - PolicyName: LambdaInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt ReviewAgent.Arn
+
+# =============================================================================
+# Stack Outputs
+# =============================================================================
+# These values are displayed after deployment and can be referenced by other
+# stacks or scripts.
+
+Outputs:
+  # The webhook URL to configure in the GitHub App settings
+  WebhookUrl:
+    Description: GitHub webhook URL — add this to your GitHub App configuration
+    Value: !Sub 'https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}/webhook'
+
+  # Function ARNs for reference and monitoring
+  WebhookHandlerArn:
+    Description: ARN of the WebhookHandler Lambda function
+    Value: !GetAtt WebhookHandler.Arn
+
+  ReviewAgentArn:
+    Description: ARN of the ReviewAgent Lambda function
+    Value: !GetAtt ReviewAgent.Arn
+
+  # Table names for use in scripts or other tooling
+  InstallationsTableName:
+    Description: Name of the DynamoDB installations table
+    Value: !Ref InstallationsTable
+
+  ReviewsTableName:
+    Description: Name of the DynamoDB reviews table
+    Value: !Ref ReviewsTable
+
+  # The IAM role ARN — useful for debugging permission issues
+  LambdaRoleArn:
+    Description: ARN of the shared Lambda execution role
+    Value: !GetAtt LambdaExecutionRole.Arn
