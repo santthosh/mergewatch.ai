@@ -59,18 +59,11 @@ jobs:
         with:
           use-installer: true
 
-      - name: SAM build
+      - name: SAM build (validate)
         working-directory: infra
         run: |
           export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH"
-          sam build --parallel --cached
-
-      - name: Upload SAM build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: sam-build
-          path: infra/.aws-sam/
-          retention-days: 1
+          sam build --parallel
 
   # =========================================================================
   # Stage 2: Deploy to Development
@@ -85,6 +78,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Setup AWS SAM CLI
         uses: aws-actions/setup-sam@v2
         with:
@@ -96,11 +98,11 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
 
-      - name: Download SAM build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: sam-build
-          path: infra/.aws-sam/
+      - name: SAM build
+        working-directory: infra
+        run: |
+          export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH"
+          sam build --parallel
 
       - name: SAM deploy to dev
         working-directory: infra
@@ -144,6 +146,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Setup AWS SAM CLI
         uses: aws-actions/setup-sam@v2
         with:
@@ -155,11 +166,11 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
 
-      - name: Download SAM build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: sam-build
-          path: infra/.aws-sam/
+      - name: SAM build
+        working-directory: infra
+        run: |
+          export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH"
+          sam build --parallel
 
       - name: SAM deploy to prod
         working-directory: infra
