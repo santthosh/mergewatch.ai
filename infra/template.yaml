@@ -613,8 +613,8 @@ Resources:
         - Name: DYNAMODB_TABLE_REVIEWS
           Value: !Ref ReviewsTable
 
-        # AWS region for the DynamoDB client
-        - Name: AWS_REGION
+        # Region for the DynamoDB client (Amplify reserves the AWS_ prefix)
+        - Name: APP_REGION
           Value: !Ref AWS::Region
 
         # Stage identifier
