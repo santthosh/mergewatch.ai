@@ -1,48 +1,30 @@
 # =============================================================================
-# MergeWatch — Deploy to Production
+# MergeWatch — Build, Test, Deploy Pipeline
 # =============================================================================
 #
-# Triggers:
-#   - Push to main branch
-#   - Manual dispatch from the Actions tab
-#
-# What it does:
-#   1. Checks out the code
-#   2. Sets up Node.js 20.x and AWS SAM CLI
-#   3. Installs dependencies
-#   4. Runs TypeScript type checking
-#   5. Builds Lambda functions via SAM
-#   6. Deploys to the "prod" CloudFormation stack (with changeset confirmation)
+# Pipeline:
+#   push to main → build & test → deploy to dev → (manual approval) → deploy to prod
 #
 # Required GitHub Secrets:
 #   AWS_ACCESS_KEY_ID      — IAM user access key with deploy permissions
 #   AWS_SECRET_ACCESS_KEY  — IAM user secret key
 #   AWS_REGION             — Target region (e.g. us-east-1)
 #
-# Optional GitHub Secrets (for Amplify dashboard):
-#   GITHUB_PAT_AMPLIFY     — GitHub PAT for Amplify repo access
-#
-# The prod environment uses:
-#   - Stack name: mergewatch
-#   - Stage parameter: prod
-#   - SSM path: /mergewatch/prod/*
-#   - DynamoDB tables: mergewatch-installations-prod, mergewatch-reviews-prod
+# Required GitHub Environments:
+#   development            — no protection rules needed
+#   production             — add "Required reviewers" for manual approval gate
 # =============================================================================
 
-name: Deploy to Production
+name: Deploy
 
 on:
-  # Deploy on every push to main
   push:
     branches:
       - main
-
-  # Allow manual trigger from the GitHub Actions tab
   workflow_dispatch:
 
-# Prevent concurrent deployments to the same environment
 concurrency:
-  group: deploy-prod
+  group: deploy-pipeline
   cancel-in-progress: false
 
 permissions:
@@ -50,10 +32,10 @@ permissions:
 
 jobs:
   # =========================================================================
-  # Job 1: Build and type-check
+  # Stage 1: Build & Test
   # =========================================================================
   build:
-    name: Build & Validate
+    name: Build & Test
     runs-on: ubuntu-latest
 
     steps:
@@ -81,7 +63,6 @@ jobs:
         working-directory: infra
         run: sam build --parallel --cached
 
-      # Cache the SAM build artifacts for the deploy job
       - name: Upload SAM build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -90,12 +71,72 @@ jobs:
           retention-days: 1
 
   # =========================================================================
-  # Job 2: Deploy to production
+  # Stage 2: Deploy to Development
   # =========================================================================
-  deploy:
-    name: Deploy (prod)
+  deploy-dev:
+    name: Deploy to Development
     runs-on: ubuntu-latest
     needs: build
+    environment: development
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup AWS SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Download SAM build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sam-build
+          path: infra/.aws-sam/
+
+      - name: SAM deploy to dev
+        working-directory: infra
+        run: |
+          sam deploy \
+            --stack-name mergewatch-dev \
+            --parameter-overrides "Stage=dev" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --resolve-s3 \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --tags "Project=MergeWatch Environment=dev"
+
+      - name: Print dev outputs
+        run: |
+          echo "## Development Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          WEBHOOK_URL=$(aws cloudformation describe-stacks \
+            --stack-name mergewatch-dev \
+            --query 'Stacks[0].Outputs[?OutputKey==`WebhookUrl`].OutputValue' \
+            --output text)
+          echo "- **Webhook URL:** \`${WEBHOOK_URL}\`" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> Waiting for production approval..." >> $GITHUB_STEP_SUMMARY
+
+  # =========================================================================
+  # Stage 3: Deploy to Production (requires manual approval)
+  # =========================================================================
+  # This job uses the "production" GitHub environment which should have
+  # "Required reviewers" enabled in Settings > Environments > production.
+  # The pipeline pauses here until an authorized reviewer approves.
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-dev
     environment: production
 
     steps:
@@ -114,16 +155,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
 
-      # Restore cached SAM build artifacts
       - name: Download SAM build artifacts
         uses: actions/download-artifact@v4
         with:
           name: sam-build
           path: infra/.aws-sam/
 
-      # Deploy to production — no-confirm-changeset since this is CI.
-      # If you want manual approval, use the GitHub environment protection rules
-      # (Settings > Environments > production > Required reviewers).
       - name: SAM deploy to prod
         working-directory: infra
         run: |
@@ -136,10 +173,9 @@ jobs:
             --no-fail-on-empty-changeset \
             --tags "Project=MergeWatch Environment=prod"
 
-      # ── Print Outputs ───────────────────────────────────────────────────
-      - name: Print stack outputs
+      - name: Print prod outputs
         run: |
-          echo "## Production Stack Outputs" >> $GITHUB_STEP_SUMMARY
+          echo "## Production Deployment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           WEBHOOK_URL=$(aws cloudformation describe-stacks \
@@ -148,19 +184,6 @@ jobs:
             --output text)
           echo "- **Webhook URL:** \`${WEBHOOK_URL}\`" >> $GITHUB_STEP_SUMMARY
 
-          WEBHOOK_ARN=$(aws cloudformation describe-stacks \
-            --stack-name mergewatch \
-            --query 'Stacks[0].Outputs[?OutputKey==`WebhookHandlerArn`].OutputValue' \
-            --output text)
-          echo "- **WebhookHandler ARN:** \`${WEBHOOK_ARN}\`" >> $GITHUB_STEP_SUMMARY
-
-          AGENT_ARN=$(aws cloudformation describe-stacks \
-            --stack-name mergewatch \
-            --query 'Stacks[0].Outputs[?OutputKey==`ReviewAgentArn`].OutputValue' \
-            --output text)
-          echo "- **ReviewAgent ARN:** \`${AGENT_ARN}\`" >> $GITHUB_STEP_SUMMARY
-
-          # Dashboard URL (only if Amplify is deployed)
           DASHBOARD_URL=$(aws cloudformation describe-stacks \
             --stack-name mergewatch \
             --query 'Stacks[0].Outputs[?OutputKey==`DashboardUrl`].OutputValue' \
