@@ -17,6 +17,8 @@
 # Documentation: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html
 # =============================================================================
 
+version = 0.1
+
 # --- Production Environment (default) ---
 [default.global.parameters]
 stack_name = "mergewatch"
