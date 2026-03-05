@@ -117,6 +117,7 @@ jobs:
             --tags "Project=MergeWatch Environment=dev"
 
       - name: Print dev outputs
+        if: success()
         run: |
           echo "## Development Deployment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -124,8 +125,10 @@ jobs:
           WEBHOOK_URL=$(aws cloudformation describe-stacks \
             --stack-name mergewatch-dev \
             --query 'Stacks[0].Outputs[?OutputKey==`WebhookUrl`].OutputValue' \
-            --output text)
-          echo "- **Webhook URL:** \`${WEBHOOK_URL}\`" >> $GITHUB_STEP_SUMMARY
+            --output text 2>/dev/null) || true
+          if [ -n "$WEBHOOK_URL" ] && [ "$WEBHOOK_URL" != "None" ]; then
+            echo "- **Webhook URL:** \`${WEBHOOK_URL}\`" >> $GITHUB_STEP_SUMMARY
+          fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "> Waiting for production approval..." >> $GITHUB_STEP_SUMMARY
@@ -185,6 +188,7 @@ jobs:
             --tags "Project=MergeWatch Environment=prod"
 
       - name: Print prod outputs
+        if: success()
         run: |
           echo "## Production Deployment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -192,13 +196,15 @@ jobs:
           WEBHOOK_URL=$(aws cloudformation describe-stacks \
             --stack-name mergewatch \
             --query 'Stacks[0].Outputs[?OutputKey==`WebhookUrl`].OutputValue' \
-            --output text)
-          echo "- **Webhook URL:** \`${WEBHOOK_URL}\`" >> $GITHUB_STEP_SUMMARY
+            --output text 2>/dev/null) || true
+          if [ -n "$WEBHOOK_URL" ] && [ "$WEBHOOK_URL" != "None" ]; then
+            echo "- **Webhook URL:** \`${WEBHOOK_URL}\`" >> $GITHUB_STEP_SUMMARY
+          fi
 
           DASHBOARD_URL=$(aws cloudformation describe-stacks \
             --stack-name mergewatch \
             --query 'Stacks[0].Outputs[?OutputKey==`DashboardUrl`].OutputValue' \
-            --output text 2>/dev/null || echo "")
+            --output text 2>/dev/null) || true
           if [ -n "$DASHBOARD_URL" ] && [ "$DASHBOARD_URL" != "None" ]; then
             echo "- **Dashboard URL:** \`${DASHBOARD_URL}\`" >> $GITHUB_STEP_SUMMARY
           fi
