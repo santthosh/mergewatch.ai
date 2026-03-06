@@ -52,7 +52,7 @@ Parameters:
   # via the modelId field in the mergewatch-installations table.
   DefaultBedrockModelId:
     Type: String
-    Default: anthropic.claude-sonnet-4-20250514-v1:0
+    Default: us.anthropic.claude-sonnet-4-20250514-v1:0
     Description: Default Amazon Bedrock model ID for PR reviews
 
 # =============================================================================

@@ -39,7 +39,7 @@ const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 const INSTALLATIONS_TABLE = process.env.INSTALLATIONS_TABLE ?? 'mergewatch-installations';
 const REVIEWS_TABLE = process.env.REVIEWS_TABLE ?? 'mergewatch-reviews';
-const DEFAULT_BEDROCK_MODEL_ID = process.env.DEFAULT_BEDROCK_MODEL_ID ?? 'anthropic.claude-sonnet-4-20250514-v1:0';
+const DEFAULT_BEDROCK_MODEL_ID = process.env.DEFAULT_BEDROCK_MODEL_ID ?? 'us.anthropic.claude-sonnet-4-20250514-v1:0';
 
 // -- DynamoDB helpers --------------------------------------------------------
 

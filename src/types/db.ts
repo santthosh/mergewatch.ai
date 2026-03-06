@@ -121,7 +121,7 @@ export interface InstallationItem {
    * Use this to assign different models to different repos — for example,
    * a larger model for critical repos or a smaller model for high-volume repos.
    *
-   * Example: "anthropic.claude-sonnet-4-20250514-v1:0"
+   * Example: "us.anthropic.claude-sonnet-4-20250514-v1:0"
    */
   modelId?: string;
 }
