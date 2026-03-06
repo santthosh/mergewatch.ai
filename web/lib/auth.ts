@@ -12,11 +12,13 @@ export const authOptions: NextAuthOptions = {
     GitHubProvider({
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-      // GitHub App OAuth — must pass empty scope to prevent NextAuth
-      // from adding default scopes (read:user user:email), which would
-      // cause GitHub to issue a regular OAuth token instead of a
-      // GitHub App user-to-server token.
-      authorization: { params: { scope: "" } },
+      // GitHub App OAuth — the scope parameter must be omitted entirely.
+      // If scope is present (even empty), GitHub issues a regular OAuth
+      // token (gho_) instead of a GitHub App user-to-server token (ghu_).
+      authorization: {
+        url: "https://github.com/login/oauth/authorize",
+        params: {},
+      },
     }),
   ],
 
