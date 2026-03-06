@@ -5,10 +5,11 @@ import RepoCard from "./RepoCard";
 import ReviewTable, { type Review } from "./ReviewTable";
 import ConnectRepo from "./ConnectRepo";
 import RepoPicker, { type AvailableRepo } from "./RepoPicker";
-import SignOutButton from "./SignOutButton";
+import Header from "./Header";
 
 interface DashboardContentProps {
   userName: string;
+  userImage?: string | null;
   repos: { repoFullName: string; installedAt: string; reviewCount: number }[];
   reviews: Review[];
 }
@@ -19,6 +20,7 @@ interface DashboardContentProps {
  */
 export default function DashboardContent({
   userName,
+  userImage,
   repos: initialRepos,
   reviews,
 }: DashboardContentProps) {
@@ -82,15 +84,13 @@ export default function DashboardContent({
   const monitoredNames = new Set(repos.map((r) => r.repoFullName));
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      {/* Header */}
+    <div>
+      <Header userName={userName} userImage={userImage} />
+
+      <div className="mx-auto max-w-5xl px-6 py-10">
+      {/* Actions */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="mt-1 text-sm text-primer-muted">
-            Welcome back, {userName}
-          </p>
-        </div>
+        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
         <div className="flex gap-2">
           <button
             onClick={openManage}
@@ -117,7 +117,6 @@ export default function DashboardContent({
             Manage Repositories
           </button>
           <ConnectRepo />
-          <SignOutButton />
         </div>
       </div>
 
@@ -162,6 +161,7 @@ export default function DashboardContent({
         <h2 className="mb-4 text-lg font-semibold">Recent Reviews</h2>
         <ReviewTable reviews={reviews} />
       </section>
+      </div>
     </div>
   );
 }

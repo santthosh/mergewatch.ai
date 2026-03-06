@@ -3,11 +3,10 @@ import { getServerSession } from "next-auth";
 import { ScanCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { authOptions } from "@/lib/auth";
 import { ddb } from "@/lib/dynamo";
-import ReviewTable, { type Review } from "@/components/ReviewTable";
-import ConnectRepo from "@/components/ConnectRepo";
+import { type Review } from "@/components/ReviewTable";
 import Onboarding from "@/components/Onboarding";
 import DashboardContent from "@/components/DashboardContent";
-import SignOutButton from "@/components/SignOutButton";
+import Header from "@/components/Header";
 
 /**
  * Dashboard page — shown after the user signs in.
@@ -52,17 +51,15 @@ export default async function DashboardPage() {
   // ── No monitored repos → show onboarding ─────────────────────────────
   if (monitoredRepos.length === 0) {
     return (
-      <div className="mx-auto max-w-5xl px-6 py-10">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-            <p className="mt-1 text-sm text-primer-muted">
-              Welcome, {session.user?.name ?? session.user?.email ?? ""}
-            </p>
-          </div>
-          <SignOutButton />
+      <div>
+        <Header
+          userName={session.user?.name ?? session.user?.email ?? ""}
+          userImage={session.user?.image}
+        />
+        <div className="mx-auto max-w-5xl px-6 py-10">
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <Onboarding />
         </div>
-        <Onboarding />
       </div>
     );
   }
@@ -119,6 +116,7 @@ export default async function DashboardPage() {
   return (
     <DashboardContent
       userName={session.user?.name ?? session.user?.email ?? ""}
+      userImage={session.user?.image}
       repos={repos}
       reviews={reviews}
     />
