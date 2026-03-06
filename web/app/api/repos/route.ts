@@ -59,11 +59,18 @@ export async function GET(req: NextRequest) {
 
     const data = await installationsRes.json();
     const installations = data.installations ?? [];
+    console.log("[/api/repos] installations:", JSON.stringify(installations.map((i: any) => ({
+      id: i.id,
+      account: i.account?.login,
+      type: i.account?.type,
+      repoSelection: i.repository_selection,
+    }))));
 
     const allRepos: RepoResult[] = [];
     let totalCount = 0;
 
     for (const installation of installations) {
+      console.log(`[/api/repos] fetching repos for installation ${installation.id} (${installation.account?.login})`);
       let nextUrl: string | null =
         `https://api.github.com/user/installations/${installation.id}/repositories?per_page=100`;
 
@@ -79,6 +86,7 @@ export async function GET(req: NextRequest) {
         if (!res.ok) break;
 
         const page = await res.json();
+        console.log(`[/api/repos] installation ${installation.id}: page returned ${(page.repositories ?? []).length} repos, total_count=${page.total_count}`);
         totalCount = page.total_count ?? totalCount;
 
         for (const repo of page.repositories ?? []) {

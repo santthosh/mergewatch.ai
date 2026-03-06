@@ -252,8 +252,25 @@ export default function RepoPicker({
         )}
       </div>
 
+      {/* Missing repos hint */}
+      <p className="mt-3 text-xs text-primer-muted">
+        Don&apos;t see a repository?{" "}
+        <a
+          href={
+            process.env.NEXT_PUBLIC_GITHUB_APP_URL ??
+            "https://github.com/apps/mergewatch-ai/installations/new"
+          }
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primer-blue hover:underline"
+        >
+          Install the GitHub App
+        </a>{" "}
+        on that organization.
+      </p>
+
       {/* Actions */}
-      <div className="mt-4 flex items-center justify-between">
+      <div className="mt-3 flex items-center justify-between">
         <span className="text-sm text-primer-muted">
           {selectedCount} repo{selectedCount !== 1 ? "s" : ""} selected
         </span>

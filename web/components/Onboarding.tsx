@@ -103,8 +103,8 @@ export default function Onboarding() {
         <div className="text-center">
           <h2 className="text-2xl font-bold">Let&apos;s get started</h2>
           <p className="mt-3 text-sm text-primer-muted">
-            First, install the MergeWatch GitHub App so we can access your
-            repositories and review pull requests.
+            Install the MergeWatch GitHub App on your personal account and
+            any organizations whose repositories you want to monitor.
           </p>
           <a
             href={appUrl}
