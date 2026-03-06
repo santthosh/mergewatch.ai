@@ -7,7 +7,6 @@ import {
   GitPullRequest,
   GitBranch,
   Settings,
-  User,
   type LucideIcon,
 } from "lucide-react";
 
@@ -22,33 +21,7 @@ const navItems: NavEntry[] = [
   { type: "section", label: "CONFIGURE" },
   { type: "item", label: "Repositories", href: "/dashboard/repositories", icon: GitBranch },
   { type: "item", label: "Settings", href: "/dashboard/settings", icon: Settings },
-  { type: "section", label: "ACCOUNT" },
-  { type: "item", label: "Profile", href: "/dashboard/profile", icon: User },
 ];
-
-function LogoMark() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 400 400" fill="none">
-      <line
-        x1="155" y1="112" x2="155" y2="288"
-        stroke="#00ff88" strokeWidth="22" strokeLinecap="round"
-      />
-      <path
-        d="M 245 288 C 245 230, 245 195, 205 168 C 185 155, 165 142, 155 112"
-        fill="none" stroke="#00ff88" strokeWidth="22"
-        strokeLinecap="round" strokeLinejoin="round"
-      />
-      <path
-        d="M 178 136 L 158 114 L 182 110"
-        fill="none" stroke="#00ff88" strokeWidth="22"
-        strokeLinecap="round" strokeLinejoin="round"
-      />
-      <circle cx="155" cy="112" r="30" fill="#00ff88" />
-      <circle cx="155" cy="288" r="22" fill="#00ff88" opacity="0.8" />
-      <circle cx="245" cy="288" r="22" fill="#00ff88" opacity="0.8" />
-    </svg>
-  );
-}
 
 interface SidenavProps {
   orgName?: string;
@@ -88,18 +61,19 @@ export default function Sidenav({ orgName, mobileOpen, onMobileClose }: SidenavP
         ].join(" ")}
       >
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-[#1e1e1e] px-2 py-5 lg:px-4 justify-center lg:justify-start">
-          <LogoMark />
-          <div className="hidden lg:block">
-            <div className="text-sm font-semibold leading-tight text-white">MergeWatch</div>
-            <div className="text-xs leading-tight text-[#444]">{orgName ?? "GitHub"}</div>
-          </div>
-          {/* Show text in mobile drawer too */}
+        <div className="flex items-center border-b border-[#1e1e1e] px-4 py-[18px] justify-center lg:justify-start">
+          <Link href="/dashboard" className="hidden lg:block text-lg font-bold tracking-tight">
+            MergeWatch<span className="text-primer-green">.ai</span>
+          </Link>
+          {/* Tablet: abbreviated mark */}
+          <Link href="/dashboard" className="hidden md:block lg:hidden text-lg font-bold tracking-tight text-primer-green">
+            M
+          </Link>
+          {/* Mobile drawer: full wordmark */}
           {mobileOpen && (
-            <div className="block lg:hidden">
-              <div className="text-sm font-semibold leading-tight text-white">MergeWatch</div>
-              <div className="text-xs leading-tight text-[#444]">{orgName ?? "GitHub"}</div>
-            </div>
+            <Link href="/dashboard" className="block md:hidden text-lg font-bold tracking-tight" onClick={onMobileClose}>
+              MergeWatch<span className="text-primer-green">.ai</span>
+            </Link>
           )}
         </div>
 

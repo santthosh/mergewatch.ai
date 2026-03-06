@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { Menu } from "lucide-react";
+import { Menu, User } from "lucide-react";
 
 interface HeaderProps {
   userName: string;
@@ -39,8 +40,8 @@ export default function Header({ userName, userImage, onMenuToggle }: HeaderProp
     .toUpperCase();
 
   return (
-    <header className="sticky top-0 z-20 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur">
-      <div className="flex items-center justify-between px-6 py-3">
+    <header className="sticky top-0 z-20 border-b border-[#1e1e1e] bg-[#0f0f0f]">
+      <div className="flex items-center justify-between px-6 py-[18px]">
         {/* Hamburger — mobile only */}
         {onMenuToggle && (
           <button
@@ -85,10 +86,17 @@ export default function Header({ userName, userImage, onMenuToggle }: HeaderProp
 
           {open && (
             <div className="absolute right-0 mt-2 w-56 rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-2xl">
-              <div className="border-b border-zinc-700 px-4 py-3">
-                <p className="text-sm font-medium text-white">{userName}</p>
-                <p className="text-xs text-primer-muted">GitHub</p>
-              </div>
+              <Link
+                href="/dashboard/profile"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-3 border-b border-zinc-700 px-4 py-3 transition hover:bg-zinc-800"
+              >
+                <User size={14} className="text-primer-muted" />
+                <div>
+                  <p className="text-sm font-medium text-white">{userName}</p>
+                  <p className="text-xs text-primer-muted">GitHub</p>
+                </div>
+              </Link>
               <button
                 onClick={() => signOut({ callbackUrl: "/" })}
                 className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-primer-muted transition hover:bg-zinc-800 hover:text-red-400"
