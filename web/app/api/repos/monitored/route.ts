@@ -61,8 +61,18 @@ export async function PUT(req: NextRequest) {
   }
 
   const githubUserId = getUserId(session);
-  if (!githubUserId || !TABLE) {
-    return NextResponse.json({ error: "Not configured" }, { status: 500 });
+  console.log("[/api/repos/monitored] PUT githubUserId:", githubUserId, "TABLE:", TABLE);
+  if (!githubUserId) {
+    return NextResponse.json(
+      { error: "Missing githubUserId — please sign out and sign back in" },
+      { status: 500 },
+    );
+  }
+  if (!TABLE) {
+    return NextResponse.json(
+      { error: "DYNAMODB_TABLE_MONITORED_REPOS not configured" },
+      { status: 500 },
+    );
   }
 
   const body = await req.json();

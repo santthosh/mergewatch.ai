@@ -101,6 +101,7 @@ export default function Onboarding() {
   }
 
   async function handleSave(selected: AvailableRepo[]) {
+    setError("");
     const res = await fetch("/api/repos/monitored", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -110,6 +111,9 @@ export default function Onboarding() {
     if (res.ok) {
       setStep(3);
       setTimeout(() => router.push("/dashboard"), 1500);
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Failed to save. Please try again.");
     }
   }
 
@@ -239,6 +243,9 @@ export default function Onboarding() {
             onSave={handleSave}
             saveLabel="Enable MergeWatch"
           />
+          {error && (
+            <p className="mt-4 text-center text-sm text-red-400">{error}</p>
+          )}
         </div>
       )}
 
