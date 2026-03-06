@@ -1,16 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import RepoPicker, { type AvailableRepo } from "./RepoPicker";
 
 /**
- * Onboarding — a three-step guided flow shown when the user has no monitored repos.
+ * Onboarding — a friendly guided flow for new users.
  *
  * Step 1: Install the GitHub App, then click "Continue"
  * Step 2: Select which repos to monitor
- * Step 3: Done — refresh to show normal dashboard
+ * Step 3: Done — redirect to dashboard
  */
 export default function Onboarding() {
+  const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [availableRepos, setAvailableRepos] = useState<AvailableRepo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,7 +63,7 @@ export default function Onboarding() {
 
     if (res.ok) {
       setStep(3);
-      setTimeout(() => window.location.reload(), 1500);
+      setTimeout(() => router.push("/dashboard"), 1500);
     }
   }
 
@@ -81,10 +83,10 @@ export default function Onboarding() {
 
       {step === 1 && (
         <div className="text-center">
-          <h2 className="text-xl font-bold">Install the MergeWatch GitHub App</h2>
+          <h2 className="text-2xl font-bold">Let&apos;s get started</h2>
           <p className="mt-3 text-sm text-primer-muted">
-            MergeWatch needs access to your repositories to review pull requests.
-            Install the GitHub App, then come back and click Continue.
+            First, install the MergeWatch GitHub App so we can access your
+            repositories and review pull requests.
           </p>
           <a
             href={appUrl}
@@ -124,11 +126,12 @@ export default function Onboarding() {
 
       {step === 2 && (
         <div>
-          <h2 className="mb-2 text-xl font-bold text-center">
-            Select repositories to monitor
+          <h2 className="mb-2 text-2xl font-bold text-center">
+            Pick your repositories
           </h2>
           <p className="mb-6 text-center text-sm text-primer-muted">
-            Choose which repositories MergeWatch should review PRs for.
+            Select which repositories MergeWatch should review pull requests for.
+            You can change this anytime from the dashboard.
           </p>
           <RepoPicker
             availableRepos={availableRepos}
@@ -156,10 +159,10 @@ export default function Onboarding() {
               />
             </svg>
           </div>
-          <h2 className="text-xl font-bold">You&apos;re all set!</h2>
+          <h2 className="text-2xl font-bold">You&apos;re all set!</h2>
           <p className="mt-2 text-sm text-primer-muted">
             MergeWatch is now monitoring your selected repositories.
-            Loading your dashboard...
+            Taking you to your dashboard...
           </p>
         </div>
       )}

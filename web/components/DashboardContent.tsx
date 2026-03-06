@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import RepoCard from "./RepoCard";
 import ReviewTable, { type Review } from "./ReviewTable";
 import ConnectRepo from "./ConnectRepo";
@@ -24,6 +25,7 @@ export default function DashboardContent({
   repos: initialRepos,
   reviews,
 }: DashboardContentProps) {
+  const router = useRouter();
   const [repos, setRepos] = useState(initialRepos);
   const [showManage, setShowManage] = useState(false);
   const [availableRepos, setAvailableRepos] = useState<AvailableRepo[]>([]);
@@ -61,9 +63,9 @@ export default function DashboardContent({
 
     if (res.ok) {
       setRepos((prev) => prev.filter((r) => r.repoFullName !== repoFullName));
-      // If no repos left, reload to trigger onboarding
+      // If no repos left, go to onboarding
       if (repos.length <= 1) {
-        window.location.reload();
+        router.push("/onboarding");
       }
     }
   }

@@ -4,24 +4,19 @@ import { ScanCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { authOptions } from "@/lib/auth";
 import { ddb } from "@/lib/dynamo";
 import { type Review } from "@/components/ReviewTable";
-import Onboarding from "@/components/Onboarding";
 import DashboardContent from "@/components/DashboardContent";
-import Header from "@/components/Header";
 
 /**
- * Dashboard page — shown after the user signs in.
+ * Dashboard page — shows monitored repos and recent reviews.
  *
- * If the user has no monitored repos, shows the Onboarding flow.
- * Otherwise, renders the normal dashboard filtered to monitored repos.
+ * Redirects to /onboarding if the user has no monitored repos.
  */
 export default async function DashboardPage() {
-  // ── Auth gate ──────────────────────────────────────────────────────────
   const session = await getServerSession(authOptions);
   if (!session) {
     redirect("/");
   }
 
-  const accessToken = (session as any).accessToken as string | undefined;
   const githubUserId = (session as any).githubUserId as string | undefined;
 
   // ── Fetch monitored repos from DynamoDB ──────────────────────────────
@@ -44,24 +39,13 @@ export default async function DashboardPage() {
         installationId: item.installationId as string,
       }));
     } catch {
-      // DynamoDB error — show onboarding
+      // DynamoDB error — redirect to onboarding
     }
   }
 
-  // ── No monitored repos → show onboarding ─────────────────────────────
+  // No monitored repos → onboarding
   if (monitoredRepos.length === 0) {
-    return (
-      <div>
-        <Header
-          userName={session.user?.name ?? session.user?.email ?? ""}
-          userImage={session.user?.image}
-        />
-        <div className="mx-auto max-w-5xl px-6 py-10">
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <Onboarding />
-        </div>
-      </div>
-    );
+    redirect("/onboarding");
   }
 
   // ── Fetch recent reviews from DynamoDB for monitored repos ────────────
@@ -112,7 +96,6 @@ export default async function DashboardPage() {
     reviewCount: reviewCountMap.get(mr.repoFullName) ?? 0,
   }));
 
-  // ── Render ─────────────────────────────────────────────────────────────
   return (
     <DashboardContent
       userName={session.user?.name ?? session.user?.email ?? ""}
