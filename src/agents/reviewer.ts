@@ -73,10 +73,15 @@ function safeParseJson<T>(raw: string, fallback: T): T {
   if (cleaned.startsWith('```')) {
     cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
   }
+  // Try to extract JSON object from mixed prose+JSON responses
+  if (!cleaned.startsWith('{') && !cleaned.startsWith('[')) {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) cleaned = match[0];
+  }
   try {
     return JSON.parse(cleaned) as T;
   } catch {
-    console.error('Failed to parse agent JSON response:', cleaned.slice(0, 200));
+    console.warn('Could not parse agent JSON response, using fallback:', cleaned.slice(0, 200));
     return fallback;
   }
 }
