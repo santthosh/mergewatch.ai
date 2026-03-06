@@ -8,6 +8,10 @@ import GitHubProvider from "next-auth/providers/github";
  * route handler and any server-side helpers that need the session.
  */
 export const authOptions: NextAuthOptions = {
+  pages: {
+    signIn: "/signin",
+  },
+
   providers: [
     GitHubProvider({
       clientId: process.env.GITHUB_CLIENT_ID!,

@@ -18,7 +18,7 @@ export default function LandingPage() {
           MergeWatch<span className="text-primer-green">.ai</span>
         </span>
         <Link
-          href="/api/auth/signin?callbackUrl=/dashboard"
+          href="/signin"
           className="text-sm text-primer-muted transition hover:text-white"
         >
           Sign in
@@ -41,7 +41,7 @@ export default function LandingPage() {
         </p>
 
         <Link
-          href="/api/auth/signin?callbackUrl=/dashboard"
+          href="/signin"
           className="mt-10 inline-flex items-center rounded-lg bg-primer-green px-6 py-3 text-sm font-semibold text-black transition hover:brightness-110"
         >
           Get Started
