@@ -4,11 +4,43 @@ import { authOptions } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+/** Fetch all pages from a paginated GitHub API endpoint. */
+async function fetchAllPages(url: string, accessToken: string): Promise<any[]> {
+  const items: any[] = [];
+  let nextUrl: string | null = url;
+
+  while (nextUrl) {
+    const res: Response = await fetch(nextUrl, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/vnd.github+json",
+      },
+      cache: "no-store",
+    });
+
+    if (!res.ok) break;
+
+    const data = await res.json();
+    // The repos endpoint nests under "repositories", installations under "installations"
+    const list = data.repositories ?? data.installations ?? data;
+    if (Array.isArray(list)) {
+      items.push(...list);
+    }
+
+    // Parse Link header for next page
+    const link: string = res.headers.get("link") ?? "";
+    const match: RegExpMatchArray | null = link.match(/<([^>]+)>;\s*rel="next"/);
+    nextUrl = match ? match[1] : null;
+  }
+
+  return items;
+}
+
 /**
  * GET /api/repos
  *
- * Returns the list of repositories the authenticated user has connected
- * via the MergeWatch GitHub App, fetched from the GitHub API.
+ * Returns all repositories the authenticated user has connected
+ * via the MergeWatch GitHub App. Handles pagination automatically.
  */
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -21,23 +53,9 @@ export async function GET() {
     return NextResponse.json({ error: "No access token" }, { status: 401 });
   }
 
-  // Debug: identify token type (ghu_ = GitHub App, gho_ = OAuth App)
-  console.log("[/api/repos] token prefix:", accessToken.substring(0, 4), "length:", accessToken.length);
-
-  // Verify token works at all by calling /user
-  const userRes = await fetch("https://api.github.com/user", {
-    headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/vnd.github+json" },
-    cache: "no-store",
-  });
-  console.log("[/api/repos] /user status:", userRes.status);
-  if (userRes.ok) {
-    const userData = await userRes.json();
-    console.log("[/api/repos] /user login:", userData.login);
-  }
-
   try {
     const installationsRes = await fetch(
-      "https://api.github.com/user/installations",
+      "https://api.github.com/user/installations?per_page=100",
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -54,39 +72,28 @@ export async function GET() {
     }
 
     const data = await installationsRes.json();
-    console.log("[/api/repos] installations count:", data.installations?.length ?? 0);
+    const installations = data.installations ?? [];
 
     const repos: { repoFullName: string; installedAt: string; installationId: string }[] = [];
 
-    for (const installation of data.installations ?? []) {
-      const reposRes = await fetch(
-        `https://api.github.com/user/installations/${installation.id}/repositories`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: "application/vnd.github+json",
-          },
-          cache: "no-store",
-        },
+    for (const installation of installations) {
+      const allRepos = await fetchAllPages(
+        `https://api.github.com/user/installations/${installation.id}/repositories?per_page=100`,
+        accessToken,
       );
 
-      if (reposRes.ok) {
-        const reposData = await reposRes.json();
-        console.log(`[/api/repos] installation ${installation.id}: ${reposData.total_count ?? 0} repos`);
-        for (const repo of reposData.repositories ?? []) {
-          repos.push({
-            repoFullName: repo.full_name,
-            installedAt: installation.created_at ?? "",
-            installationId: String(installation.id),
-          });
-        }
-      } else {
-        const body = await reposRes.text();
-        console.error(`[/api/repos] repos fetch failed for installation ${installation.id}:`, reposRes.status, body);
+      for (const repo of allRepos) {
+        repos.push({
+          repoFullName: repo.full_name,
+          installedAt: installation.created_at ?? "",
+          installationId: String(installation.id),
+        });
       }
     }
 
-    console.log("[/api/repos] total repos found:", repos.length);
+    // Sort alphabetically for consistent ordering
+    repos.sort((a, b) => a.repoFullName.localeCompare(b.repoFullName));
+
     return NextResponse.json({ repos });
   } catch (err) {
     console.error("[/api/repos] unexpected error:", err);

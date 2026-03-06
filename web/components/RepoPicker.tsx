@@ -81,7 +81,7 @@ export default function RepoPicker({
       />
 
       {/* Repo list */}
-      <div className="max-h-80 overflow-y-auto rounded-lg border border-zinc-800">
+      <div className="max-h-96 overflow-y-auto rounded-lg border border-zinc-800">
         {filtered.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-primer-muted">
             No repositories found.
