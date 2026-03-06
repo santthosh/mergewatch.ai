@@ -73,7 +73,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       );
 
       monitoredNames = new Set(
-        (result.Items ?? []).map((item) => item.repoFullName as string),
+        (result.Items ?? [])
+          .filter((item) => item.monitored === true)
+          .map((item) => item.repoFullName as string),
       );
     } catch {
       // DynamoDB error — show empty state

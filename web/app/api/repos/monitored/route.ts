@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import {
   QueryCommand,
-  PutCommand,
-  DeleteCommand,
+  UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { authOptions } from "@/lib/auth";
 import { ddb } from "@/lib/dynamo";
@@ -19,7 +18,7 @@ const TABLE = process.env.DYNAMODB_TABLE_INSTALLATIONS;
  *
  * Admin-only: set the monitored repos for a given installation.
  * Accepts { installationId, repos: { repoFullName }[] }.
- * Adds new repos and removes repos no longer in the list.
+ * Sets monitored=true on selected repos, monitored=false on the rest.
  */
 export async function PUT(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -69,7 +68,7 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  // Fetch existing monitored repos from DynamoDB
+  // Fetch all existing repos for this installation
   const existing = await ddb.send(
     new QueryCommand({
       TableName: TABLE,
@@ -78,42 +77,19 @@ export async function PUT(req: NextRequest) {
     }),
   );
 
-  const existingNames = new Set(
-    (existing.Items ?? []).map((i) => i.repoFullName as string),
-  );
   const incomingNames = new Set(incoming.map((r) => r.repoFullName));
 
-  // Repos to add (in incoming but not existing)
-  const toAdd = incoming.filter((r) => !existingNames.has(r.repoFullName));
+  // Update each existing repo: monitored=true if selected, monitored=false otherwise
+  for (const item of existing.Items ?? []) {
+    const repoFullName = item.repoFullName as string;
+    const shouldMonitor = incomingNames.has(repoFullName);
 
-  // Repos to remove (in existing but not incoming)
-  const toRemove = Array.from(existingNames).filter(
-    (n) => !incomingNames.has(n),
-  );
-
-  const now = new Date().toISOString();
-
-  // Add new repos
-  for (const repo of toAdd) {
     await ddb.send(
-      new PutCommand({
-        TableName: TABLE,
-        Item: {
-          installationId,
-          repoFullName: repo.repoFullName,
-          installedAt: now,
-          config: {},
-        },
-      }),
-    );
-  }
-
-  // Remove deselected repos
-  for (const repoFullName of toRemove) {
-    await ddb.send(
-      new DeleteCommand({
+      new UpdateCommand({
         TableName: TABLE,
         Key: { installationId, repoFullName },
+        UpdateExpression: "SET monitored = :m",
+        ExpressionAttributeValues: { ":m": shouldMonitor },
       }),
     );
   }
