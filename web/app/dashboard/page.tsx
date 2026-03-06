@@ -80,7 +80,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     }
   }
 
-  // Filter to only monitored repos
+  // Filter to only monitored repos — show nothing until admin selects repos
   const monitoredRepos = allInstallationRepos.filter((r) =>
     monitoredNames.has(r.repoFullName),
   );
