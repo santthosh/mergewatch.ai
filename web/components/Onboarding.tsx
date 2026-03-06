@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import RepoPicker, { type AvailableRepo } from "./RepoPicker";
 
 /**
  * Onboarding — a friendly guided flow for new users.
  *
- * Step 1: Install the GitHub App, then click "Continue"
+ * Step 1: Install the GitHub App — polls in background, manual "Continue" as fallback
  * Step 2: Search and select repos to monitor
  * Step 3: Done — redirect to dashboard
  */
@@ -16,34 +16,60 @@ export default function Onboarding() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const pollingRef = useRef(true);
 
   const appUrl =
     process.env.NEXT_PUBLIC_GITHUB_APP_URL ??
     "https://github.com/apps/mergewatch-ai/installations/new";
 
-  async function handleContinue() {
-    setLoading(true);
-    setError("");
+  /** Check if repos are available — returns true if found. */
+  const checkForRepos = useCallback(async (showErrors: boolean): Promise<boolean> => {
     try {
       const res = await fetch("/api/repos");
       const data = await res.json();
       if (!res.ok) {
-        setError(`Failed to fetch repositories: ${data.error ?? res.status}. Please try again.`);
-        return;
+        if (showErrors) {
+          setError(`Failed to fetch repositories: ${data.error ?? res.status}. Please try again.`);
+        }
+        return false;
       }
       if ((data.repos ?? []).length > 0) {
+        pollingRef.current = false;
         setStep(2);
-      } else {
+        return true;
+      }
+      if (showErrors) {
         const debugInfo = data.debug ? ` (${JSON.stringify(data.debug)})` : "";
         setError(
           `No repositories found${debugInfo}. Please install the GitHub App first, then try again.`,
         );
       }
+      return false;
     } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
+      if (showErrors) setError("Something went wrong. Please try again.");
+      return false;
     }
+  }, []);
+
+  // Background polling — auto-advances when repos are detected
+  useEffect(() => {
+    if (step !== 1) return;
+
+    // Check immediately
+    checkForRepos(false);
+
+    const interval = setInterval(() => {
+      if (pollingRef.current) checkForRepos(false);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [step, checkForRepos]);
+
+  async function handleContinue() {
+    setLoading(true);
+    setError("");
+    await checkForRepos(true);
+    setLoading(false);
   }
 
   async function handleSave(selected: AvailableRepo[]) {
