@@ -50,6 +50,9 @@ export default function RepoPicker({
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
+  // Track whether we've done the initial seed of monitored repos
+  const seededRef = useRef(false);
+
   // Fetch repos (with optional search query)
   const fetchRepos = useCallback(async (q: string = "") => {
     setLoading(true);
@@ -58,13 +61,28 @@ export default function RepoPicker({
       const res = await fetch(`/api/repos${params}`);
       if (res.ok) {
         const data = await res.json();
-        setAllRepos(data.repos ?? []);
+        const repos: AvailableRepo[] = data.repos ?? [];
+        setAllRepos(repos);
         setTotalCount(data.totalCount ?? 0);
+
+        // On first load, pre-select repos that are already monitored
+        if (!seededRef.current && monitoredNames.size > 0) {
+          seededRef.current = true;
+          setSelected((prev) => {
+            const next = new Map(prev);
+            for (const r of repos) {
+              if (monitoredNames.has(r.repoFullName)) {
+                next.set(r.repoFullName, r);
+              }
+            }
+            return next;
+          });
+        }
       }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [monitoredNames]);
 
   // Fetch initial repos if none provided
   useEffect(() => {

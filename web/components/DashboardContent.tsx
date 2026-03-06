@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import RepoCard from "./RepoCard";
 import ReviewTable, { type Review } from "./ReviewTable";
-import ConnectRepo from "./ConnectRepo";
 import RepoPicker, { type AvailableRepo } from "./RepoPicker";
 import Header from "./Header";
 
@@ -92,7 +91,6 @@ export default function DashboardContent({
             </svg>
             Manage Repositories
           </button>
-          <ConnectRepo />
         </div>
       </div>
 
