@@ -105,7 +105,7 @@ export default function Onboarding() {
                 d="M12 4v16m8-8H4"
               />
             </svg>
-            Add Repositories
+            Install GitHub App
           </a>
           <p className="mt-6 text-xs text-primer-muted">
             Waiting for installation...

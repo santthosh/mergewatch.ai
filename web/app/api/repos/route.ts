@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/repos
  *
@@ -27,6 +29,7 @@ export async function GET() {
           Authorization: `Bearer ${accessToken}`,
           Accept: "application/vnd.github+json",
         },
+        cache: "no-store",
       },
     );
 
@@ -45,6 +48,7 @@ export async function GET() {
             Authorization: `Bearer ${accessToken}`,
             Accept: "application/vnd.github+json",
           },
+          cache: "no-store",
         },
       );
 
