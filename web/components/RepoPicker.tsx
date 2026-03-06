@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
 export interface AvailableRepo {
   repoFullName: string;
@@ -8,7 +8,8 @@ export interface AvailableRepo {
 }
 
 interface RepoPickerProps {
-  availableRepos: AvailableRepo[];
+  /** Pre-loaded repos to show initially (optional — will fetch if empty) */
+  initialRepos?: AvailableRepo[];
   monitoredNames: Set<string>;
   onSave: (selected: AvailableRepo[]) => Promise<void>;
   onCancel?: () => void;
@@ -16,98 +17,236 @@ interface RepoPickerProps {
 }
 
 /**
- * RepoPicker — a searchable checklist of repos, grouped by owner.
- * Used by both the Onboarding flow and the "Manage Repositories" panel.
+ * RepoPicker — search-first repo selector.
+ *
+ * Fetches repos from /api/repos with optional search query.
+ * Selected repos appear as chips at the top for easy review.
  */
 export default function RepoPicker({
-  availableRepos,
+  initialRepos,
   monitoredNames,
   onSave,
   onCancel,
   saveLabel = "Save",
 }: RepoPickerProps) {
-  const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(monitoredNames),
+  const [allRepos, setAllRepos] = useState<AvailableRepo[]>(initialRepos ?? []);
+  const [selected, setSelected] = useState<Map<string, AvailableRepo>>(
+    () => {
+      const map = new Map<string, AvailableRepo>();
+      if (initialRepos) {
+        for (const r of initialRepos) {
+          if (monitoredNames.has(r.repoFullName)) {
+            map.set(r.repoFullName, r);
+          }
+        }
+      }
+      return map;
+    },
   );
-  const [filter, setFilter] = useState("");
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const filtered = useMemo(() => {
-    const q = filter.toLowerCase();
-    return availableRepos.filter((r) =>
-      r.repoFullName.toLowerCase().includes(q),
-    );
-  }, [availableRepos, filter]);
+  // Fetch repos (with optional search query)
+  const fetchRepos = useCallback(async (q: string = "") => {
+    setLoading(true);
+    try {
+      const params = q ? `?q=${encodeURIComponent(q)}` : "";
+      const res = await fetch(`/api/repos${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAllRepos(data.repos ?? []);
+        setTotalCount(data.totalCount ?? 0);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch initial repos if none provided
+  useEffect(() => {
+    if (!initialRepos || initialRepos.length === 0) {
+      fetchRepos();
+    }
+  }, [initialRepos, fetchRepos]);
+
+  // Auto-focus search input
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  // Debounced search
+  function handleSearch(value: string) {
+    setQuery(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchRepos(value);
+    }, 300);
+  }
+
+  // Filter results client-side for instant feedback while debounce fires
+  const displayed = useMemo(() => {
+    if (!query) return allRepos;
+    const q = query.toLowerCase();
+    return allRepos.filter((r) => r.repoFullName.toLowerCase().includes(q));
+  }, [allRepos, query]);
 
   // Group by owner
   const grouped = useMemo(() => {
     const map = new Map<string, AvailableRepo[]>();
-    for (const repo of filtered) {
+    for (const repo of displayed) {
       const owner = repo.repoFullName.split("/")[0];
       if (!map.has(owner)) map.set(owner, []);
       map.get(owner)!.push(repo);
     }
     return map;
-  }, [filtered]);
+  }, [displayed]);
 
-  function toggle(name: string) {
+  function toggle(repo: AvailableRepo) {
     setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
+      const next = new Map(prev);
+      if (next.has(repo.repoFullName)) {
+        next.delete(repo.repoFullName);
+      } else {
+        next.set(repo.repoFullName, repo);
+      }
       return next;
     });
+  }
+
+  function selectAll() {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      for (const repo of displayed) {
+        next.set(repo.repoFullName, repo);
+      }
+      return next;
+    });
+  }
+
+  function deselectAll() {
+    setSelected(new Map());
   }
 
   async function handleSave() {
     setSaving(true);
     try {
-      const repos = availableRepos.filter((r) => selected.has(r.repoFullName));
-      await onSave(repos);
+      await onSave(Array.from(selected.values()));
     } finally {
       setSaving(false);
     }
   }
 
+  const selectedCount = selected.size;
+  const allDisplayedSelected = displayed.length > 0 &&
+    displayed.every((r) => selected.has(r.repoFullName));
+
   return (
     <div className="w-full">
-      {/* Search */}
-      <input
-        type="text"
-        placeholder="Filter repositories..."
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        className="mb-4 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-white placeholder-zinc-500 focus:border-primer-green focus:outline-none"
-      />
+      {/* Selected repos chips */}
+      {selectedCount > 0 && (
+        <div className="mb-4">
+          <div className="flex flex-wrap gap-2">
+            {Array.from(selected.values()).map((repo) => (
+              <span
+                key={repo.repoFullName}
+                className="inline-flex items-center gap-1 rounded-full bg-primer-green/15 px-3 py-1 text-xs font-medium text-primer-green"
+              >
+                {repo.repoFullName}
+                <button
+                  onClick={() => toggle(repo)}
+                  className="ml-0.5 rounded-full p-0.5 hover:bg-primer-green/20"
+                >
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Search input */}
+      <div className="relative mb-3">
+        <svg
+          className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder="Search repositories..."
+          value={query}
+          onChange={(e) => handleSearch(e.target.value)}
+          className="w-full rounded-lg border border-zinc-700 bg-zinc-900 py-2.5 pl-10 pr-4 text-sm text-white placeholder-zinc-500 focus:border-primer-green focus:outline-none"
+        />
+        {loading && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-primer-green" />
+          </div>
+        )}
+      </div>
+
+      {/* Select all / deselect controls */}
+      <div className="mb-2 flex items-center justify-between px-1">
+        <span className="text-xs text-primer-muted">
+          {displayed.length} repo{displayed.length !== 1 ? "s" : ""}
+          {totalCount > displayed.length && ` of ${totalCount}`}
+        </span>
+        <button
+          onClick={allDisplayedSelected ? deselectAll : selectAll}
+          className="text-xs text-primer-blue hover:underline"
+        >
+          {allDisplayedSelected ? "Deselect all" : "Select all"}
+        </button>
+      </div>
 
       {/* Repo list */}
-      <div className="max-h-96 overflow-y-auto rounded-lg border border-zinc-800">
-        {filtered.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-primer-muted">
-            No repositories found.
+      <div className="max-h-72 overflow-y-auto rounded-lg border border-zinc-800">
+        {displayed.length === 0 && !loading ? (
+          <p className="px-4 py-8 text-center text-sm text-primer-muted">
+            {query
+              ? "No repositories match your search."
+              : "No repositories found."}
           </p>
         ) : (
           Array.from(grouped.entries()).map(([owner, repos]) => (
             <div key={owner}>
-              <div className="sticky top-0 bg-zinc-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-primer-muted">
+              <div className="sticky top-0 border-b border-zinc-800/50 bg-zinc-900 px-4 py-1.5 text-xs font-semibold text-primer-muted">
                 {owner}
               </div>
-              {repos.map((repo: AvailableRepo) => (
-                <label
-                  key={repo.repoFullName}
-                  className="flex cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-zinc-800/50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.has(repo.repoFullName)}
-                    onChange={() => toggle(repo.repoFullName)}
-                    className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 text-primer-green focus:ring-primer-green"
-                  />
-                  <span className="text-sm text-white">
-                    {repo.repoFullName.split("/")[1]}
-                  </span>
-                </label>
-              ))}
+              {repos.map((repo: AvailableRepo) => {
+                const isSelected = selected.has(repo.repoFullName);
+                return (
+                  <label
+                    key={repo.repoFullName}
+                    className={`flex cursor-pointer items-center gap-3 px-4 py-2 transition ${
+                      isSelected
+                        ? "bg-primer-green/5"
+                        : "hover:bg-zinc-800/50"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggle(repo)}
+                      className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 text-primer-green focus:ring-primer-green"
+                    />
+                    <span className="text-sm text-white">
+                      {repo.repoFullName.split("/")[1]}
+                    </span>
+                  </label>
+                );
+              })}
             </div>
           ))
         )}
@@ -115,8 +254,8 @@ export default function RepoPicker({
 
       {/* Actions */}
       <div className="mt-4 flex items-center justify-between">
-        <span className="text-xs text-primer-muted">
-          {selected.size} repo{selected.size !== 1 ? "s" : ""} selected
+        <span className="text-sm text-primer-muted">
+          {selectedCount} repo{selectedCount !== 1 ? "s" : ""} selected
         </span>
         <div className="flex gap-2">
           {onCancel && (
@@ -129,7 +268,7 @@ export default function RepoPicker({
           )}
           <button
             onClick={handleSave}
-            disabled={saving || selected.size === 0}
+            disabled={saving || selectedCount === 0}
             className="rounded-lg bg-primer-green px-4 py-2 text-sm font-medium text-black transition hover:bg-primer-green/90 disabled:opacity-50"
           >
             {saving ? "Saving..." : saveLabel}

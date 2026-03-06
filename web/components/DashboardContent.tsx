@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import RepoCard from "./RepoCard";
 import ReviewTable, { type Review } from "./ReviewTable";
@@ -28,31 +28,6 @@ export default function DashboardContent({
   const router = useRouter();
   const [repos, setRepos] = useState(initialRepos);
   const [showManage, setShowManage] = useState(false);
-  const [availableRepos, setAvailableRepos] = useState<AvailableRepo[]>([]);
-  const [loadingRepos, setLoadingRepos] = useState(false);
-
-  const fetchAvailableRepos = useCallback(async () => {
-    setLoadingRepos(true);
-    try {
-      const res = await fetch("/api/repos");
-      if (res.ok) {
-        const data = await res.json();
-        setAvailableRepos(
-          (data.repos ?? []).map((r: any) => ({
-            repoFullName: r.repoFullName,
-            installationId: r.installationId,
-          })),
-        );
-      }
-    } finally {
-      setLoadingRepos(false);
-    }
-  }, []);
-
-  function openManage() {
-    setShowManage(true);
-    fetchAvailableRepos();
-  }
 
   async function handleRemove(repoFullName: string) {
     const res = await fetch("/api/repos/monitored", {
@@ -63,7 +38,6 @@ export default function DashboardContent({
 
     if (res.ok) {
       setRepos((prev) => prev.filter((r) => r.repoFullName !== repoFullName));
-      // If no repos left, go to onboarding
       if (repos.length <= 1) {
         router.push("/onboarding");
       }
@@ -95,7 +69,7 @@ export default function DashboardContent({
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
         <div className="flex gap-2">
           <button
-            onClick={openManage}
+            onClick={() => setShowManage(true)}
             className="inline-flex items-center rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-white transition hover:border-primer-blue hover:text-primer-blue"
           >
             <svg
@@ -125,21 +99,14 @@ export default function DashboardContent({
       {/* Manage Repos Modal */}
       {showManage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-lg rounded-xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl">
+          <div className="w-full max-w-xl rounded-xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl">
             <h2 className="mb-4 text-lg font-semibold">Manage Repositories</h2>
-            {loadingRepos ? (
-              <p className="py-8 text-center text-sm text-primer-muted">
-                Loading repositories...
-              </p>
-            ) : (
-              <RepoPicker
-                availableRepos={availableRepos}
-                monitoredNames={monitoredNames}
-                onSave={handleSave}
-                onCancel={() => setShowManage(false)}
-                saveLabel="Save Changes"
-              />
-            )}
+            <RepoPicker
+              monitoredNames={monitoredNames}
+              onSave={handleSave}
+              onCancel={() => setShowManage(false)}
+              saveLabel="Save Changes"
+            />
           </div>
         </div>
       )}

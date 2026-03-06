@@ -8,13 +8,12 @@ import RepoPicker, { type AvailableRepo } from "./RepoPicker";
  * Onboarding — a friendly guided flow for new users.
  *
  * Step 1: Install the GitHub App, then click "Continue"
- * Step 2: Select which repos to monitor
+ * Step 2: Search and select repos to monitor
  * Step 3: Done — redirect to dashboard
  */
 export default function Onboarding() {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [availableRepos, setAvailableRepos] = useState<AvailableRepo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -32,14 +31,7 @@ export default function Onboarding() {
         setError(`Failed to fetch repositories: ${data.error ?? res.status}. Please try again.`);
         return;
       }
-      const repos: AvailableRepo[] = (data.repos ?? []).map(
-        (r: { repoFullName: string; installationId: string }) => ({
-          repoFullName: r.repoFullName,
-          installationId: r.installationId,
-        }),
-      );
-      if (repos.length > 0) {
-        setAvailableRepos(repos);
+      if ((data.repos ?? []).length > 0) {
         setStep(2);
       } else {
         const debugInfo = data.debug ? ` (${JSON.stringify(data.debug)})` : "";
@@ -68,7 +60,7 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="mx-auto max-w-lg px-6 py-16">
+    <div className="mx-auto max-w-xl px-6 py-16">
       {/* Step indicators */}
       <div className="mb-10 flex items-center justify-center gap-2">
         {[1, 2, 3].map((s) => (
@@ -130,11 +122,10 @@ export default function Onboarding() {
             Pick your repositories
           </h2>
           <p className="mb-6 text-center text-sm text-primer-muted">
-            Select which repositories MergeWatch should review pull requests for.
-            You can change this anytime from the dashboard.
+            Search and select the repositories you want MergeWatch to review.
+            You can always change this later from your dashboard.
           </p>
           <RepoPicker
-            availableRepos={availableRepos}
             monitoredNames={new Set()}
             onSave={handleSave}
             saveLabel="Enable MergeWatch"
