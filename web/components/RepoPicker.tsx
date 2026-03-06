@@ -14,6 +14,8 @@ interface RepoPickerProps {
   onSave: (selected: AvailableRepo[]) => Promise<void>;
   onCancel?: () => void;
   saveLabel?: string;
+  /** Filter repos to a specific installation */
+  installationId?: string;
 }
 
 /**
@@ -28,6 +30,7 @@ export default function RepoPicker({
   onSave,
   onCancel,
   saveLabel = "Save",
+  installationId,
 }: RepoPickerProps) {
   const [allRepos, setAllRepos] = useState<AvailableRepo[]>(initialRepos ?? []);
   const [selected, setSelected] = useState<Map<string, AvailableRepo>>(
@@ -57,8 +60,11 @@ export default function RepoPicker({
   const fetchRepos = useCallback(async (q: string = "") => {
     setLoading(true);
     try {
-      const params = q ? `?q=${encodeURIComponent(q)}` : "";
-      const res = await fetch(`/api/repos${params}`);
+      const searchParams = new URLSearchParams();
+      if (q) searchParams.set("q", q);
+      if (installationId) searchParams.set("installation_id", installationId);
+      const qs = searchParams.toString();
+      const res = await fetch(`/api/repos${qs ? `?${qs}` : ""}`);
       if (res.ok) {
         const data = await res.json();
         const repos: AvailableRepo[] = data.repos ?? [];
@@ -82,7 +88,7 @@ export default function RepoPicker({
     } finally {
       setLoading(false);
     }
-  }, [monitoredNames]);
+  }, [monitoredNames, installationId]);
 
   // Fetch initial repos if none provided
   useEffect(() => {

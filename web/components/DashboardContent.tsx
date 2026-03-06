@@ -9,21 +9,38 @@ interface DashboardContentProps {
   repos: { repoFullName: string; installedAt: string; reviewCount: number }[];
   reviews: Review[];
   isAdmin?: boolean;
+  installationId?: string;
+  monitoredNames?: string[];
 }
 
 export default function DashboardContent({
   repos,
   reviews,
   isAdmin = false,
+  installationId,
+  monitoredNames: monitoredNamesArray,
 }: DashboardContentProps) {
   const [showManage, setShowManage] = useState(false);
 
-  async function handleSave(selected: AvailableRepo[]) {
-    setShowManage(false);
-    window.location.reload();
-  }
+  const monitoredSet = new Set(monitoredNamesArray ?? repos.map((r) => r.repoFullName));
 
-  const monitoredNames = new Set(repos.map((r) => r.repoFullName));
+  async function handleSave(selected: AvailableRepo[]) {
+    if (!installationId) return;
+
+    const res = await fetch("/api/repos/monitored", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        installationId,
+        repos: selected.map((r) => ({ repoFullName: r.repoFullName })),
+      }),
+    });
+
+    if (res.ok) {
+      setShowManage(false);
+      window.location.reload();
+    }
+  }
 
   return (
     <div className="px-4 py-6 sm:px-6 sm:py-10">
@@ -64,10 +81,11 @@ export default function DashboardContent({
           <div className="max-h-[90vh] w-full overflow-y-auto rounded-t-xl border border-zinc-700 bg-zinc-900 p-4 shadow-2xl sm:max-w-xl sm:rounded-xl sm:p-6">
             <h2 className="mb-4 text-lg font-semibold">Manage Repositories</h2>
             <RepoPicker
-              monitoredNames={monitoredNames}
+              monitoredNames={monitoredSet}
               onSave={handleSave}
               onCancel={() => setShowManage(false)}
               saveLabel="Save Changes"
+              installationId={installationId}
             />
           </div>
         </div>
@@ -79,7 +97,9 @@ export default function DashboardContent({
         {repos.length === 0 ? (
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-6 py-10 text-center">
             <p className="text-sm text-primer-muted">
-              No repositories found for this organization.
+              {isAdmin
+                ? "No repositories are being monitored. Click \"Manage Repositories\" to select repos."
+                : "No repositories are being monitored for this organization."}
             </p>
           </div>
         ) : (

@@ -16,7 +16,10 @@ interface DashboardPageProps {
 }
 
 /**
- * Dashboard page — shows repos from the selected installation and recent reviews.
+ * Dashboard page — shows monitored repos from the selected installation and recent reviews.
+ *
+ * "Monitored" means the repo has a record in the mergewatch-installations DynamoDB table.
+ * Admins can manage which repos are monitored via the RepoPicker.
  */
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const session = await getServerSession(authOptions);
@@ -44,22 +47,51 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     ? installations.find((i) => String(i.id) === orgParam) ?? installations[0]
     : installations[0];
 
-  // Fetch repos for the active installation
-  const { repos: installationRepos } = await fetchInstallationRepos(
-    accessToken,
-    activeInstallation.id,
-  );
+  const installationId = String(activeInstallation.id);
 
   // Check admin status
   const isAdmin = await checkInstallationAdmin(accessToken, activeInstallation);
 
-  // Fetch recent reviews from DynamoDB for these repos
+  // Fetch all repos available in this installation (from GitHub API)
+  const { repos: allInstallationRepos } = await fetchInstallationRepos(
+    accessToken,
+    activeInstallation.id,
+  );
+
+  // Fetch monitored repos from mergewatch-installations DynamoDB table
+  const installationsTable = process.env.DYNAMODB_TABLE_INSTALLATIONS;
+  let monitoredNames = new Set<string>();
+
+  if (installationsTable) {
+    try {
+      const result = await ddb.send(
+        new QueryCommand({
+          TableName: installationsTable,
+          KeyConditionExpression: "installationId = :iid",
+          ExpressionAttributeValues: { ":iid": installationId },
+        }),
+      );
+
+      monitoredNames = new Set(
+        (result.Items ?? []).map((item) => item.repoFullName as string),
+      );
+    } catch {
+      // DynamoDB error — show empty state
+    }
+  }
+
+  // Filter to only monitored repos
+  const monitoredRepos = allInstallationRepos.filter((r) =>
+    monitoredNames.has(r.repoFullName),
+  );
+
+  // Fetch recent reviews from DynamoDB for monitored repos
   let reviews: Review[] = [];
   const reviewsTable = process.env.DYNAMODB_TABLE_REVIEWS;
 
-  if (reviewsTable && installationRepos.length > 0) {
+  if (reviewsTable && monitoredRepos.length > 0) {
     try {
-      for (const repo of installationRepos.slice(0, 10)) {
+      for (const repo of monitoredRepos.slice(0, 10)) {
         const result = await ddb.send(
           new QueryCommand({
             TableName: reviewsTable,
@@ -96,7 +128,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     reviewCountMap.set(r.repoFullName, (reviewCountMap.get(r.repoFullName) ?? 0) + 1);
   }
 
-  const repos = installationRepos.map((ir) => ({
+  const repos = monitoredRepos.map((ir) => ({
     repoFullName: ir.repoFullName,
     installedAt: ir.installedAt,
     reviewCount: reviewCountMap.get(ir.repoFullName) ?? 0,
@@ -107,6 +139,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       repos={repos}
       reviews={reviews}
       isAdmin={isAdmin}
+      installationId={installationId}
+      monitoredNames={Array.from(monitoredNames)}
     />
   );
 }
