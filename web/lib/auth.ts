@@ -27,15 +27,17 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, account }) {
       if (account) {
         token.accessToken = account.access_token;
+        token.githubUserId = account.providerAccountId;
       }
       return token;
     },
 
     /**
-     * Expose the access token on the client-side session object.
+     * Expose the access token and GitHub user ID on the session object.
      */
     async session({ session, token }) {
       (session as any).accessToken = token.accessToken;
+      (session as any).githubUserId = token.githubUserId;
       return session;
     },
   },

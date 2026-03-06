@@ -250,3 +250,33 @@ export type UpdateReviewInput = ReviewKey & {
   commentId?: number;
   completedAt?: string;
 };
+
+// =============================================================================
+// mergewatch-monitored-repos Table
+// =============================================================================
+
+/**
+ * DynamoDB item for the `mergewatch-monitored-repos` table.
+ *
+ * Stores user-level repo selections for the dashboard. This is separate from
+ * the installations table — the review pipeline runs on any repo where the
+ * GitHub App is installed, while this table controls what the user sees in
+ * the dashboard UI.
+ *
+ * Table key schema:
+ *   PK (Partition Key): githubUserId
+ *   SK (Sort Key):      repoFullName
+ */
+export interface MonitoredRepoItem {
+  /** GitHub numeric user ID (partition key) */
+  githubUserId: string;
+
+  /** Full repository name in "owner/repo" format (sort key) */
+  repoFullName: string;
+
+  /** ISO 8601 timestamp of when monitoring was enabled */
+  enabledAt: string;
+
+  /** GitHub App installation ID for this repo */
+  installationId: string;
+}

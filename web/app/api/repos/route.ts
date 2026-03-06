@@ -35,7 +35,7 @@ export async function GET() {
     }
 
     const data = await installationsRes.json();
-    const repos: { repoFullName: string; installedAt: string }[] = [];
+    const repos: { repoFullName: string; installedAt: string; installationId: string }[] = [];
 
     for (const installation of data.installations ?? []) {
       const reposRes = await fetch(
@@ -54,6 +54,7 @@ export async function GET() {
           repos.push({
             repoFullName: repo.full_name,
             installedAt: installation.created_at ?? "",
+            installationId: String(installation.id),
           });
         }
       }
