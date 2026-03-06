@@ -9,12 +9,13 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.721.0",
+    "@aws-sdk/lib-dynamodb": "^3.721.0",
+    "lucide-react": "^0.577.0",
     "next": "14.2.21",
     "next-auth": "^4.24.11",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "@aws-sdk/client-dynamodb": "^3.721.0",
-    "@aws-sdk/lib-dynamodb": "^3.721.0"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/node": "^20.17.12",

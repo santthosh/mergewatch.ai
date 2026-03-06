@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import Link from "next/link";
 import { signOut } from "next-auth/react";
+import { Menu } from "lucide-react";
 
 interface HeaderProps {
   userName: string;
   userImage?: string | null;
+  onMenuToggle?: () => void;
 }
 
-export default function Header({ userName, userImage }: HeaderProps) {
+export default function Header({ userName, userImage, onMenuToggle }: HeaderProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -38,12 +39,20 @@ export default function Header({ userName, userImage }: HeaderProps) {
     .toUpperCase();
 
   return (
-    <header className="sticky top-0 z-40 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
-        {/* Logo */}
-        <Link href="/dashboard" className="text-lg font-bold tracking-tight">
-          MergeWatch<span className="text-primer-green">.ai</span>
-        </Link>
+    <header className="sticky top-0 z-20 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur">
+      <div className="flex items-center justify-between px-6 py-3">
+        {/* Hamburger — mobile only */}
+        {onMenuToggle && (
+          <button
+            onClick={onMenuToggle}
+            className="p-2 text-[#555] transition-colors hover:text-white md:hidden"
+            aria-label="Open menu"
+          >
+            <Menu size={20} />
+          </button>
+        )}
+
+        <div className="flex-1" />
 
         {/* User menu */}
         <div className="relative" ref={menuRef}>

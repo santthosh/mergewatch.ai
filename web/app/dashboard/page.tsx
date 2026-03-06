@@ -99,8 +99,6 @@ export default async function DashboardPage() {
 
   return (
     <DashboardContent
-      userName={session.user?.name ?? session.user?.email ?? ""}
-      userImage={session.user?.image}
       repos={repos}
       reviews={reviews}
     />

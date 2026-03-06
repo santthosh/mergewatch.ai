@@ -5,11 +5,7 @@ import { useRouter } from "next/navigation";
 import RepoCard from "./RepoCard";
 import ReviewTable, { type Review } from "./ReviewTable";
 import RepoPicker, { type AvailableRepo } from "./RepoPicker";
-import Header from "./Header";
-
 interface DashboardContentProps {
-  userName: string;
-  userImage?: string | null;
   repos: { repoFullName: string; installedAt: string; reviewCount: number }[];
   reviews: Review[];
 }
@@ -19,8 +15,6 @@ interface DashboardContentProps {
  * with a "Manage Repositories" panel for adding/removing monitored repos.
  */
 export default function DashboardContent({
-  userName,
-  userImage,
   repos: initialRepos,
   reviews,
 }: DashboardContentProps) {
@@ -59,10 +53,7 @@ export default function DashboardContent({
   const monitoredNames = new Set(repos.map((r) => r.repoFullName));
 
   return (
-    <div>
-      <Header userName={userName} userImage={userImage} />
-
-      <div className="mx-auto max-w-5xl px-6 py-10">
+    <div className="mx-auto max-w-5xl px-6 py-10">
       {/* Actions */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
@@ -128,7 +119,6 @@ export default function DashboardContent({
         <h2 className="mb-4 text-lg font-semibold">Recent Reviews</h2>
         <ReviewTable reviews={reviews} />
       </section>
-      </div>
     </div>
   );
 }
