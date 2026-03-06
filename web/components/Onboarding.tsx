@@ -178,9 +178,7 @@ export default function Onboarding() {
                     </span>
                   ) : (
                     <a
-                      href={account.type === "Organization"
-                        ? `https://github.com/organizations/${account.login}/settings/installations`
-                        : appUrl}
+                      href={appUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-white transition hover:border-primer-green hover:text-primer-green"
