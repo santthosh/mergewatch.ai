@@ -5,15 +5,12 @@ import { useRouter } from "next/navigation";
 import RepoCard from "./RepoCard";
 import ReviewTable, { type Review } from "./ReviewTable";
 import RepoPicker, { type AvailableRepo } from "./RepoPicker";
+
 interface DashboardContentProps {
   repos: { repoFullName: string; installedAt: string; reviewCount: number }[];
   reviews: Review[];
 }
 
-/**
- * DashboardContent — client component that renders the normal dashboard
- * with a "Manage Repositories" panel for adding/removing monitored repos.
- */
 export default function DashboardContent({
   repos: initialRepos,
   reviews,
@@ -53,42 +50,40 @@ export default function DashboardContent({
   const monitoredNames = new Set(repos.map((r) => r.repoFullName));
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
+    <div className="px-4 py-6 sm:px-6 sm:py-10">
       {/* Actions */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowManage(true)}
-            className="inline-flex items-center rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-white transition hover:border-primer-blue hover:text-primer-blue"
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Dashboard</h1>
+        <button
+          onClick={() => setShowManage(true)}
+          className="inline-flex items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-white transition hover:border-primer-blue hover:text-primer-blue"
+        >
+          <svg
+            className="mr-2 h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            viewBox="0 0 24 24"
           >
-            <svg
-              className="mr-2 h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-            Manage Repositories
-          </button>
-        </div>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+          Manage Repositories
+        </button>
       </div>
 
       {/* Manage Repos Modal */}
       {showManage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-xl rounded-xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center">
+          <div className="max-h-[90vh] w-full overflow-y-auto rounded-t-xl border border-zinc-700 bg-zinc-900 p-4 shadow-2xl sm:max-w-xl sm:rounded-xl sm:p-6">
             <h2 className="mb-4 text-lg font-semibold">Manage Repositories</h2>
             <RepoPicker
               monitoredNames={monitoredNames}
@@ -101,9 +96,9 @@ export default function DashboardContent({
       )}
 
       {/* Connected repos */}
-      <section className="mt-10">
+      <section className="mt-8 sm:mt-10">
         <h2 className="mb-4 text-lg font-semibold">Monitored Repositories</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
           {repos.map((repo) => (
             <RepoCard
               key={repo.repoFullName}
@@ -115,7 +110,7 @@ export default function DashboardContent({
       </section>
 
       {/* Recent reviews */}
-      <section className="mt-12">
+      <section className="mt-8 sm:mt-12">
         <h2 className="mb-4 text-lg font-semibold">Recent Reviews</h2>
         <ReviewTable reviews={reviews} />
       </section>
