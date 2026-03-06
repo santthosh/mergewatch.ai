@@ -12,10 +12,9 @@ export const authOptions: NextAuthOptions = {
     GitHubProvider({
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-      // Request the scopes MergeWatch needs:
-      //   read:user — basic profile info
-      //   repo     — read access to repos for review orchestration
-      authorization: { params: { scope: "read:user repo" } },
+      // GitHub App OAuth — permissions are defined on the App itself,
+      // not via OAuth scopes. No custom scope needed.
+
     }),
   ],
 
