@@ -50,6 +50,7 @@ export async function GET() {
       cache: "no-store",
     });
     const orgs = orgsRes.ok ? await orgsRes.json() : [];
+    console.log("[/api/installations] orgs status:", orgsRes.status, "count:", orgs.length, "logins:", orgs.map?.((o: any) => o.login));
 
     // Fetch current installations
     const installationsRes = await fetch(
