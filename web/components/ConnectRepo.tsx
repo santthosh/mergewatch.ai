@@ -33,7 +33,7 @@ export default function ConnectRepo() {
           d="M12 4v16m8-8H4"
         />
       </svg>
-      Connect Repo
+      Add Repositories
     </a>
   );
 }

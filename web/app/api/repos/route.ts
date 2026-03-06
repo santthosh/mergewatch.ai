@@ -1,48 +1,66 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { authOptions } from "@/lib/auth";
-import { ddb } from "@/lib/dynamo";
 
 /**
  * GET /api/repos
  *
  * Returns the list of repositories the authenticated user has connected
- * via the MergeWatch GitHub App. Records are stored in DynamoDB, keyed
- * by the user's GitHub login.
- *
- * Response shape:
- *   { repos: Array<{ repoFullName: string; installedAt: string; reviewCount: number }> }
+ * via the MergeWatch GitHub App, fetched from the GitHub API.
  */
 export async function GET() {
-  // Require an authenticated session
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const tableName = process.env.DYNAMODB_TABLE_INSTALLATIONS;
-  if (!tableName) {
-    return NextResponse.json(
-      { error: "Server misconfigured: missing DYNAMODB_TABLE_INSTALLATIONS" },
-      { status: 500 },
-    );
+  const accessToken = (session as any).accessToken as string | undefined;
+  if (!accessToken) {
+    return NextResponse.json({ error: "No access token" }, { status: 401 });
   }
 
-  // Query installations partitioned by the user's email
-  const result = await ddb.send(
-    new QueryCommand({
-      TableName: tableName,
-      KeyConditionExpression: "userId = :uid",
-      ExpressionAttributeValues: { ":uid": session.user.email },
-    }),
-  );
+  try {
+    const installationsRes = await fetch(
+      "https://api.github.com/user/installations",
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/vnd.github+json",
+        },
+      },
+    );
 
-  const repos = (result.Items ?? []).map((item) => ({
-    repoFullName: item.repoFullName as string,
-    installedAt: item.installedAt as string,
-    reviewCount: (item.reviewCount as number) ?? 0,
-  }));
+    if (!installationsRes.ok) {
+      return NextResponse.json({ repos: [] });
+    }
 
-  return NextResponse.json({ repos });
+    const data = await installationsRes.json();
+    const repos: { repoFullName: string; installedAt: string }[] = [];
+
+    for (const installation of data.installations ?? []) {
+      const reposRes = await fetch(
+        `https://api.github.com/user/installations/${installation.id}/repositories`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: "application/vnd.github+json",
+          },
+        },
+      );
+
+      if (reposRes.ok) {
+        const reposData = await reposRes.json();
+        for (const repo of reposData.repositories ?? []) {
+          repos.push({
+            repoFullName: repo.full_name,
+            installedAt: installation.created_at ?? "",
+          });
+        }
+      }
+    }
+
+    return NextResponse.json({ repos });
+  } catch {
+    return NextResponse.json({ repos: [] });
+  }
 }
