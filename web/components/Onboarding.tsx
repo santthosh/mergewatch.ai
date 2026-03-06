@@ -1,28 +1,34 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import RepoPicker, { type AvailableRepo } from "./RepoPicker";
 
 /**
  * Onboarding — a three-step guided flow shown when the user has no monitored repos.
  *
- * Step 1: Install the GitHub App (polls /api/repos until repos are found)
+ * Step 1: Install the GitHub App, then click "Continue"
  * Step 2: Select which repos to monitor
  * Step 3: Done — refresh to show normal dashboard
  */
 export default function Onboarding() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [availableRepos, setAvailableRepos] = useState<AvailableRepo[]>([]);
-  const [polling, setPolling] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const appUrl =
     process.env.NEXT_PUBLIC_GITHUB_APP_URL ??
     "https://github.com/apps/mergewatch-ai/installations/new";
 
-  const fetchRepos = useCallback(async () => {
+  async function handleContinue() {
+    setLoading(true);
+    setError("");
     try {
       const res = await fetch("/api/repos");
-      if (!res.ok) return;
+      if (!res.ok) {
+        setError("Failed to fetch repositories. Please try again.");
+        return;
+      }
       const data = await res.json();
       const repos: AvailableRepo[] = (data.repos ?? []).map(
         (r: { repoFullName: string; installationId: string }) => ({
@@ -32,24 +38,18 @@ export default function Onboarding() {
       );
       if (repos.length > 0) {
         setAvailableRepos(repos);
-        setPolling(false);
         setStep(2);
+      } else {
+        setError(
+          "No repositories found. Please install the GitHub App first, then try again.",
+        );
       }
     } catch {
-      // ignore — will retry on next poll
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
-  }, []);
-
-  // Poll for repos in step 1
-  useEffect(() => {
-    if (!polling) return;
-
-    // Check immediately
-    fetchRepos();
-
-    const interval = setInterval(fetchRepos, 5000);
-    return () => clearInterval(interval);
-  }, [polling, fetchRepos]);
+  }
 
   async function handleSave(selected: AvailableRepo[]) {
     const res = await fetch("/api/repos/monitored", {
@@ -60,7 +60,6 @@ export default function Onboarding() {
 
     if (res.ok) {
       setStep(3);
-      // Refresh after a short delay to show the normal dashboard
       setTimeout(() => window.location.reload(), 1500);
     }
   }
@@ -84,7 +83,7 @@ export default function Onboarding() {
           <h2 className="text-xl font-bold">Install the MergeWatch GitHub App</h2>
           <p className="mt-3 text-sm text-primer-muted">
             MergeWatch needs access to your repositories to review pull requests.
-            Click the button below to install the GitHub App.
+            Install the GitHub App, then come back and click Continue.
           </p>
           <a
             href={appUrl}
@@ -107,9 +106,18 @@ export default function Onboarding() {
             </svg>
             Install GitHub App
           </a>
-          <p className="mt-6 text-xs text-primer-muted">
-            Waiting for installation...
-          </p>
+          <div className="mt-6">
+            <button
+              onClick={handleContinue}
+              disabled={loading}
+              className="inline-flex items-center rounded-lg border border-zinc-700 bg-zinc-800 px-5 py-2.5 text-sm font-medium text-white transition hover:border-primer-green hover:text-primer-green disabled:opacity-50"
+            >
+              {loading ? "Checking..." : "I've installed the app — Continue"}
+            </button>
+          </div>
+          {error && (
+            <p className="mt-4 text-sm text-red-400">{error}</p>
+          )}
         </div>
       )}
 
