@@ -5,6 +5,7 @@ import RepoCard from "./RepoCard";
 import ReviewTable, { type Review } from "./ReviewTable";
 import ConnectRepo from "./ConnectRepo";
 import RepoPicker, { type AvailableRepo } from "./RepoPicker";
+import SignOutButton from "./SignOutButton";
 
 interface DashboardContentProps {
   userName: string;
@@ -116,6 +117,7 @@ export default function DashboardContent({
             Manage Repositories
           </button>
           <ConnectRepo />
+          <SignOutButton />
         </div>
       </div>
 

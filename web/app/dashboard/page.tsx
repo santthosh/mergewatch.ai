@@ -7,6 +7,7 @@ import ReviewTable, { type Review } from "@/components/ReviewTable";
 import ConnectRepo from "@/components/ConnectRepo";
 import Onboarding from "@/components/Onboarding";
 import DashboardContent from "@/components/DashboardContent";
+import SignOutButton from "@/components/SignOutButton";
 
 /**
  * Dashboard page — shown after the user signs in.
@@ -59,6 +60,7 @@ export default async function DashboardPage() {
               Welcome, {session.user?.name ?? session.user?.email ?? ""}
             </p>
           </div>
+          <SignOutButton />
         </div>
         <Onboarding />
       </div>
