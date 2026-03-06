@@ -21,6 +21,20 @@ export async function GET() {
     return NextResponse.json({ error: "No access token" }, { status: 401 });
   }
 
+  // Debug: identify token type (ghu_ = GitHub App, gho_ = OAuth App)
+  console.log("[/api/repos] token prefix:", accessToken.substring(0, 4), "length:", accessToken.length);
+
+  // Verify token works at all by calling /user
+  const userRes = await fetch("https://api.github.com/user", {
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/vnd.github+json" },
+    cache: "no-store",
+  });
+  console.log("[/api/repos] /user status:", userRes.status);
+  if (userRes.ok) {
+    const userData = await userRes.json();
+    console.log("[/api/repos] /user login:", userData.login);
+  }
+
   try {
     const installationsRes = await fetch(
       "https://api.github.com/user/installations",
