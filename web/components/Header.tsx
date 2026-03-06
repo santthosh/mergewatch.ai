@@ -41,7 +41,7 @@ export default function Header({ userName, userImage, onMenuToggle }: HeaderProp
 
   return (
     <header className="sticky top-0 z-20 border-b border-[#1e1e1e] bg-[#0f0f0f]">
-      <div className="flex items-center justify-between px-6 py-[18px]">
+      <div className="flex h-14 items-center justify-between px-6">
         {/* Hamburger — mobile only */}
         {onMenuToggle && (
           <button

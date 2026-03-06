@@ -61,7 +61,7 @@ export default function Sidenav({ orgName, mobileOpen, onMobileClose }: SidenavP
         ].join(" ")}
       >
         {/* Header */}
-        <div className="flex items-center border-b border-[#1e1e1e] px-4 py-[18px] justify-center lg:justify-start">
+        <div className="flex h-14 items-center border-b border-[#1e1e1e] px-4 justify-center lg:justify-start">
           <Link href="/dashboard" className="hidden lg:block text-lg font-bold tracking-tight">
             MergeWatch<span className="text-primer-green">.ai</span>
           </Link>
