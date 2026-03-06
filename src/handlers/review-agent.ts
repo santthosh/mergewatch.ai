@@ -92,7 +92,7 @@ async function updateReviewStatus(
   repoFullName: string,
   prNumberCommitSha: string,
   status: ReviewStatus,
-  extra: { commentId?: number; completedAt?: string } = {},
+  extra: { commentId?: number; completedAt?: string; model?: string } = {},
 ): Promise<void> {
   const updateParts: string[] = ['#s = :status'];
   const names: Record<string, string> = { '#s': 'status' };
@@ -105,6 +105,11 @@ async function updateReviewStatus(
   if (extra.completedAt !== undefined) {
     updateParts.push('completedAt = :cat');
     values[':cat'] = extra.completedAt;
+  }
+  if (extra.model !== undefined) {
+    updateParts.push('#m = :model');
+    names['#m'] = 'model';
+    values[':model'] = extra.model;
   }
 
   await dynamodb.send(
@@ -147,12 +152,13 @@ export async function handler(
   const shortSha = headSha.slice(0, 7);
   const prNumberCommitSha = `${prNumber}#${shortSha}`;
 
-  // Create the initial review record in DynamoDB with status "pending".
+  // Create the initial review record in DynamoDB with status "in_progress".
   const reviewRecord: ReviewItem = {
     repoFullName,
     prNumberCommitSha,
     status: 'in_progress',
     createdAt: new Date().toISOString(),
+    prTitle: prContext.title,
   };
   await upsertReviewRecord(reviewRecord);
 
@@ -227,6 +233,7 @@ export async function handler(
     await updateReviewStatus(repoFullName, prNumberCommitSha, 'complete', {
       commentId,
       completedAt: new Date().toISOString(),
+      model: modelName,
     });
 
     console.log(

@@ -218,6 +218,12 @@ export interface ReviewItem {
    * Example: "2025-01-15T10:31:45.000Z"
    */
   completedAt?: string;
+
+  /** PR title from GitHub, stored for display in the dashboard. */
+  prTitle?: string;
+
+  /** Bedrock model ID used for the review. */
+  model?: string;
 }
 
 // =============================================================================

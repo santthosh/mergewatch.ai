@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { ScanCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { authOptions } from "@/lib/auth";
 import { ddb } from "@/lib/dynamo";
 import { type Review } from "@/components/ReviewTable";
@@ -56,10 +56,11 @@ export default async function DashboardPage() {
     try {
       for (const repo of monitoredRepos.slice(0, 10)) {
         const result = await ddb.send(
-          new ScanCommand({
+          new QueryCommand({
             TableName: reviewsTable,
-            FilterExpression: "repoFullName = :repo",
+            KeyConditionExpression: "repoFullName = :repo",
             ExpressionAttributeValues: { ":repo": repo.repoFullName },
+            ScanIndexForward: false,
             Limit: 10,
           }),
         );
@@ -70,7 +71,7 @@ export default async function DashboardPage() {
             repoFullName: item.repoFullName as string,
             prNumber: Number(String(item.prNumberCommitSha).split("#")[0]),
             prTitle: (item.prTitle as string) ?? "",
-            status: (item.status as Review["status"]) ?? "pending",
+            status: (item.status === "complete" ? "completed" : item.status as Review["status"]) ?? "pending",
             model: (item.model as string) ?? "",
             createdAt: (item.createdAt as string) ?? "",
           });
