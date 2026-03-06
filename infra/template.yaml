@@ -78,7 +78,6 @@ Globals:
         # DynamoDB table names — injected so Lambda code doesn't hardcode them
         INSTALLATIONS_TABLE: !Ref InstallationsTable
         REVIEWS_TABLE: !Ref ReviewsTable
-        MONITORED_REPOS_TABLE: !Ref MonitoredReposTable
 
         # SSM parameter paths for GitHub App credentials.
         # The Lambda functions read these at runtime via the AWS SDK.
@@ -348,55 +347,6 @@ Resources:
     UpdateReplacePolicy: Retain
 
   # ===========================================================================
-  # DynamoDB Table: Monitored Repos
-  # ===========================================================================
-  # Stores user-level repo selections for the dashboard UI.
-  # Separate from the installations table — the review pipeline runs on any
-  # repo where the GitHub App is installed, while this table controls what
-  # the user sees/manages in the dashboard.
-  #
-  # Schema:
-  #   PK: githubUserId (String)  — GitHub numeric user ID
-  #   SK: repoFullName (String)  — e.g., "octocat/Hello-World"
-  #
-  # Additional attributes:
-  #   - enabledAt (String)       — ISO 8601 timestamp
-  #   - installationId (String)  — GitHub App installation ID
-
-  MonitoredReposTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub 'mergewatch-monitored-repos-${Stage}'
-      BillingMode: PAY_PER_REQUEST
-
-      KeySchema:
-        - AttributeName: githubUserId
-          KeyType: HASH
-        - AttributeName: repoFullName
-          KeyType: RANGE
-
-      AttributeDefinitions:
-        - AttributeName: githubUserId
-          AttributeType: S
-        - AttributeName: repoFullName
-          AttributeType: S
-
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: true
-
-      SSESpecification:
-        SSEEnabled: true
-
-      Tags:
-        - Key: Project
-          Value: MergeWatch
-        - Key: Stage
-          Value: !Ref Stage
-
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-
-  # ===========================================================================
   # IAM Role: Lambda Execution Role
   # ===========================================================================
   # A single shared role for both Lambda functions. This simplifies management
@@ -468,11 +418,9 @@ Resources:
                   # Table ARNs
                   - !GetAtt InstallationsTable.Arn
                   - !GetAtt ReviewsTable.Arn
-                  - !GetAtt MonitoredReposTable.Arn
                   # Index ARNs (for future GSIs)
                   - !Sub '${InstallationsTable.Arn}/index/*'
                   - !Sub '${ReviewsTable.Arn}/index/*'
-                  - !Sub '${MonitoredReposTable.Arn}/index/*'
 
         # --- SSM Parameter Store ---
         # Read-only access to GitHub credentials stored in SSM.
@@ -542,10 +490,6 @@ Outputs:
   ReviewsTableName:
     Description: Name of the DynamoDB reviews table
     Value: !Ref ReviewsTable
-
-  MonitoredReposTableName:
-    Description: Name of the DynamoDB monitored repos table
-    Value: !Ref MonitoredReposTable
 
   # The IAM role ARN — useful for debugging permission issues
   LambdaRoleArn:
