@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { fetchUserInstallations } from "@/lib/github-repos";
 import DashboardShell from "@/components/layout/DashboardShell";
+import type { InstallationInfo } from "@/components/layout/DashboardShell";
 
 export default async function DashboardLayout({
   children,
@@ -13,10 +15,29 @@ export default async function DashboardLayout({
     redirect("/");
   }
 
+  const accessToken = (session as any).accessToken as string | undefined;
+  if (!accessToken) {
+    redirect("/");
+  }
+
+  const installations = await fetchUserInstallations(accessToken);
+
+  if (installations.length === 0) {
+    redirect("/onboarding");
+  }
+
+  const installationInfos: InstallationInfo[] = installations.map((i) => ({
+    id: i.id,
+    login: i.account.login,
+    avatarUrl: i.account.avatar_url,
+    type: i.account.type,
+  }));
+
   return (
     <DashboardShell
       userName={session.user?.name ?? session.user?.email ?? ""}
       userImage={session.user?.image}
+      installations={installationInfos}
     >
       {children}
     </DashboardShell>

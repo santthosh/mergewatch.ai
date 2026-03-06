@@ -100,21 +100,9 @@ export default function Onboarding() {
     }
   }
 
-  async function handleSave(selected: AvailableRepo[]) {
-    setError("");
-    const res = await fetch("/api/repos/monitored", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ repos: selected }),
-    });
-
-    if (res.ok) {
-      setStep(3);
-      setTimeout(() => router.push("/dashboard"), 1500);
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Failed to save. Please try again.");
-    }
+  async function handleSave(_selected: AvailableRepo[]) {
+    setStep(3);
+    setTimeout(() => router.push("/dashboard"), 1500);
   }
 
   const installedCount = accounts.filter((a) => a.installed).length;

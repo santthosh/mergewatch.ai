@@ -3,58 +3,63 @@ import { getServerSession } from "next-auth";
 import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { authOptions } from "@/lib/auth";
 import { ddb } from "@/lib/dynamo";
+import {
+  fetchUserInstallations,
+  fetchInstallationRepos,
+  checkInstallationAdmin,
+} from "@/lib/github-repos";
 import { type Review } from "@/components/ReviewTable";
 import DashboardContent from "@/components/DashboardContent";
 
+interface DashboardPageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
 /**
- * Dashboard page — shows monitored repos and recent reviews.
- *
- * Redirects to /onboarding if the user has no monitored repos.
+ * Dashboard page — shows repos from the selected installation and recent reviews.
  */
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const session = await getServerSession(authOptions);
   if (!session) {
     redirect("/");
   }
 
-  const githubUserId = (session as any).githubUserId as string | undefined;
-
-  // ── Fetch monitored repos from DynamoDB ──────────────────────────────
-  const monitoredTable = process.env.DYNAMODB_TABLE_MONITORED_REPOS;
-  let monitoredRepos: { repoFullName: string; enabledAt: string; installationId: string }[] = [];
-
-  if (monitoredTable && githubUserId) {
-    try {
-      const result = await ddb.send(
-        new QueryCommand({
-          TableName: monitoredTable,
-          KeyConditionExpression: "githubUserId = :uid",
-          ExpressionAttributeValues: { ":uid": githubUserId },
-        }),
-      );
-
-      monitoredRepos = (result.Items ?? []).map((item) => ({
-        repoFullName: item.repoFullName as string,
-        enabledAt: item.enabledAt as string,
-        installationId: item.installationId as string,
-      }));
-    } catch {
-      // DynamoDB error — redirect to onboarding
-    }
+  const accessToken = (session as any).accessToken as string | undefined;
+  if (!accessToken) {
+    redirect("/");
   }
 
-  // No monitored repos → onboarding
-  if (monitoredRepos.length === 0) {
+  const params = await searchParams;
+
+  // Fetch installations
+  const installations = await fetchUserInstallations(accessToken);
+
+  if (installations.length === 0) {
     redirect("/onboarding");
   }
 
-  // ── Fetch recent reviews from DynamoDB for monitored repos ────────────
-  let reviews: Review[] = [];
+  // Determine active installation from ?org= param or default to first
+  const orgParam = typeof params.org === "string" ? params.org : undefined;
+  const activeInstallation = orgParam
+    ? installations.find((i) => String(i.id) === orgParam) ?? installations[0]
+    : installations[0];
 
+  // Fetch repos for the active installation
+  const { repos: installationRepos } = await fetchInstallationRepos(
+    accessToken,
+    activeInstallation.id,
+  );
+
+  // Check admin status
+  const isAdmin = await checkInstallationAdmin(accessToken, activeInstallation);
+
+  // Fetch recent reviews from DynamoDB for these repos
+  let reviews: Review[] = [];
   const reviewsTable = process.env.DYNAMODB_TABLE_REVIEWS;
-  if (reviewsTable) {
+
+  if (reviewsTable && installationRepos.length > 0) {
     try {
-      for (const repo of monitoredRepos.slice(0, 10)) {
+      for (const repo of installationRepos.slice(0, 10)) {
         const result = await ddb.send(
           new QueryCommand({
             TableName: reviewsTable,
@@ -91,16 +96,17 @@ export default async function DashboardPage() {
     reviewCountMap.set(r.repoFullName, (reviewCountMap.get(r.repoFullName) ?? 0) + 1);
   }
 
-  const repos = monitoredRepos.map((mr) => ({
-    repoFullName: mr.repoFullName,
-    installedAt: mr.enabledAt,
-    reviewCount: reviewCountMap.get(mr.repoFullName) ?? 0,
+  const repos = installationRepos.map((ir) => ({
+    repoFullName: ir.repoFullName,
+    installedAt: ir.installedAt,
+    reviewCount: reviewCountMap.get(ir.repoFullName) ?? 0,
   }));
 
   return (
     <DashboardContent
       repos={repos}
       reviews={reviews}
+      isAdmin={isAdmin}
     />
   );
 }

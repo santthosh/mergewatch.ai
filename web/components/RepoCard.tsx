@@ -4,12 +4,10 @@ export default function RepoCard({
   repoFullName,
   installedAt,
   reviewCount,
-  onRemove,
 }: {
   repoFullName: string;
   installedAt: string;
   reviewCount: number;
-  onRemove?: (repoFullName: string) => void;
 }) {
   return (
     <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/60 px-4 py-3 sm:px-5 sm:py-4">
@@ -33,29 +31,6 @@ export default function RepoCard({
         <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-medium text-primer-green">
           {reviewCount} review{reviewCount !== 1 && "s"}
         </span>
-
-        {/* Remove button */}
-        {onRemove && (
-          <button
-            onClick={() => onRemove(repoFullName)}
-            title="Remove from monitoring"
-            className="rounded p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-red-400"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        )}
       </div>
     </div>
   );
