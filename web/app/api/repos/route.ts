@@ -34,10 +34,14 @@ export async function GET() {
     );
 
     if (!installationsRes.ok) {
-      return NextResponse.json({ repos: [] });
+      const body = await installationsRes.text();
+      console.error("[/api/repos] installations fetch failed:", installationsRes.status, body);
+      return NextResponse.json({ repos: [], debug: { step: "installations", status: installationsRes.status } });
     }
 
     const data = await installationsRes.json();
+    console.log("[/api/repos] installations count:", data.installations?.length ?? 0);
+
     const repos: { repoFullName: string; installedAt: string; installationId: string }[] = [];
 
     for (const installation of data.installations ?? []) {
@@ -54,6 +58,7 @@ export async function GET() {
 
       if (reposRes.ok) {
         const reposData = await reposRes.json();
+        console.log(`[/api/repos] installation ${installation.id}: ${reposData.total_count ?? 0} repos`);
         for (const repo of reposData.repositories ?? []) {
           repos.push({
             repoFullName: repo.full_name,
@@ -61,11 +66,16 @@ export async function GET() {
             installationId: String(installation.id),
           });
         }
+      } else {
+        const body = await reposRes.text();
+        console.error(`[/api/repos] repos fetch failed for installation ${installation.id}:`, reposRes.status, body);
       }
     }
 
+    console.log("[/api/repos] total repos found:", repos.length);
     return NextResponse.json({ repos });
-  } catch {
+  } catch (err) {
+    console.error("[/api/repos] unexpected error:", err);
     return NextResponse.json({ repos: [] });
   }
 }

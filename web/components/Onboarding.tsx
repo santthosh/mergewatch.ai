@@ -25,11 +25,11 @@ export default function Onboarding() {
     setError("");
     try {
       const res = await fetch("/api/repos");
+      const data = await res.json();
       if (!res.ok) {
-        setError("Failed to fetch repositories. Please try again.");
+        setError(`Failed to fetch repositories: ${data.error ?? res.status}. Please try again.`);
         return;
       }
-      const data = await res.json();
       const repos: AvailableRepo[] = (data.repos ?? []).map(
         (r: { repoFullName: string; installationId: string }) => ({
           repoFullName: r.repoFullName,
@@ -40,8 +40,9 @@ export default function Onboarding() {
         setAvailableRepos(repos);
         setStep(2);
       } else {
+        const debugInfo = data.debug ? ` (${JSON.stringify(data.debug)})` : "";
         setError(
-          "No repositories found. Please install the GitHub App first, then try again.",
+          `No repositories found${debugInfo}. Please install the GitHub App first, then try again.`,
         );
       }
     } catch {
