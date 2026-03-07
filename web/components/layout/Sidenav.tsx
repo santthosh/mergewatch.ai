@@ -3,12 +3,15 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import {
   Home,
   GitPullRequest,
   GitBranch,
   Settings,
   ChevronDown,
+  LogOut,
+  Menu,
   type LucideIcon,
 } from "lucide-react";
 import type { InstallationInfo } from "./DashboardShell";
@@ -27,34 +30,53 @@ const navItems: NavEntry[] = [
 ];
 
 interface SidenavProps {
-  orgName?: string;
   mobileOpen: boolean;
   onMobileClose: () => void;
+  onMobileOpen: () => void;
   installations?: InstallationInfo[];
   activeInstallation?: InstallationInfo;
   onSwitchInstallation?: (installationId: number) => void;
+  userName: string;
+  userImage?: string | null;
 }
 
 export default function Sidenav({
-  orgName,
   mobileOpen,
   onMobileClose,
+  onMobileOpen,
   installations,
   activeInstallation,
   onSwitchInstallation,
+  userName,
+  userImage,
 }: SidenavProps) {
   const pathname = usePathname();
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOrgDropdownOpen(false);
       }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setOrgDropdownOpen(false);
+        setUserMenuOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
   }, []);
 
   function isActive(href: string) {
@@ -65,8 +87,31 @@ export default function Sidenav({
   const showOrgSwitcher =
     installations && installations.length > 0 && activeInstallation;
 
+  const initials = userName
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <>
+      {/* Mobile top bar — hamburger only */}
+      <div className="fixed top-0 left-0 right-0 z-20 flex h-14 items-center border-b border-[#1e1e1e] bg-[#0f0f0f] px-4 md:hidden">
+        <button
+          onClick={onMobileOpen}
+          className="p-2 text-[#555] transition-colors hover:text-white"
+          aria-label="Open menu"
+        >
+          <Menu size={20} />
+        </button>
+        <Link href="/dashboard" className="ml-2 text-lg font-bold tracking-tight">
+          MergeWatch<span className="text-primer-green">.ai</span>
+        </Link>
+      </div>
+      {/* Spacer for mobile top bar */}
+      <div className="h-14 md:hidden" />
+
       {/* Mobile backdrop */}
       {mobileOpen && (
         <div
@@ -79,13 +124,14 @@ export default function Sidenav({
       <nav
         className={[
           "fixed top-0 left-0 h-screen z-40 bg-[#0f0f0f] border-r border-[#1e1e1e]",
+          "flex flex-col",
           "transition-transform duration-200 ease-in-out",
           "lg:translate-x-0 lg:w-[240px]",
           "md:translate-x-0 md:w-16",
           mobileOpen ? "translate-x-0 w-[240px]" : "-translate-x-full w-[240px] md:translate-x-0",
         ].join(" ")}
       >
-        {/* Header */}
+        {/* Logo */}
         <div className="flex h-14 items-center border-b border-[#1e1e1e] px-4 justify-center lg:justify-start">
           <Link href="/dashboard" className="hidden lg:block text-lg font-bold tracking-tight">
             MergeWatch<span className="text-primer-green">.ai</span>
@@ -177,7 +223,7 @@ export default function Sidenav({
         )}
 
         {/* Nav items */}
-        <div className="mt-2 flex flex-col">
+        <div className="mt-2 flex flex-1 flex-col">
           {navItems.map((entry, i) => {
             if (entry.type === "section") {
               return (
@@ -229,6 +275,74 @@ export default function Sidenav({
               }
             `}</style>
           )}
+        </div>
+
+        {/* User menu — bottom of sidenav */}
+        <div className="border-t border-[#1e1e1e] px-2 py-2 relative" ref={userMenuRef}>
+          {/* Desktop / mobile drawer: full user button */}
+          <div className={mobileOpen ? "block" : "hidden lg:block"}>
+            <button
+              onClick={() => setUserMenuOpen((v) => !v)}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-white transition hover:bg-[rgba(255,255,255,0.04)]"
+            >
+              {userImage ? (
+                <img src={userImage} alt={userName} className="h-6 w-6 rounded-full" />
+              ) : (
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primer-blue text-[10px] font-bold text-black">
+                  {initials}
+                </span>
+              )}
+              <span className="flex-1 truncate text-left text-xs font-medium">{userName}</span>
+              <ChevronDown
+                size={14}
+                className={`text-[#555] transition ${userMenuOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {userMenuOpen && (
+              <div className="absolute bottom-full left-2 right-2 mb-1 rounded-md border border-[#1e1e1e] bg-[#161616] py-1 shadow-2xl">
+                <button
+                  onClick={() => signOut({ callbackUrl: "/" })}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-xs text-[#888] transition hover:bg-[rgba(255,255,255,0.04)] hover:text-red-400"
+                >
+                  <LogOut size={13} />
+                  <span>Sign out</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Tablet: avatar only with tooltip */}
+          <div className={`hidden md:flex lg:hidden justify-center ${mobileOpen ? "!hidden" : ""}`}>
+            <div className="group relative">
+              <button
+                onClick={() => setUserMenuOpen((v) => !v)}
+                className="rounded-md p-1 transition hover:bg-[rgba(255,255,255,0.04)]"
+              >
+                {userImage ? (
+                  <img src={userImage} alt={userName} className="h-6 w-6 rounded-full" />
+                ) : (
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primer-blue text-[10px] font-bold text-black">
+                    {initials}
+                  </span>
+                )}
+              </button>
+              {userMenuOpen && (
+                <div className="absolute bottom-full left-full ml-2 mb-1 rounded-md border border-[#1e1e1e] bg-[#161616] py-1 shadow-2xl whitespace-nowrap">
+                  <button
+                    onClick={() => signOut({ callbackUrl: "/" })}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-xs text-[#888] transition hover:bg-[rgba(255,255,255,0.04)] hover:text-red-400"
+                  >
+                    <LogOut size={13} />
+                    <span>Sign out</span>
+                  </button>
+                </div>
+              )}
+              <div className="pointer-events-none absolute left-full top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap rounded bg-[#1e1e1e] px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                {userName}
+              </div>
+            </div>
+          </div>
         </div>
       </nav>
     </>

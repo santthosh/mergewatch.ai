@@ -3,7 +3,6 @@
 import { useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Sidenav from "./Sidenav";
-import Header from "../Header";
 
 export interface InstallationInfo {
   id: number;
@@ -52,17 +51,15 @@ export default function DashboardShell({
       <Sidenav
         mobileOpen={mobileNavOpen}
         onMobileClose={() => setMobileNavOpen(false)}
+        onMobileOpen={() => setMobileNavOpen(true)}
         installations={installations}
         activeInstallation={activeInstallation}
         onSwitchInstallation={handleSwitch}
+        userName={userName}
+        userImage={userImage}
       />
 
       <div className="flex-1 md:ml-16 lg:ml-[240px]">
-        <Header
-          userName={userName}
-          userImage={userImage}
-          onMenuToggle={() => setMobileNavOpen(true)}
-        />
         <main>{children}</main>
       </div>
     </div>
