@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 /** Shape of a single review record (matches the DynamoDB schema). */
 export interface Review {
   id: string;
@@ -9,6 +11,11 @@ export interface Review {
   status: "pending" | "in_progress" | "completed" | "failed";
   model: string;
   createdAt: string;
+}
+
+/** Build a URL-safe review detail path. id is "prNumber#commitSha", we encode "owner/repo:prNumber#commitSha". */
+function reviewHref(r: Review): string {
+  return `/dashboard/reviews/${encodeURIComponent(`${r.repoFullName}:${r.id}`)}`;
 }
 
 /** Maps review status to a coloured badge. */
@@ -43,20 +50,16 @@ export default function ReviewTable({ reviews }: { reviews: Review[] }) {
       {/* Mobile: card layout */}
       <div className="flex flex-col gap-3 md:hidden">
         {reviews.map((r) => (
-          <div
+          <Link
             key={r.id}
-            className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-4 py-3"
+            href={reviewHref(r)}
+            className="block rounded-lg border border-zinc-800 bg-zinc-900/60 px-4 py-3 transition hover:border-zinc-700 hover:bg-zinc-900/80"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
-                <a
-                  href={`https://github.com/${r.repoFullName}/pull/${r.prNumber}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm font-medium text-white hover:underline"
-                >
+                <span className="text-sm font-medium text-white">
                   #{r.prNumber} {r.prTitle || r.repoFullName}
-                </a>
+                </span>
                 <p className="mt-0.5 truncate text-xs text-primer-muted">
                   {r.repoFullName}
                 </p>
@@ -67,7 +70,7 @@ export default function ReviewTable({ reviews }: { reviews: Review[] }) {
               {r.model && <span>{r.model}</span>}
               <span>{new Date(r.createdAt).toLocaleString()}</span>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 
@@ -87,17 +90,14 @@ export default function ReviewTable({ reviews }: { reviews: Review[] }) {
             {reviews.map((r) => (
               <tr key={r.id} className="transition hover:bg-zinc-900/40">
                 <td className="whitespace-nowrap px-4 py-3 font-medium text-primer-blue">
-                  {r.repoFullName}
+                  <Link href={reviewHref(r)} className="hover:underline">
+                    {r.repoFullName}
+                  </Link>
                 </td>
                 <td className="px-4 py-3">
-                  <a
-                    href={`https://github.com/${r.repoFullName}/pull/${r.prNumber}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:underline"
-                  >
+                  <Link href={reviewHref(r)} className="hover:underline">
                     #{r.prNumber} {r.prTitle}
-                  </a>
+                  </Link>
                 </td>
                 <td className="px-4 py-3">
                   <StatusBadge status={r.status} />
