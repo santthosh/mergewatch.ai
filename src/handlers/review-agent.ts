@@ -269,11 +269,9 @@ export async function handler(
 
     // Format the GitHub PR comment from the review results.
     const commentBody = formatReviewComment({
-      modelName,
-      commitSha: headSha,
       summary: result.summary,
       findings: result.findings,
-      commentHeader: instSettings.commentHeader || undefined,
+      commentFooter: instSettings.commentHeader || undefined,
       showSummary: instSettings.summary.prSummary,
       showIssuesTable: instSettings.summary.issuesTable,
       reviewDetailUrl,

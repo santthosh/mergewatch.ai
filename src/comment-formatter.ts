@@ -18,16 +18,12 @@ export interface Finding {
 }
 
 interface FormatOptions {
-  /** Model alias shown in the header (e.g. "claude-3-5-sonnet") */
-  modelName: string;
-  /** Short commit SHA */
-  commitSha: string;
   /** Markdown summary text from the summary agent */
   summary: string;
   /** Deduplicated + ranked findings from the orchestrator */
   findings: Finding[];
-  /** Custom footer line from installation settings */
-  commentHeader?: string;
+  /** Optional custom footer line from installation settings */
+  commentFooter?: string;
   /** Whether to show the summary section */
   showSummary?: boolean;
   /** Whether to show the issues table */
@@ -78,38 +74,26 @@ function renderFinding(f: Finding): string {
  */
 export function formatReviewComment(options: FormatOptions): string {
   const {
-    modelName,
-    commitSha,
     summary,
     findings,
-    commentHeader,
+    commentFooter,
     showSummary = true,
     showIssuesTable = true,
     reviewDetailUrl,
   } = options;
-  const shortSha = commitSha.slice(0, 7);
 
   const lines: string[] = [];
 
   // Hidden marker for upsert logic
   lines.push('<!-- mergewatch-review -->');
 
-  // Header
-  lines.push('## \uD83D\uDD0D MergeWatch Review');
-  const headerParts = [
-    `Model: \`${modelName}\``,
-    `Commit: \`${shortSha}\``,
-  ];
-  if (reviewDetailUrl) {
-    headerParts.push(`[View Details](${reviewDetailUrl})`);
-  }
-  headerParts.push('[Configure](.mergewatch.yml)');
-  lines.push(`> ${headerParts.join(' \u00B7 ')}`);
+  // Header — clean, minimal
+  lines.push('## MergeWatch Review');
   lines.push('');
 
   // Summary (collapsible)
   if (summary && showSummary) {
-    lines.push('<details><summary>\uD83D\uDCCB Summary</summary>');
+    lines.push('<details><summary>Summary</summary>');
     lines.push('');
     lines.push(summary);
     lines.push('');
@@ -140,13 +124,16 @@ export function formatReviewComment(options: FormatOptions): string {
   }
 
   // Footer
-  lines.push('---');
-  if (commentHeader) {
-    lines.push(commentHeader);
-  } else {
-    lines.push(
-      '_Powered by [MergeWatch](https://mergewatch.ai) · Add a `.mergewatch.yml` to customise reviews_',
-    );
+  const footerParts: string[] = [];
+  if (reviewDetailUrl) {
+    footerParts.push(`[View full details](${reviewDetailUrl})`);
+  }
+  if (commentFooter) {
+    footerParts.push(commentFooter);
+  }
+  if (footerParts.length > 0) {
+    lines.push('---');
+    lines.push(footerParts.join(' · '));
   }
 
   return lines.join('\n');
