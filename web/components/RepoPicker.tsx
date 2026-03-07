@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import Spinner from "./Spinner";
 
 export interface AvailableRepo {
   repoFullName: string;
@@ -215,7 +216,7 @@ export default function RepoPicker({
         />
         {loading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-primer-green" />
+            <Spinner size="sm" />
           </div>
         )}
       </div>

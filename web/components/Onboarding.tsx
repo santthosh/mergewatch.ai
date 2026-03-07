@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import RepoPicker, { type AvailableRepo } from "./RepoPicker";
+import Spinner from "./Spinner";
 
 interface AccountInfo {
   login: string;
@@ -135,7 +136,7 @@ export default function Onboarding() {
           <div className="mt-8 rounded-lg border border-zinc-800">
             {loadingAccounts ? (
               <div className="flex items-center justify-center py-8">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-600 border-t-primer-green" />
+                <Spinner size="md" />
                 <span className="ml-3 text-sm text-primer-muted">Loading your accounts...</span>
               </div>
             ) : accounts.length === 0 ? (

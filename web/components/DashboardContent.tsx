@@ -4,6 +4,7 @@ import { useState } from "react";
 import RepoCard from "./RepoCard";
 import ReviewTable, { type Review } from "./ReviewTable";
 import RepoPicker, { type AvailableRepo } from "./RepoPicker";
+import { LoadingOverlay } from "./Spinner";
 
 interface DashboardContentProps {
   repos: { repoFullName: string; installedAt: string; reviewCount: number }[];
@@ -21,11 +22,15 @@ export default function DashboardContent({
   monitoredNames: monitoredNamesArray,
 }: DashboardContentProps) {
   const [showManage, setShowManage] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const monitoredSet = new Set(monitoredNamesArray ?? repos.map((r) => r.repoFullName));
 
   async function handleSave(selected: AvailableRepo[]) {
     if (!installationId) return;
+
+    setSaving(true);
+    setShowManage(false);
 
     const res = await fetch("/api/repos/monitored", {
       method: "PUT",
@@ -37,9 +42,18 @@ export default function DashboardContent({
     });
 
     if (res.ok) {
-      setShowManage(false);
       window.location.reload();
+    } else {
+      setSaving(false);
     }
+  }
+
+  if (saving) {
+    return (
+      <div className="px-4 py-6 sm:px-6 sm:py-10">
+        <LoadingOverlay label="Updating monitored repositories..." />
+      </div>
+    );
   }
 
   return (
