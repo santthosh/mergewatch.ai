@@ -262,6 +262,15 @@ export interface ReviewItem {
 
   /** Bedrock model ID used for the review. */
   model?: string;
+
+  /** Snapshot of the effective settings used for this review. */
+  settingsUsed?: {
+    severityThreshold: string;
+    commentTypes: { syntax: boolean; logic: boolean; style: boolean };
+    maxComments: number;
+    summaryEnabled: boolean;
+    customInstructions: boolean;
+  };
 }
 
 // =============================================================================

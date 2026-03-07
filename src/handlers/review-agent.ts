@@ -93,7 +93,7 @@ async function updateReviewStatus(
   repoFullName: string,
   prNumberCommitSha: string,
   status: ReviewStatus,
-  extra: { commentId?: number; completedAt?: string; model?: string } = {},
+  extra: { commentId?: number; completedAt?: string; model?: string; settingsUsed?: ReviewItem['settingsUsed'] } = {},
 ): Promise<void> {
   const updateParts: string[] = ['#s = :status'];
   const names: Record<string, string> = { '#s': 'status' };
@@ -111,6 +111,10 @@ async function updateReviewStatus(
     updateParts.push('#m = :model');
     names['#m'] = 'model';
     values[':model'] = extra.model;
+  }
+  if (extra.settingsUsed !== undefined) {
+    updateParts.push('settingsUsed = :su');
+    values[':su'] = extra.settingsUsed;
   }
 
   await dynamodb.send(
@@ -219,11 +223,11 @@ export async function handler(
         : [],
     };
 
-    // Merge: defaults <- installation settings <- .mergewatch.yml repo config
-    const runtimeConfig = mergeConfig({
-      ...settingsOverrides,
-      ...((installation?.config ?? {}) as Partial<MergeWatchConfig>),
-    });
+    // Merge: defaults <- installation settings.
+    // Note: .mergewatch.yml (RepoConfig) controls repo-level behavior like
+    // enabled, language, ignore patterns — it does NOT override MergeWatchConfig
+    // fields like agents/severity. Those are controlled by installation settings.
+    const runtimeConfig = mergeConfig(settingsOverrides);
 
     // Determine which Bedrock model to use. Priority:
     //   1. Per-repo override (installation.modelId)
@@ -283,11 +287,18 @@ export async function handler(
       }
     }
 
-    // Update the review record to "complete" with the comment ID.
+    // Update the review record to "complete" with the comment ID and settings snapshot.
     await updateReviewStatus(repoFullName, prNumberCommitSha, 'complete', {
       commentId,
       completedAt: new Date().toISOString(),
       model: modelName,
+      settingsUsed: {
+        severityThreshold: instSettings.severityThreshold,
+        commentTypes: instSettings.commentTypes,
+        maxComments: instSettings.maxComments,
+        summaryEnabled: instSettings.summary.prSummary,
+        customInstructions: !!instSettings.customInstructions,
+      },
     });
 
     console.log(
