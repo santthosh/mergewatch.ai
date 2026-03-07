@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Sidenav from "./Sidenav";
 
 export interface InstallationInfo {
@@ -25,6 +25,7 @@ export default function DashboardShell({
   children,
 }: DashboardShellProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -41,9 +42,9 @@ export default function DashboardShell({
     (installationId: number) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set("org", String(installationId));
-      router.push(`/dashboard?${params.toString()}`);
+      router.push(`${pathname}?${params.toString()}`);
     },
-    [router, searchParams],
+    [router, pathname, searchParams],
   );
 
   return (
@@ -57,6 +58,7 @@ export default function DashboardShell({
         onSwitchInstallation={handleSwitch}
         userName={userName}
         userImage={userImage}
+        orgParam={orgParam}
       />
 
       <div className="flex-1 md:ml-16 lg:ml-[240px]">

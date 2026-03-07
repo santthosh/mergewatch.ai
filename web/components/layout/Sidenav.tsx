@@ -38,6 +38,8 @@ interface SidenavProps {
   onSwitchInstallation?: (installationId: number) => void;
   userName: string;
   userImage?: string | null;
+  /** Current ?org= param value to preserve across nav links */
+  orgParam?: string | null;
 }
 
 export default function Sidenav({
@@ -49,6 +51,7 @@ export default function Sidenav({
   onSwitchInstallation,
   userName,
   userImage,
+  orgParam,
 }: SidenavProps) {
   const pathname = usePathname();
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
@@ -82,6 +85,11 @@ export default function Sidenav({
   function isActive(href: string) {
     if (href === "/dashboard") return pathname === "/dashboard";
     return pathname.startsWith(href);
+  }
+
+  /** Append ?org= to a path when a non-default installation is selected */
+  function navHref(base: string) {
+    return orgParam ? `${base}?org=${orgParam}` : base;
   }
 
   const showOrgSwitcher =
@@ -248,7 +256,7 @@ export default function Sidenav({
             return (
               <div key={href} className="relative group">
                 <Link
-                  href={href}
+                  href={navHref(href)}
                   onClick={onMobileClose}
                   className={[
                     "flex items-center gap-3 rounded-md text-sm transition-colors duration-150",
