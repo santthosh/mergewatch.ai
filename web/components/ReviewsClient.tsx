@@ -20,7 +20,6 @@ import {
   ThumbsUp,
   ThumbsDown,
   Search,
-  Filter,
   AlertCircle,
 } from "lucide-react";
 
@@ -518,6 +517,220 @@ function ReviewDrawer({
   );
 }
 
+// -- Grouping ---------------------------------------------------------------
+
+interface PRGroup {
+  key: string;
+  latest: ReviewListItem;
+  older: ReviewListItem[];
+}
+
+function groupByPR(reviews: ReviewListItem[]): PRGroup[] {
+  const map = new Map<string, ReviewListItem[]>();
+  for (const r of reviews) {
+    const key = `${r.repoFullName}#${r.prNumber}`;
+    const list = map.get(key) ?? [];
+    list.push(r);
+    map.set(key, list);
+  }
+  const groups: PRGroup[] = [];
+  map.forEach((list, key) => {
+    list.sort((a: ReviewListItem, b: ReviewListItem) => b.createdAt.localeCompare(a.createdAt));
+    groups.push({ key, latest: list[0], older: list.slice(1) });
+  });
+  groups.sort((a: PRGroup, b: PRGroup) => b.latest.createdAt.localeCompare(a.latest.createdAt));
+  return groups;
+}
+
+function PRCardGroup({
+  latest,
+  older,
+  onSelect,
+}: {
+  latest: ReviewListItem;
+  older: ReviewListItem[];
+  onSelect: (r: ReviewListItem) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasOlder = older.length > 0;
+  const sha = latest.commitSha || latest.id.split("#")[1] || "";
+
+  return (
+    <>
+      <button
+        onClick={() => onSelect(latest)}
+        className="w-full rounded-lg border border-[#1e1e1e] bg-[#0a0a0a] px-4 py-3 text-left transition hover:border-[#333] hover:bg-[#111]"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <span className="text-sm font-medium text-white">
+              #{latest.prNumber} {latest.prTitle || latest.repoFullName}
+            </span>
+            <p className="mt-0.5 truncate text-xs text-[#555]">{latest.repoFullName}</p>
+          </div>
+          <StatusBadge status={latest.status} />
+        </div>
+        <div className="mt-2 flex items-center gap-3 text-xs text-[#555]">
+          <span className="inline-flex items-center gap-1">
+            <GitCommit size={11} />
+            <code>{sha}</code>
+          </span>
+          {latest.findingCount !== undefined && (
+            <span className="flex items-center gap-1">
+              <SeverityDot severity={latest.topSeverity} />
+              {latest.findingCount} issue{latest.findingCount !== 1 ? "s" : ""}
+            </span>
+          )}
+          {latest.prAuthor && <span>{latest.prAuthor}</span>}
+          <RelativeTime date={latest.createdAt} />
+          {hasOlder && (
+            <span
+              role="button"
+              onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+              className="ml-auto inline-flex items-center gap-0.5 text-primer-blue"
+            >
+              {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              {older.length} older
+            </span>
+          )}
+        </div>
+      </button>
+      {expanded && older.map((r) => {
+        const olderSha = r.commitSha || r.id.split("#")[1] || "";
+        return (
+          <button
+            key={r.id}
+            onClick={() => onSelect(r)}
+            className="ml-6 w-[calc(100%-1.5rem)] rounded-lg border border-[#1a1a1a] bg-[#060606] px-4 py-2.5 text-left transition hover:border-[#333] hover:bg-[#111]"
+          >
+            <div className="flex items-center gap-3 text-xs text-[#555]">
+              <span className="inline-flex items-center gap-1">
+                <GitCommit size={11} />
+                <code>{olderSha}</code>
+              </span>
+              <StatusBadge status={r.status} />
+              <RelativeTime date={r.createdAt} />
+            </div>
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
+function PRTableGroup({
+  latest,
+  older,
+  onSelect,
+}: {
+  latest: ReviewListItem;
+  older: ReviewListItem[];
+  onSelect: (r: ReviewListItem) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasOlder = older.length > 0;
+  const sha = latest.commitSha || latest.id.split("#")[1] || "";
+
+  return (
+    <>
+      <tr
+        onClick={() => onSelect(latest)}
+        className="cursor-pointer transition hover:bg-[#111]"
+      >
+        <td className="px-4 py-3">
+          <div className="font-medium text-white">
+            #{latest.prNumber} {latest.prTitle}
+          </div>
+          <div className="mt-0.5 text-xs text-[#555]">{latest.repoFullName}</div>
+        </td>
+        <td className="whitespace-nowrap px-4 py-3">
+          <span className="inline-flex items-center gap-1 text-[#888]">
+            <GitCommit size={12} />
+            <code className="text-xs">{sha}</code>
+          </span>
+        </td>
+        <td className="px-4 py-3">
+          {latest.prAuthor ? (
+            <span className="flex items-center gap-1.5 text-[#888]">
+              {latest.prAuthorAvatar && (
+                <img src={latest.prAuthorAvatar} alt="" className="h-4 w-4 rounded-full" />
+              )}
+              <span className="text-xs">{latest.prAuthor}</span>
+            </span>
+          ) : (
+            <span className="text-[#333]">—</span>
+          )}
+        </td>
+        <td className="px-4 py-3">
+          <StatusBadge status={latest.status} />
+        </td>
+        <td className="px-4 py-3">
+          {latest.findingCount !== undefined ? (
+            <span className="flex items-center gap-1.5 text-[#888]">
+              <SeverityDot severity={latest.topSeverity} />
+              {latest.findingCount}
+            </span>
+          ) : (
+            <span className="text-[#333]">—</span>
+          )}
+        </td>
+        <td className="whitespace-nowrap px-4 py-3 text-[#555]">
+          <RelativeTime date={latest.createdAt} />
+        </td>
+        <td className="whitespace-nowrap px-4 py-3 w-12">
+          {hasOlder ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+              className="inline-flex items-center gap-0.5 text-xs text-primer-blue hover:underline"
+            >
+              {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              {older.length}
+            </button>
+          ) : null}
+        </td>
+      </tr>
+      {expanded && older.map((r) => {
+        const olderSha = r.commitSha || r.id.split("#")[1] || "";
+        return (
+          <tr
+            key={r.id}
+            onClick={() => onSelect(r)}
+            className="cursor-pointer bg-[#060606] transition hover:bg-[#111]"
+          >
+            <td className="px-4 py-2 pl-8 text-xs text-[#666]">
+              #{r.prNumber} {r.prTitle}
+            </td>
+            <td className="whitespace-nowrap px-4 py-2">
+              <span className="inline-flex items-center gap-1 text-[#666]">
+                <GitCommit size={11} />
+                <code className="text-xs">{olderSha}</code>
+              </span>
+            </td>
+            <td className="px-4 py-2" />
+            <td className="px-4 py-2">
+              <StatusBadge status={r.status} />
+            </td>
+            <td className="px-4 py-2">
+              {r.findingCount !== undefined ? (
+                <span className="flex items-center gap-1.5 text-[#666]">
+                  <SeverityDot severity={r.topSeverity} />
+                  {r.findingCount}
+                </span>
+              ) : (
+                <span className="text-[#333]">—</span>
+              )}
+            </td>
+            <td className="whitespace-nowrap px-4 py-2 text-[#555]">
+              <RelativeTime date={r.createdAt} />
+            </td>
+            <td />
+          </tr>
+        );
+      })}
+    </>
+  );
+}
+
 // -- Main component ---------------------------------------------------------
 
 export default function ReviewsClient({ repos, installationId }: ReviewsClientProps) {
@@ -634,103 +847,51 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
               : "No reviews yet. Open a pull request to get started."}
           </p>
         </div>
-      ) : (
-        <>
-          {/* Mobile cards */}
-          <div className="flex flex-col gap-2 md:hidden">
-            {filtered.map((r) => (
-              <button
-                key={`${r.repoFullName}:${r.id}`}
-                onClick={() => openDrawer(r)}
-                className="w-full rounded-lg border border-[#1e1e1e] bg-[#0a0a0a] px-4 py-3 text-left transition hover:border-[#333] hover:bg-[#111]"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <span className="text-sm font-medium text-white">
-                      #{r.prNumber} {r.prTitle || r.repoFullName}
-                    </span>
-                    <p className="mt-0.5 truncate text-xs text-[#555]">{r.repoFullName}</p>
-                  </div>
-                  <StatusBadge status={r.status} />
-                </div>
-                <div className="mt-2 flex items-center gap-3 text-xs text-[#555]">
-                  {r.findingCount !== undefined && (
-                    <span className="flex items-center gap-1">
-                      <SeverityDot severity={r.topSeverity} />
-                      {r.findingCount} issue{r.findingCount !== 1 ? "s" : ""}
-                    </span>
-                  )}
-                  {r.prAuthor && <span>{r.prAuthor}</span>}
-                  <RelativeTime date={r.createdAt} />
-                </div>
-              </button>
-            ))}
-          </div>
+      ) : (() => {
+        const groups = groupByPR(filtered);
+        return (
+          <>
+            {/* Mobile cards */}
+            <div className="flex flex-col gap-2 md:hidden">
+              {groups.map((g) => (
+                <PRCardGroup
+                  key={g.key}
+                  latest={g.latest}
+                  older={g.older}
+                  onSelect={openDrawer}
+                />
+              ))}
+            </div>
 
-          {/* Desktop table */}
-          <div className="hidden overflow-x-auto rounded-lg border border-[#1e1e1e] md:block">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-[#1e1e1e] bg-[#0a0a0a] text-xs uppercase tracking-wider text-[#444]">
-                <tr>
-                  <th className="px-4 py-3">Pull Request</th>
-                  <th className="px-4 py-3">Author</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Findings</th>
-                  <th className="px-4 py-3">Duration</th>
-                  <th className="px-4 py-3">Time</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#1a1a1a]">
-                {filtered.map((r) => (
-                  <tr
-                    key={`${r.repoFullName}:${r.id}`}
-                    onClick={() => openDrawer(r)}
-                    className="cursor-pointer transition hover:bg-[#111]"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-white">
-                        #{r.prNumber} {r.prTitle}
-                      </div>
-                      <div className="mt-0.5 text-xs text-[#555]">{r.repoFullName}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      {r.prAuthor ? (
-                        <span className="flex items-center gap-1.5 text-[#888]">
-                          {r.prAuthorAvatar && (
-                            <img src={r.prAuthorAvatar} alt="" className="h-4 w-4 rounded-full" />
-                          )}
-                          <span className="text-xs">{r.prAuthor}</span>
-                        </span>
-                      ) : (
-                        <span className="text-[#333]">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={r.status} />
-                    </td>
-                    <td className="px-4 py-3">
-                      {r.findingCount !== undefined ? (
-                        <span className="flex items-center gap-1.5 text-[#888]">
-                          <SeverityDot severity={r.topSeverity} />
-                          {r.findingCount}
-                        </span>
-                      ) : (
-                        <span className="text-[#333]">—</span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-[#888]">
-                      {r.durationMs ? formatDuration(r.durationMs) : "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-[#555]">
-                      <RelativeTime date={r.createdAt} />
-                    </td>
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto rounded-lg border border-[#1e1e1e] md:block">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-[#1e1e1e] bg-[#0a0a0a] text-xs uppercase tracking-wider text-[#444]">
+                  <tr>
+                    <th className="px-4 py-3">Pull Request</th>
+                    <th className="px-4 py-3">Commit</th>
+                    <th className="px-4 py-3">Author</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Findings</th>
+                    <th className="px-4 py-3">Time</th>
+                    <th className="px-4 py-3 w-12" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+                </thead>
+                <tbody className="divide-y divide-[#1a1a1a]">
+                  {groups.map((g) => (
+                    <PRTableGroup
+                      key={g.key}
+                      latest={g.latest}
+                      older={g.older}
+                      onSelect={openDrawer}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Drawer */}
       {selectedReviewId && (
