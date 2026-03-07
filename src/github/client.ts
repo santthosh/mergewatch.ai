@@ -158,6 +158,34 @@ export async function getPRContext(
 }
 
 // ---------------------------------------------------------------------------
+// Reactions
+// ---------------------------------------------------------------------------
+
+/**
+ * Add a reaction to a PR (which is an issue in GitHub's API).
+ * Used to signal review start (eyes) and completion (thumbs up).
+ */
+export async function addPRReaction(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  reaction: '+1' | '-1' | 'laugh' | 'confused' | 'heart' | 'hooray' | 'rocket' | 'eyes',
+): Promise<void> {
+  try {
+    await octokit.reactions.createForIssue({
+      owner,
+      repo,
+      issue_number: prNumber,
+      content: reaction,
+    });
+  } catch (err) {
+    // Non-critical — don't fail the review if reaction fails
+    console.warn(`Failed to add ${reaction} reaction to ${owner}/${repo}#${prNumber}:`, err);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Comment management
 // ---------------------------------------------------------------------------
 

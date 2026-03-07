@@ -118,7 +118,7 @@ jobs:
           sam deploy \
             --stack-name mergewatch-dev \
             --region "$AWS_REGION" \
-            --parameter-overrides "Stage=dev DefaultBedrockModelId=us.anthropic.claude-sonnet-4-20250514-v1:0" \
+            --parameter-overrides "Stage=dev DefaultBedrockModelId=us.anthropic.claude-sonnet-4-20250514-v1:0 DashboardBaseUrl=${{ vars.DASHBOARD_BASE_URL || 'https://mergewatch.ai' }}" \
             --capabilities CAPABILITY_NAMED_IAM \
             --resolve-s3 \
             --no-confirm-changeset \

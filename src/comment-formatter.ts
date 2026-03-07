@@ -32,6 +32,8 @@ interface FormatOptions {
   showSummary?: boolean;
   /** Whether to show the issues table */
   showIssuesTable?: boolean;
+  /** URL to the review detail page on the MergeWatch dashboard */
+  reviewDetailUrl?: string;
 }
 
 // ─── Severity display config ───────────────────────────────────────────────
@@ -83,6 +85,7 @@ export function formatReviewComment(options: FormatOptions): string {
     commentHeader,
     showSummary = true,
     showIssuesTable = true,
+    reviewDetailUrl,
   } = options;
   const shortSha = commitSha.slice(0, 7);
 
@@ -93,9 +96,15 @@ export function formatReviewComment(options: FormatOptions): string {
 
   // Header
   lines.push('## \uD83D\uDD0D MergeWatch Review');
-  lines.push(
-    `> Model: \`${modelName}\` \u00B7 Commit: \`${shortSha}\` \u00B7 [Configure](.mergewatch.yml)`,
-  );
+  const headerParts = [
+    `Model: \`${modelName}\``,
+    `Commit: \`${shortSha}\``,
+  ];
+  if (reviewDetailUrl) {
+    headerParts.push(`[View Details](${reviewDetailUrl})`);
+  }
+  headerParts.push('[Configure](.mergewatch.yml)');
+  lines.push(`> ${headerParts.join(' \u00B7 ')}`);
   lines.push('');
 
   // Summary (collapsible)

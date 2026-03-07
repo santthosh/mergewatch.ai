@@ -23,6 +23,7 @@ import {
   findExistingBotComment,
   postReviewComment,
   updateReviewComment,
+  addPRReaction,
 } from '../github/client';
 import { runReviewPipeline } from '../agents/reviewer';
 import { formatReviewComment } from '../comment-formatter';
@@ -41,6 +42,7 @@ const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const INSTALLATIONS_TABLE = process.env.INSTALLATIONS_TABLE ?? 'mergewatch-installations';
 const REVIEWS_TABLE = process.env.REVIEWS_TABLE ?? 'mergewatch-reviews';
 const DEFAULT_BEDROCK_MODEL_ID = process.env.DEFAULT_BEDROCK_MODEL_ID ?? 'us.anthropic.claude-sonnet-4-20250514-v1:0';
+const DASHBOARD_BASE_URL = process.env.DASHBOARD_BASE_URL ?? 'https://mergewatch.ai';
 
 // -- DynamoDB helpers --------------------------------------------------------
 
@@ -197,6 +199,9 @@ export async function handler(
   };
   await upsertReviewRecord(reviewRecord);
 
+  // React with 👀 to signal review has started
+  await addPRReaction(octokit, owner, repo, prNumber, 'eyes');
+
   try {
     // Fetch PR diff
     const diff = await getPRDiff(octokit, owner, repo, prNumber);
@@ -259,6 +264,9 @@ export async function handler(
         : runtimeConfig.agents,
     });
 
+    // Build the review detail URL for the dashboard
+    const reviewDetailUrl = `${DASHBOARD_BASE_URL}/dashboard/reviews/${encodeURIComponent(`${repoFullName}:${prNumberCommitSha}`)}`;
+
     // Format the GitHub PR comment from the review results.
     const commentBody = formatReviewComment({
       modelName,
@@ -268,6 +276,7 @@ export async function handler(
       commentHeader: instSettings.commentHeader || undefined,
       showSummary: instSettings.summary.prSummary,
       showIssuesTable: instSettings.summary.issuesTable,
+      reviewDetailUrl,
     });
 
     // Post or update the review comment on the PR.
@@ -286,6 +295,9 @@ export async function handler(
         commentId = await postReviewComment(octokit, owner, repo, prNumber, commentBody);
       }
     }
+
+    // React with 👍 to signal review is complete
+    await addPRReaction(octokit, owner, repo, prNumber, '+1');
 
     // Update the review record to "complete" with the comment ID and settings snapshot.
     await updateReviewStatus(repoFullName, prNumberCommitSha, 'complete', {

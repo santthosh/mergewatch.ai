@@ -55,6 +55,12 @@ Parameters:
     Default: us.anthropic.claude-sonnet-4-20250514-v1:0
     Description: Default Amazon Bedrock model ID for PR reviews
 
+  # Base URL for the MergeWatch dashboard. Used to generate links in PR comments.
+  DashboardBaseUrl:
+    Type: String
+    Default: https://mergewatch.ai
+    Description: Base URL for the MergeWatch dashboard (no trailing slash)
+
 # =============================================================================
 # Global Configuration
 # =============================================================================
@@ -88,6 +94,9 @@ Globals:
 
         # Default Bedrock model — can be overridden per-repo in DynamoDB
         DEFAULT_BEDROCK_MODEL_ID: !Ref DefaultBedrockModelId
+
+        # Dashboard base URL for review detail links in PR comments
+        DASHBOARD_BASE_URL: !Ref DashboardBaseUrl
 
     # Tags applied to all functions for cost tracking and organization
     Tags:
