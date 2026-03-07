@@ -66,6 +66,7 @@ export async function GET(
       topSeverity: item.topSeverity ?? undefined,
       durationMs: item.durationMs ?? undefined,
       summaryText: item.summaryText ?? undefined,
+      diagramText: item.diagramText ?? undefined,
       findings: item.findings ?? [],
       settingsUsed: item.settingsUsed ?? undefined,
       feedback: item.feedback ?? undefined,

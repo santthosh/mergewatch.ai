@@ -13,6 +13,7 @@ import {
   BUG_REVIEWER_PROMPT,
   STYLE_REVIEWER_PROMPT,
   SUMMARY_PROMPT,
+  DIAGRAM_PROMPT,
   ORCHESTRATOR_PROMPT,
 } from './prompts';
 
@@ -139,6 +140,24 @@ export async function runStyleAgent(
   return parsed.findings;
 }
 
+/** Result from the diagram agent. */
+export interface DiagramResult {
+  diagram: string;
+  caption: string;
+}
+
+/** Run the diagram agent that produces a Mermaid diagram of changes. */
+export async function runDiagramAgent(
+  diff: string,
+  context: ReviewContext,
+  modelId: string,
+): Promise<DiagramResult> {
+  const prompt = buildPrompt(DIAGRAM_PROMPT, diff, context);
+  const raw = await invokeModel(modelId, prompt);
+  const parsed = safeParseJson<DiagramResult>(raw, { diagram: '', caption: '' });
+  return parsed;
+}
+
 /** Run the summary agent that produces a human-readable PR summary. */
 export async function runSummaryAgent(
   diff: string,
@@ -200,12 +219,15 @@ export interface ReviewPipelineOptions {
     bugs: boolean;
     style: boolean;
     summary: boolean;
+    diagram: boolean;
   };
 }
 
 export interface ReviewPipelineResult {
   summary: string;
   findings: OrchestratedFinding[];
+  diagram: string;
+  diagramCaption: string;
 }
 
 /**
@@ -226,7 +248,7 @@ export async function runReviewPipeline(
   } = options;
 
   // Launch all enabled agents in parallel
-  const [securityFindings, bugFindings, styleFindings, summary] = await Promise.all([
+  const [securityFindings, bugFindings, styleFindings, summary, diagramResult] = await Promise.all([
     enabledAgents.security
       ? runSecurityAgent(diff, context, modelId)
       : Promise.resolve([]),
@@ -239,6 +261,9 @@ export async function runReviewPipeline(
     enabledAgents.summary
       ? runSummaryAgent(diff, context, lightModelId)
       : Promise.resolve(''),
+    enabledAgents.diagram
+      ? runDiagramAgent(diff, context, lightModelId)
+      : Promise.resolve({ diagram: '', caption: '' } as DiagramResult),
   ]);
 
   // Orchestrate: deduplicate + rank all findings
@@ -254,5 +279,10 @@ export async function runReviewPipeline(
     maxFindings,
   );
 
-  return { summary, findings: orchestratedFindings };
+  return {
+    summary,
+    findings: orchestratedFindings,
+    diagram: diagramResult.diagram,
+    diagramCaption: diagramResult.caption,
+  };
 }

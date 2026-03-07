@@ -31,6 +31,12 @@ interface FormatOptions {
   showIssuesTable?: boolean;
   /** Whether to show confidence scores per finding */
   showConfidence?: boolean;
+  /** Mermaid diagram code from the diagram agent */
+  diagram?: string;
+  /** Caption for the diagram */
+  diagramCaption?: string;
+  /** Whether to show the diagram section */
+  showDiagram?: boolean;
   /** URL to the review detail page on the MergeWatch dashboard */
   reviewDetailUrl?: string;
 }
@@ -86,6 +92,9 @@ export function formatReviewComment(options: FormatOptions): string {
     showSummary = true,
     showIssuesTable = true,
     showConfidence = true,
+    diagram,
+    diagramCaption,
+    showDiagram = true,
     reviewDetailUrl,
   } = options;
 
@@ -103,6 +112,19 @@ export function formatReviewComment(options: FormatOptions): string {
     lines.push('<details><summary>Summary</summary>');
     lines.push('');
     lines.push(summary);
+    lines.push('');
+    lines.push('</details>');
+    lines.push('');
+  }
+
+  // Diagram (collapsible)
+  if (diagram && showDiagram) {
+    const captionText = diagramCaption ? ` — ${diagramCaption}` : '';
+    lines.push(`<details><summary>Diagram${captionText}</summary>`);
+    lines.push('');
+    lines.push('```mermaid');
+    lines.push(diagram);
+    lines.push('```');
     lines.push('');
     lines.push('</details>');
     lines.push('');

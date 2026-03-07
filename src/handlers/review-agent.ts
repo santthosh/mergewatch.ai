@@ -373,8 +373,8 @@ export async function handler(
       customStyleRules: runtimeConfig.customStyleRules,
       maxFindings: runtimeConfig.maxFindings,
       enabledAgents: mode === 'summary'
-        ? { security: false, bugs: false, style: false, summary: true }
-        : runtimeConfig.agents,
+        ? { security: false, bugs: false, style: false, summary: true, diagram: false }
+        : { ...runtimeConfig.agents, diagram: instSettings.summary.diagram },
     });
 
     // Build the review detail URL for the dashboard
@@ -388,6 +388,9 @@ export async function handler(
       showSummary: instSettings.summary.prSummary,
       showIssuesTable: instSettings.summary.issuesTable,
       showConfidence: instSettings.summary.confidenceScore,
+      diagram: result.diagram || undefined,
+      diagramCaption: result.diagramCaption || undefined,
+      showDiagram: instSettings.summary.diagram,
       reviewDetailUrl,
     });
 
@@ -476,6 +479,7 @@ export async function handler(
       topSeverity,
       durationMs,
       summaryText: result.summary || undefined,
+      diagramText: result.diagram || undefined,
       findings: result.findings as ReviewFinding[],
       reactions,
     });

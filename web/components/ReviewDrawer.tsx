@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Clock,
   FileText,
+  GitBranch,
   BarChart3,
   AlertCircle,
   ChevronDown,
@@ -36,6 +37,7 @@ interface ReviewDetail {
   topSeverity?: string;
   durationMs?: number;
   summaryText?: string;
+  diagramText?: string;
   findings?: Finding[];
   settingsUsed?: SettingsUsed;
   feedback?: "up" | "down";
@@ -287,6 +289,14 @@ export default function ReviewDrawer({
                 <DrawerSection title="Summary" icon={FileText} defaultOpen>
                   <div className="prose prose-invert prose-sm max-w-none text-sm text-[#999] leading-relaxed [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-0.5 [&_code]:rounded [&_code]:bg-[#1a1a1a] [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[#ccc] [&_pre]:rounded-lg [&_pre]:bg-[#111] [&_pre]:p-3 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h1]:text-white [&_h2]:text-white [&_h3]:text-white [&_strong]:text-white [&_a]:text-primer-blue [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-[#333] [&_blockquote]:pl-3 [&_blockquote]:text-[#777]">
                     <Markdown>{review.summaryText}</Markdown>
+                  </div>
+                </DrawerSection>
+              )}
+
+              {review.diagramText && (
+                <DrawerSection title="Diagram" icon={GitBranch}>
+                  <div className="overflow-x-auto rounded-lg bg-[#111] border border-[#1a1a1a] p-3">
+                    <pre className="text-xs text-[#999] whitespace-pre-wrap">{review.diagramText}</pre>
                   </div>
                 </DrawerSection>
               )}

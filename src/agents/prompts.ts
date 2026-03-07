@@ -128,6 +128,32 @@ Return a JSON object:
   "summary": "Markdown-formatted summary text (use bullet lists)."
 }`;
 
+// ─── Diagram agent ────────────────────────────────────────────────────────
+export const DIAGRAM_PROMPT = `${SHARED_PREAMBLE}
+
+Analyse the diff and produce a Mermaid diagram that visualises the structure or flow of the changes.
+
+Choose the most appropriate diagram type:
+- **flowchart TD** — for architecture, module relationships, or control flow changes
+- **sequenceDiagram** — for request/response flows, multi-step processes, or API call chains
+- **classDiagram** — for type, interface, or class hierarchy changes
+- **graph LR** — for data flow or pipeline changes
+
+Guidelines:
+- Focus on what CHANGED — do not diagram the entire codebase.
+- Keep it concise: 5-15 nodes max. Collapse trivial files into groups.
+- Use clear, short labels. Wrap labels with special characters in double quotes.
+- Use subgraphs to group related files or modules when helpful.
+- If the diff is too trivial for a useful diagram (e.g. a one-line config change, a typo fix, or a single variable rename), return empty strings for both fields.
+
+Return a JSON object:
+{
+  "diagram": "mermaid diagram code (no fences)",
+  "caption": "One-line description of what the diagram shows"
+}
+
+If no useful diagram can be generated, return: { "diagram": "", "caption": "" }`;
+
 // ─── Conversational response agent ─────────────────────────────────────────
 export const RESPOND_PROMPT = `You are MergeWatch, an AI code review assistant. A developer has posted a follow-up comment on a pull request that you previously reviewed.
 

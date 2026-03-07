@@ -290,6 +290,8 @@ export interface ReviewItem {
   durationMs?: number;
   /** Full summary text from the summary agent. */
   summaryText?: string;
+  /** Mermaid diagram text from the diagram agent. */
+  diagramText?: string;
   /** All findings from the review. */
   findings?: ReviewFinding[];
   /** User feedback from dashboard: thumbs up or down. */
