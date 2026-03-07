@@ -26,6 +26,12 @@ interface FormatOptions {
   summary: string;
   /** Deduplicated + ranked findings from the orchestrator */
   findings: Finding[];
+  /** Custom footer line from installation settings */
+  commentHeader?: string;
+  /** Whether to show the summary section */
+  showSummary?: boolean;
+  /** Whether to show the issues table */
+  showIssuesTable?: boolean;
 }
 
 // ─── Severity display config ───────────────────────────────────────────────
@@ -69,7 +75,15 @@ function renderFinding(f: Finding): string {
  * @returns A markdown string ready to be posted as a GitHub PR comment.
  */
 export function formatReviewComment(options: FormatOptions): string {
-  const { modelName, commitSha, summary, findings } = options;
+  const {
+    modelName,
+    commitSha,
+    summary,
+    findings,
+    commentHeader,
+    showSummary = true,
+    showIssuesTable = true,
+  } = options;
   const shortSha = commitSha.slice(0, 7);
 
   const lines: string[] = [];
@@ -85,7 +99,7 @@ export function formatReviewComment(options: FormatOptions): string {
   lines.push('');
 
   // Summary (collapsible)
-  if (summary) {
+  if (summary && showSummary) {
     lines.push('<details><summary>\uD83D\uDCCB Summary</summary>');
     lines.push('');
     lines.push(summary);
@@ -97,6 +111,8 @@ export function formatReviewComment(options: FormatOptions): string {
   // Findings grouped by severity
   if (findings.length === 0) {
     lines.push('No issues found — looking good! \u2705');
+  } else if (!showIssuesTable) {
+    lines.push(`${findings.length} issue${findings.length !== 1 ? 's' : ''} found.`);
   } else {
     const grouped = groupBySeverity(findings);
 
@@ -116,9 +132,13 @@ export function formatReviewComment(options: FormatOptions): string {
 
   // Footer
   lines.push('---');
-  lines.push(
-    '_Powered by [MergeWatch](https://mergewatch.ai) · Add a `.mergewatch.yml` to customise reviews_',
-  );
+  if (commentHeader) {
+    lines.push(commentHeader);
+  } else {
+    lines.push(
+      '_Powered by [MergeWatch](https://mergewatch.ai) · Add a `.mergewatch.yml` to customise reviews_',
+    );
+  }
 
   return lines.join('\n');
 }

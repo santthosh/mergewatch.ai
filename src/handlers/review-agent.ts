@@ -28,7 +28,8 @@ import { runReviewPipeline } from '../agents/reviewer';
 import { formatReviewComment } from '../comment-formatter';
 import { mergeConfig, type MergeWatchConfig } from '../config/defaults';
 import type { ReviewJobPayload } from '../types/github';
-import type { ReviewItem, ReviewStatus, InstallationItem } from '../types/db';
+import type { ReviewItem, ReviewStatus, InstallationItem, InstallationSettings } from '../types/db';
+import { DEFAULT_INSTALLATION_SETTINGS as DEFAULTS } from '../types/db';
 
 // -- AWS clients (re-used across warm invocations) ---------------------------
 
@@ -123,6 +124,36 @@ async function updateReviewStatus(
   );
 }
 
+/**
+ * Load installation-level settings from the sentinel row (SK="#SETTINGS").
+ * Returns merged defaults if no settings row exists.
+ */
+async function loadInstallationSettings(
+  installationId: number,
+): Promise<InstallationSettings> {
+  try {
+    const result = await dynamodb.send(
+      new GetCommand({
+        TableName: INSTALLATIONS_TABLE,
+        Key: {
+          installationId: String(installationId),
+          repoFullName: '#SETTINGS',
+        },
+      }),
+    );
+
+    const saved = (result.Item?.settings ?? {}) as Partial<InstallationSettings>;
+    return {
+      ...DEFAULTS,
+      ...saved,
+      commentTypes: { ...DEFAULTS.commentTypes, ...(saved.commentTypes ?? {}) },
+      summary: { ...DEFAULTS.summary, ...(saved.summary ?? {}) },
+    };
+  } catch {
+    return DEFAULTS;
+  }
+}
+
 // -- Lambda handler ----------------------------------------------------------
 
 /**
@@ -169,10 +200,30 @@ export async function handler(
     // Load repo-specific config from the installations table.
     const installation = await loadInstallationConfig(installationId, repoFullName);
 
-    // Merge stored config with defaults. The installation's config field
-    // contains the parsed .mergewatch.yml; we pass it through mergeConfig()
-    // which applies default values for any missing fields.
-    const runtimeConfig = mergeConfig((installation?.config ?? {}) as Partial<MergeWatchConfig>);
+    // Load installation-level settings (from the Settings page).
+    const instSettings = await loadInstallationSettings(installationId);
+
+    // Map installation settings to MergeWatchConfig overrides.
+    const severityMap = { Low: 'info', Med: 'warning', High: 'critical' } as const;
+    const settingsOverrides: Partial<MergeWatchConfig> = {
+      minSeverity: severityMap[instSettings.severityThreshold],
+      maxFindings: instSettings.maxComments,
+      agents: {
+        security: instSettings.commentTypes.logic,
+        bugs: instSettings.commentTypes.syntax,
+        style: instSettings.commentTypes.style,
+        summary: instSettings.summary.prSummary,
+      },
+      customStyleRules: instSettings.customInstructions
+        ? [instSettings.customInstructions]
+        : [],
+    };
+
+    // Merge: defaults <- installation settings <- .mergewatch.yml repo config
+    const runtimeConfig = mergeConfig({
+      ...settingsOverrides,
+      ...((installation?.config ?? {}) as Partial<MergeWatchConfig>),
+    });
 
     // Determine which Bedrock model to use. Priority:
     //   1. Per-repo override (installation.modelId)
@@ -210,6 +261,9 @@ export async function handler(
       commitSha: headSha,
       summary: result.summary,
       findings: result.findings,
+      commentHeader: instSettings.commentHeader || undefined,
+      showSummary: instSettings.summary.prSummary,
+      showIssuesTable: instSettings.summary.issuesTable,
     });
 
     // Post or update the review comment on the PR.
