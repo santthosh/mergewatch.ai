@@ -738,27 +738,42 @@ function PRTableGroup({
 export default function ReviewsClient({ repos, installationId }: ReviewsClientProps) {
   const [reviews, setReviews] = useState<ReviewListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
   const [repoFilter, setRepoFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
 
-  const fetchReviews = useCallback(async () => {
-    setLoading(true);
+  const PAGE_SIZE = 25;
+
+  const fetchReviews = useCallback(async (cursor?: string | null) => {
+    const isLoadMore = !!cursor;
+    if (isLoadMore) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
+
     const params = new URLSearchParams();
     params.set("installation_id", installationId);
     if (statusFilter) params.set("status", statusFilter);
     if (repoFilter) params.set("repo", repoFilter);
-    params.set("limit", "50");
+    params.set("limit", String(PAGE_SIZE));
+    if (cursor) params.set("cursor", cursor);
 
     try {
       const res = await fetch(`/api/reviews?${params}`);
       const data = await res.json();
-      setReviews(data.reviews ?? []);
+      const newReviews = data.reviews ?? [];
+      setReviews((prev) => isLoadMore ? [...prev, ...newReviews] : newReviews);
+      setNextCursor(data.nextCursor ?? null);
     } catch {
-      setReviews([]);
+      if (!isLoadMore) setReviews([]);
+      setNextCursor(null);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [installationId, statusFilter, repoFilter]);
 
@@ -894,6 +909,19 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
           </>
         );
       })()}
+
+      {/* Load More */}
+      {nextCursor && !loading && (
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={() => fetchReviews(nextCursor)}
+            disabled={loadingMore}
+            className="rounded-lg border border-[#1e1e1e] bg-[#0a0a0a] px-6 py-2.5 text-sm text-[#888] transition hover:border-[#333] hover:text-white disabled:opacity-50"
+          >
+            {loadingMore ? "Loading..." : "Load More"}
+          </button>
+        </div>
+      )}
 
       {/* Drawer */}
       {selectedReviewId && (
