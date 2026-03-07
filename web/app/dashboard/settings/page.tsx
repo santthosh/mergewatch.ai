@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { fetchUserInstallations, checkInstallationAdmin } from "@/lib/github-repos";
+import { fetchUserInstallations, checkInstallationAdmin, TokenExpiredError } from "@/lib/github-repos";
 import SettingsForm from "@/components/SettingsForm";
 
 interface SettingsPageProps {
@@ -16,7 +16,15 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   if (!accessToken) redirect("/");
 
   const params = await searchParams;
-  const installations = await fetchUserInstallations(accessToken);
+  let installations;
+  try {
+    installations = await fetchUserInstallations(accessToken);
+  } catch (err) {
+    if (err instanceof TokenExpiredError) {
+      redirect("/api/auth/signout");
+    }
+    throw err;
+  }
   if (installations.length === 0) redirect("/onboarding");
 
   const orgParam = typeof params.org === "string" ? params.org : undefined;

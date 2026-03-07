@@ -4,6 +4,14 @@ const GITHUB_HEADERS = (accessToken: string) => ({
   Accept: "application/vnd.github+json",
 });
 
+/** Thrown when the GitHub token is expired or revoked. */
+export class TokenExpiredError extends Error {
+  constructor() {
+    super("GitHub token expired");
+    this.name = "TokenExpiredError";
+  }
+}
+
 export interface Installation {
   id: number;
   account: {
@@ -31,6 +39,10 @@ export async function fetchUserInstallations(
     `${GITHUB_API}/user/installations?per_page=100`,
     { headers: GITHUB_HEADERS(accessToken), cache: "no-store" },
   );
+
+  if (res.status === 401 || res.status === 403) {
+    throw new TokenExpiredError();
+  }
 
   if (!res.ok) {
     console.error("[github-repos] installations fetch failed:", res.status);

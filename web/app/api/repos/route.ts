@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import {
   fetchUserInstallations,
   fetchInstallationRepos,
+  TokenExpiredError,
 } from "@/lib/github-repos";
 
 export const dynamic = "force-dynamic";
@@ -59,6 +60,9 @@ export async function GET(req: NextRequest) {
       hasMore: false,
     });
   } catch (err) {
+    if (err instanceof TokenExpiredError) {
+      return NextResponse.json({ error: "Token expired" }, { status: 401 });
+    }
     console.error("[/api/repos] unexpected error:", err);
     return NextResponse.json({ repos: [], totalCount: 0, hasMore: false });
   }

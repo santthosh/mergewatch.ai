@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { authOptions } from "@/lib/auth";
 import { ddb } from "@/lib/dynamo";
-import { fetchUserInstallations, checkInstallationAdmin } from "@/lib/github-repos";
+import { fetchUserInstallations, checkInstallationAdmin, TokenExpiredError } from "@/lib/github-repos";
 import { DEFAULT_INSTALLATION_SETTINGS } from "../../../../src/types/db";
 import type { InstallationSettings } from "../../../../src/types/db";
 
@@ -20,6 +20,7 @@ async function getAuthenticatedAdmin(req: NextRequest) {
   const installationId = url.searchParams.get("installation_id");
   if (!installationId) return null;
 
+  // TokenExpiredError propagates to the caller — API routes return 401
   const installations = await fetchUserInstallations(accessToken);
   const installation = installations.find((i) => String(i.id) === installationId);
   if (!installation) return null;
@@ -64,7 +65,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const auth = await getAuthenticatedAdmin(req);
+  let auth;
+  try {
+    auth = await getAuthenticatedAdmin(req);
+  } catch (err) {
+    if (err instanceof TokenExpiredError) {
+      return NextResponse.json({ error: "Token expired" }, { status: 401 });
+    }
+    throw err;
+  }
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!auth.isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (!TABLE) return NextResponse.json({ error: "Table not configured" }, { status: 500 });

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { fetchUserInstallations } from "@/lib/github-repos";
+import { fetchUserInstallations, TokenExpiredError } from "@/lib/github-repos";
 import Header from "@/components/Header";
 import Onboarding from "@/components/Onboarding";
 
@@ -19,9 +19,16 @@ export default async function OnboardingPage() {
   const accessToken = (session as any).accessToken as string | undefined;
 
   if (accessToken) {
-    const installations = await fetchUserInstallations(accessToken);
-    if (installations.length > 0) {
-      redirect("/dashboard");
+    try {
+      const installations = await fetchUserInstallations(accessToken);
+      if (installations.length > 0) {
+        redirect("/dashboard");
+      }
+    } catch (err) {
+      if (err instanceof TokenExpiredError) {
+        redirect("/api/auth/signout");
+      }
+      throw err;
     }
   }
 

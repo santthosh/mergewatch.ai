@@ -9,6 +9,7 @@ import { ddb } from "@/lib/dynamo";
 import {
   fetchUserInstallations,
   checkInstallationAdmin,
+  TokenExpiredError,
 } from "@/lib/github-repos";
 
 const TABLE = process.env.DYNAMODB_TABLE_INSTALLATIONS;
@@ -50,7 +51,15 @@ export async function PUT(req: NextRequest) {
   }
 
   // Verify the user is an admin for this installation
-  const installations = await fetchUserInstallations(accessToken);
+  let installations;
+  try {
+    installations = await fetchUserInstallations(accessToken);
+  } catch (err) {
+    if (err instanceof TokenExpiredError) {
+      return NextResponse.json({ error: "Token expired" }, { status: 401 });
+    }
+    throw err;
+  }
   const installation = installations.find((i) => String(i.id) === installationId);
 
   if (!installation) {

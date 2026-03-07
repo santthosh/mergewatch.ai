@@ -7,6 +7,7 @@ import {
   fetchUserInstallations,
   fetchInstallationRepos,
   checkInstallationAdmin,
+  TokenExpiredError,
 } from "@/lib/github-repos";
 import { type Review } from "@/components/ReviewTable";
 import DashboardContent from "@/components/DashboardContent";
@@ -35,7 +36,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const params = await searchParams;
 
   // Fetch installations
-  const installations = await fetchUserInstallations(accessToken);
+  let installations;
+  try {
+    installations = await fetchUserInstallations(accessToken);
+  } catch (err) {
+    if (err instanceof TokenExpiredError) {
+      redirect("/api/auth/signout");
+    }
+    throw err;
+  }
 
   if (installations.length === 0) {
     redirect("/onboarding");
