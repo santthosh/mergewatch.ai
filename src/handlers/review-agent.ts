@@ -15,7 +15,7 @@
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, UpdateCommand, GetCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import {
   getInstallationOctokit,
   getPRDiff,
@@ -179,11 +179,8 @@ export async function handler(
   // Get an authenticated Octokit client for this GitHub App installation.
   const octokit = await getInstallationOctokit(installationId);
 
-  // Fetch PR context to get the head commit SHA (needed for the review record key).
+  // Fetch PR context (title, description, branches, files) and head SHA.
   const prContext = await getPRContext(octokit, owner, repo, prNumber);
-  const commitSha = prContext.headBranch; // We'll get the actual SHA from the diff
-
-  // Fetch the PR details to get the head SHA
   const prDetails = await octokit.pulls.get({ owner, repo, pull_number: prNumber });
   const headSha = prDetails.data.head.sha;
   const shortSha = headSha.slice(0, 7);
@@ -284,20 +281,49 @@ export async function handler(
     });
 
     // Post or update the review comment on the PR.
+    // Try multiple strategies to find the existing comment:
+    //   1. existingCommentId from webhook handler (passed via payload)
+    //   2. Previous review record in DynamoDB (for the same PR, different commit)
+    //   3. Scan GitHub comments for the bot marker (fallback)
     let commentId: number | undefined;
-    if (existingCommentId) {
-      // Update the existing MergeWatch comment in-place.
-      await updateReviewComment(octokit, owner, repo, existingCommentId, commentBody);
-      commentId = existingCommentId;
-    } else {
-      // Check if there's already a bot comment we missed (race condition guard).
-      const foundCommentId = await findExistingBotComment(octokit, owner, repo, prNumber);
-      if (foundCommentId) {
-        await updateReviewComment(octokit, owner, repo, foundCommentId, commentBody);
-        commentId = foundCommentId;
-      } else {
-        commentId = await postReviewComment(octokit, owner, repo, prNumber, commentBody);
+    let targetCommentId = existingCommentId;
+
+    if (!targetCommentId) {
+      // Look up previous reviews for this PR to find a stored commentId.
+      try {
+        const prevReviews = await dynamodb.send(
+          new QueryCommand({
+            TableName: REVIEWS_TABLE,
+            KeyConditionExpression: 'repoFullName = :repo AND begins_with(prNumberCommitSha, :pr)',
+            ExpressionAttributeValues: {
+              ':repo': repoFullName,
+              ':pr': `${prNumber}#`,
+            },
+            ScanIndexForward: false,
+            Limit: 5,
+          }),
+        );
+        for (const item of prevReviews.Items ?? []) {
+          if (item.commentId && item.prNumberCommitSha !== prNumberCommitSha) {
+            targetCommentId = item.commentId as number;
+            break;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to look up previous review comment ID from DynamoDB:', err);
       }
+    }
+
+    if (!targetCommentId) {
+      // Final fallback: scan GitHub comments for the bot marker.
+      targetCommentId = (await findExistingBotComment(octokit, owner, repo, prNumber)) ?? undefined;
+    }
+
+    if (targetCommentId) {
+      await updateReviewComment(octokit, owner, repo, targetCommentId, commentBody);
+      commentId = targetCommentId;
+    } else {
+      commentId = await postReviewComment(octokit, owner, repo, prNumber, commentBody);
     }
 
     // React with 👍 to signal review is complete

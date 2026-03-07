@@ -84,8 +84,8 @@ export function formatReviewComment(options: FormatOptions): string {
 
   const lines: string[] = [];
 
-  // Hidden marker for upsert logic
-  lines.push('<!-- mergewatch-review -->');
+  // Note: the hidden marker (<!-- mergewatch-review -->) is prepended by
+  // postReviewComment / updateReviewComment in github/client.ts — not here.
 
   // Header — clean, minimal
   lines.push('## MergeWatch Review');
