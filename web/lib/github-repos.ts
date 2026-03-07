@@ -117,6 +117,46 @@ export async function fetchInstallationRepos(
 }
 
 /**
+ * Fetch a single page of repos for an installation.
+ * Returns repos + whether there are more pages.
+ */
+export async function fetchInstallationReposPage(
+  accessToken: string,
+  installationId: number,
+  page: number = 1,
+  perPage: number = 30,
+): Promise<{ repos: RepoResult[]; totalCount: number; hasMore: boolean }> {
+  const url = `${GITHUB_API}/user/installations/${installationId}/repositories?per_page=${perPage}&page=${page}`;
+  const res = await fetch(url, {
+    headers: GITHUB_HEADERS(accessToken),
+    cache: "no-store",
+  });
+
+  if (res.status === 401 || res.status === 403) {
+    throw new TokenExpiredError();
+  }
+
+  if (!res.ok) {
+    return { repos: [], totalCount: 0, hasMore: false };
+  }
+
+  const data = await res.json();
+  const totalCount: number = data.total_count ?? 0;
+
+  const repos: RepoResult[] = (data.repositories ?? []).map((repo: any) => ({
+    repoFullName: repo.full_name,
+    installedAt: repo.created_at ?? "",
+    installationId: String(installationId),
+    language: repo.language ?? null,
+    isPrivate: repo.private ?? false,
+    htmlUrl: repo.html_url ?? `https://github.com/${repo.full_name}`,
+  }));
+
+  const hasMore = page * perPage < totalCount;
+  return { repos, totalCount, hasMore };
+}
+
+/**
  * Check if the authenticated user is an admin for the given installation.
  *
  * For v1, we check if the user owns the installation account (personal account)

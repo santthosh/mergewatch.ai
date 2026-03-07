@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
   ExternalLink,
   Search,
@@ -8,6 +8,7 @@ import {
   Clock,
   PauseCircle,
   Settings as SettingsIcon,
+  Loader2,
 } from "lucide-react";
 import ToggleSwitch from "@/components/ToggleSwitch";
 import RelativeTime from "@/components/RelativeTime";
@@ -26,26 +27,85 @@ export interface RepositoryView {
 }
 
 interface RepositoriesClientProps {
-  repos: RepositoryView[];
   isAdmin: boolean;
   installationId: string;
   githubAppSlug?: string;
 }
 
+const PER_PAGE = 30;
+
 export default function RepositoriesClient({
-  repos: initialRepos,
   isAdmin,
   installationId,
   githubAppSlug,
 }: RepositoriesClientProps) {
-  const [repos, setRepos] = useState(initialRepos);
+  const [repos, setRepos] = useState<RepositoryView[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [languageFilter, setLanguageFilter] = useState<string>("all");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  // Debounced search
+  // Infinite scroll sentinel
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Fetch a page of repos
+  const fetchPage = useCallback(
+    async (pageNum: number, append: boolean) => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({
+          installation_id: installationId,
+          page: String(pageNum),
+          per_page: String(PER_PAGE),
+        });
+        const res = await fetch(`/api/repositories?${params}`);
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const incoming: RepositoryView[] = data.repos ?? [];
+
+        setRepos((prev) => (append ? [...prev, ...incoming] : incoming));
+        setTotalCount(data.totalCount ?? 0);
+        setHasMore(data.hasMore ?? false);
+        setPage(pageNum);
+      } finally {
+        setLoading(false);
+        setInitialLoad(false);
+      }
+    },
+    [installationId],
+  );
+
+  // Initial load
+  useEffect(() => {
+    fetchPage(1, false);
+  }, [fetchPage]);
+
+  // Intersection observer for infinite scroll
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading) {
+          fetchPage(page + 1, true);
+        }
+      },
+      { rootMargin: "200px" },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loading, page, fetchPage]);
+
+  // Debounced search (client-side filtering)
   const handleSearch = useCallback((value: string) => {
     setSearch(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -54,7 +114,7 @@ export default function RepositoriesClient({
     }, 200);
   }, []);
 
-  // Unique languages for dropdown
+  // Unique languages from loaded repos
   const languages = useMemo(() => {
     const langs = new Set<string>();
     repos.forEach((r) => {
@@ -63,17 +123,15 @@ export default function RepositoriesClient({
     return Array.from(langs).sort();
   }, [repos]);
 
-  // Filtered repos
+  // Client-side filtering
   const filtered = useMemo(() => {
     let result = repos;
 
-    // Search
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase();
       result = result.filter((r) => r.fullName.toLowerCase().includes(q));
     }
 
-    // Status filter
     if (statusFilter === "active") {
       result = result.filter((r) => r.enabled);
     } else if (statusFilter === "paused") {
@@ -82,7 +140,6 @@ export default function RepositoriesClient({
       result = result.filter((r) => r.enabled && r.reviewCount === 0);
     }
 
-    // Language filter
     if (languageFilter !== "all") {
       result = result.filter((r) => r.language === languageFilter);
     }
@@ -90,15 +147,13 @@ export default function RepositoriesClient({
     return result;
   }, [repos, debouncedSearch, statusFilter, languageFilter]);
 
-  // Stats
-  const connectedCount = repos.length;
+  // Stats from all loaded repos
   const activeCount = repos.filter((r) => r.enabled).length;
   const pausedCount = repos.filter((r) => !r.enabled).length;
 
   // Optimistic toggle
   const handleToggle = useCallback(
     async (fullName: string, enabled: boolean) => {
-      // Optimistic update
       setRepos((prev) =>
         prev.map((r) => (r.fullName === fullName ? { ...r, enabled } : r)),
       );
@@ -107,15 +162,10 @@ export default function RepositoriesClient({
         const res = await fetch("/api/repositories", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            installationId,
-            repoFullName: fullName,
-            enabled,
-          }),
+          body: JSON.stringify({ installationId, repoFullName: fullName, enabled }),
         });
         if (!res.ok) throw new Error("Failed");
       } catch {
-        // Rollback
         setRepos((prev) =>
           prev.map((r) =>
             r.fullName === fullName ? { ...r, enabled: !enabled } : r,
@@ -136,6 +186,8 @@ export default function RepositoriesClient({
   const githubConfigUrl = githubAppSlug
     ? `https://github.com/apps/${githubAppSlug}/installations/${installationId}`
     : `https://github.com/settings/installations/${installationId}`;
+
+  const hasFilters = debouncedSearch || statusFilter !== "all" || languageFilter !== "all";
 
   return (
     <div>
@@ -163,13 +215,13 @@ export default function RepositoriesClient({
       {/* Summary strip */}
       <div className="flex items-center gap-6 px-4 py-4 border-b border-[#1e1e1e] sm:px-8">
         {[
-          { value: connectedCount, label: "connected" },
+          { value: totalCount, label: "connected" },
           { value: activeCount, label: "active" },
           { value: pausedCount, label: "paused" },
         ].map((stat) => (
           <div key={stat.label} className="flex items-baseline gap-1.5">
             <span className="text-white text-lg font-semibold tabular-nums">
-              {stat.value}
+              {initialLoad ? "–" : stat.value}
             </span>
             <span className="text-[#444] text-sm">{stat.label}</span>
           </div>
@@ -178,7 +230,6 @@ export default function RepositoriesClient({
 
       {/* Filter bar */}
       <div className="flex flex-col gap-3 px-4 py-4 border-b border-[#1e1e1e] sm:flex-row sm:items-center sm:px-8">
-        {/* Search */}
         <div className="relative">
           <Search
             size={14}
@@ -193,7 +244,6 @@ export default function RepositoriesClient({
           />
         </div>
 
-        {/* Status */}
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -205,7 +255,6 @@ export default function RepositoriesClient({
           <option value="no-reviews">No reviews yet</option>
         </select>
 
-        {/* Language */}
         {languages.length > 0 && (
           <select
             value={languageFilter}
@@ -223,8 +272,11 @@ export default function RepositoriesClient({
       </div>
 
       {/* Content */}
-      {repos.length === 0 ? (
-        /* No repos connected at all */
+      {initialLoad ? (
+        <div className="flex items-center justify-center py-24">
+          <Loader2 size={24} className="animate-spin text-[#333]" />
+        </div>
+      ) : repos.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <GitBranch size={32} className="text-[#2a2a2a] mb-4" />
           <div className="text-white text-sm font-medium">
@@ -245,8 +297,7 @@ export default function RepositoriesClient({
             </a>
           )}
         </div>
-      ) : filtered.length === 0 ? (
-        /* No repos match filters */
+      ) : filtered.length === 0 && hasFilters ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <Search size={28} className="text-[#2a2a2a] mb-4" />
           <div className="text-white text-sm font-medium">
@@ -260,17 +311,36 @@ export default function RepositoriesClient({
           </button>
         </div>
       ) : (
-        /* Repo card grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-4 sm:p-8">
-          {filtered.map((repo) => (
-            <RepoCard
-              key={repo.fullName}
-              repo={repo}
-              isAdmin={isAdmin}
-              onToggle={handleToggle}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-4 sm:p-8">
+            {filtered.map((repo) => (
+              <RepoCard
+                key={repo.fullName}
+                repo={repo}
+                isAdmin={isAdmin}
+                onToggle={handleToggle}
+              />
+            ))}
+          </div>
+
+          {/* Infinite scroll sentinel */}
+          <div ref={sentinelRef} className="h-1" />
+
+          {/* Loading indicator */}
+          {loading && !initialLoad && (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 size={20} className="animate-spin text-[#333]" />
+              <span className="ml-2 text-xs text-[#444]">Loading more repos...</span>
+            </div>
+          )}
+
+          {/* End of list */}
+          {!hasMore && repos.length > PER_PAGE && (
+            <div className="text-center py-6 text-xs text-[#333]">
+              All {totalCount} repositories loaded
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -348,7 +418,6 @@ function RepoCard({
 // ---------------------------------------------------------------------------
 
 function RepoStatus({ repo }: { repo: RepositoryView }) {
-  // Paused
   if (!repo.enabled) {
     return (
       <div className="flex items-center gap-2 py-1">
@@ -367,7 +436,6 @@ function RepoStatus({ repo }: { repo: RepositoryView }) {
     );
   }
 
-  // Active but no reviews
   if (repo.reviewCount === 0) {
     return (
       <div className="flex items-center gap-2 py-1">
@@ -379,7 +447,6 @@ function RepoStatus({ repo }: { repo: RepositoryView }) {
     );
   }
 
-  // Active with reviews
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
