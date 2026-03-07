@@ -26,6 +26,7 @@ import {
   addPRReaction,
   getCommentReactions,
   postReplyComment,
+  createCheckRun,
 } from '../github/client';
 import { runReviewPipeline } from '../agents/reviewer';
 import { invokeModel } from '../bedrock/client';
@@ -307,6 +308,13 @@ export async function handler(
   // React with 👀 to signal review has started
   await addPRReaction(octokit, owner, repo, prNumber, 'eyes');
 
+  // Post an in-progress check run so the PR merge box shows "Review running"
+  await createCheckRun(octokit, owner, repo, headSha, {
+    status: 'in_progress',
+    title: 'Review in progress',
+    summary: `MergeWatch is reviewing PR #${prNumber}...`,
+  });
+
   try {
     // Fetch PR diff
     const diff = await getPRDiff(octokit, owner, repo, prNumber);
@@ -471,6 +479,31 @@ export async function handler(
       reactions,
     });
 
+    // Post completed check run with pass/fail based on critical findings
+    const hasCritical = result.findings.some((f) => f.severity === 'critical');
+    const checkConclusion = hasCritical ? 'failure' as const : 'success' as const;
+    const findingSummaryParts: string[] = [];
+    const criticalCount = result.findings.filter((f) => f.severity === 'critical').length;
+    const warningCount = result.findings.filter((f) => f.severity === 'warning').length;
+    const infoCount = result.findings.filter((f) => f.severity === 'info').length;
+    if (criticalCount) findingSummaryParts.push(`${criticalCount} critical`);
+    if (warningCount) findingSummaryParts.push(`${warningCount} warning`);
+    if (infoCount) findingSummaryParts.push(`${infoCount} info`);
+
+    await createCheckRun(octokit, owner, repo, headSha, {
+      status: 'completed',
+      conclusion: checkConclusion,
+      title: hasCritical
+        ? `${criticalCount} critical issue${criticalCount > 1 ? 's' : ''} found`
+        : result.findings.length > 0
+          ? `${result.findings.length} finding${result.findings.length > 1 ? 's' : ''} (no critical)`
+          : 'No issues found',
+      summary: findingSummaryParts.length > 0
+        ? `Found: ${findingSummaryParts.join(', ')}`
+        : 'No issues detected in this PR.',
+      detailsUrl: reviewDetailUrl,
+    });
+
     console.log(
       `Review complete for ${repoFullName}#${prNumber}: ${result.findings.length} findings`,
     );
@@ -491,6 +524,14 @@ export async function handler(
     }).catch((updateErr) => {
       // Don't let a DynamoDB error mask the original error.
       console.error('Failed to update review status to failed:', updateErr);
+    });
+
+    // Post a failed check run so the PR shows the error
+    await createCheckRun(octokit, owner, repo, headSha, {
+      status: 'completed',
+      conclusion: 'failure',
+      title: 'Review failed',
+      summary: `MergeWatch encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}`,
     });
 
     return {

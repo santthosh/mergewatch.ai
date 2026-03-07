@@ -316,6 +316,51 @@ export async function getCommentReactions(
 }
 
 // ---------------------------------------------------------------------------
+// Check runs (status checks)
+// ---------------------------------------------------------------------------
+
+/**
+ * Create or update a GitHub Check Run on a specific commit.
+ *
+ * Used to show pass/fail status directly in the PR merge box.
+ * Call once with status "in_progress" when the review starts,
+ * then again with status "completed" + conclusion when done.
+ */
+export async function createCheckRun(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  headSha: string,
+  params: {
+    status: 'queued' | 'in_progress' | 'completed';
+    conclusion?: 'success' | 'failure' | 'neutral';
+    title: string;
+    summary: string;
+    detailsUrl?: string;
+  },
+): Promise<void> {
+  try {
+    await octokit.checks.create({
+      owner,
+      repo,
+      head_sha: headSha,
+      name: 'MergeWatch Review',
+      status: params.status,
+      ...(params.conclusion && { conclusion: params.conclusion }),
+      ...(params.detailsUrl && { details_url: params.detailsUrl }),
+      output: {
+        title: params.title,
+        summary: params.summary,
+      },
+    });
+  } catch (err) {
+    // Non-critical — don't fail the review if the check run fails.
+    // This can happen if the GitHub App lacks the "checks: write" permission.
+    console.warn(`Failed to create check run for ${owner}/${repo}@${headSha}:`, err);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Reply comments (for conversational responses)
 // ---------------------------------------------------------------------------
 
