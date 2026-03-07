@@ -104,18 +104,28 @@ export async function POST(
 
   const body = await req.json();
   const feedback = body.feedback;
-  if (feedback !== "up" && feedback !== "down") {
+  if (feedback !== "up" && feedback !== "down" && feedback !== null) {
     return NextResponse.json({ error: "Invalid feedback" }, { status: 400 });
   }
 
-  await ddb.send(
-    new UpdateCommand({
-      TableName: REVIEWS_TABLE,
-      Key: { repoFullName, prNumberCommitSha },
-      UpdateExpression: "SET feedback = :fb",
-      ExpressionAttributeValues: { ":fb": feedback },
-    }),
-  );
+  if (feedback === null) {
+    await ddb.send(
+      new UpdateCommand({
+        TableName: REVIEWS_TABLE,
+        Key: { repoFullName, prNumberCommitSha },
+        UpdateExpression: "REMOVE feedback",
+      }),
+    );
+  } else {
+    await ddb.send(
+      new UpdateCommand({
+        TableName: REVIEWS_TABLE,
+        Key: { repoFullName, prNumberCommitSha },
+        UpdateExpression: "SET feedback = :fb",
+        ExpressionAttributeValues: { ":fb": feedback },
+      }),
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }

@@ -245,7 +245,7 @@ function ReviewDrawer({
     await fetch(`/api/reviews/${encodeURIComponent(reviewId)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ feedback: newFb ?? fb }),
+      body: JSON.stringify({ feedback: newFb }),
     });
   }
 
