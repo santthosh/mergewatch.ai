@@ -9,21 +9,24 @@ interface ToggleSwitchProps {
 export default function ToggleSwitch({ checked, disabled, onChange }: ToggleSwitchProps) {
   return (
     <button
+      type="button"
       role="switch"
       aria-checked={checked}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={[
-        "relative shrink-0 w-9 h-5 rounded-full transition-colors duration-150",
+        "relative w-11 h-6 shrink-0 rounded-full transition-colors duration-200",
         checked ? "bg-[#00ff88]" : "bg-[#2a2a2a]",
         disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
       ].join(" ")}
     >
       <span
         className={[
-          "absolute top-0.5 w-4 h-4 rounded-full bg-black transition-transform duration-150",
-          checked ? "translate-x-4" : "translate-x-0.5",
-        ].join(" ")}
+          "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-black transition-transform duration-200",
+          checked ? "translate-x-5" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
       />
     </button>
   );
