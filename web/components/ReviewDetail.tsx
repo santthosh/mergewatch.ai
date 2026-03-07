@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import RelativeTime from "./RelativeTime";
 import {
   ArrowLeft,
   ExternalLink,
@@ -268,13 +269,13 @@ export default function ReviewDetail({ review }: { review: ReviewData }) {
 
             <InfoRow icon={Clock} label="Started">
               {review.createdAt
-                ? new Date(review.createdAt).toLocaleString()
+                ? <RelativeTime date={review.createdAt} />
                 : "—"}
             </InfoRow>
 
             {review.completedAt && (
               <InfoRow icon={Clock} label="Completed">
-                {new Date(review.completedAt).toLocaleString()}
+                <RelativeTime date={review.completedAt} />
                 {duration !== null && (
                   <span className="ml-2 text-xs text-[#555]">
                     ({duration}s)

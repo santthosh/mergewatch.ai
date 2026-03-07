@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import RelativeTime from "./RelativeTime";
 
 /** Shape of a single review record (matches the DynamoDB schema). */
 export interface Review {
@@ -68,7 +69,7 @@ export default function ReviewTable({ reviews }: { reviews: Review[] }) {
             </div>
             <div className="mt-2 flex items-center gap-3 text-xs text-primer-muted">
               {r.model && <span>{r.model}</span>}
-              <span>{new Date(r.createdAt).toLocaleString()}</span>
+              <RelativeTime date={r.createdAt} />
             </div>
           </Link>
         ))}
@@ -106,7 +107,7 @@ export default function ReviewTable({ reviews }: { reviews: Review[] }) {
                   {r.model}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-primer-muted">
-                  {new Date(r.createdAt).toLocaleString()}
+                  <RelativeTime date={r.createdAt} />
                 </td>
               </tr>
             ))}

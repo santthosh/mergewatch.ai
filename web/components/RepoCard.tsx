@@ -1,5 +1,7 @@
 "use client";
 
+import RelativeTime from "./RelativeTime";
+
 export default function RepoCard({
   repoFullName,
   installedAt,
@@ -22,7 +24,7 @@ export default function RepoCard({
           {repoFullName}
         </a>
         <p className="mt-0.5 text-xs text-primer-muted">
-          Connected {new Date(installedAt).toLocaleDateString()}
+          Connected <RelativeTime date={installedAt} />
         </p>
       </div>
 
