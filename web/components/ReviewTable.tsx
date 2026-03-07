@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import RelativeTime from "./RelativeTime";
 import { ChevronRight, ChevronDown, GitCommit } from "lucide-react";
 
@@ -16,30 +15,24 @@ export interface Review {
   createdAt: string;
 }
 
-/** Build a URL-safe review detail path. */
-function reviewHref(r: Review): string {
-  return `/dashboard/reviews/${encodeURIComponent(`${r.repoFullName}:${r.id}`)}`;
-}
-
 /** Extract short commit SHA from review id (format: "prNumber#commitSha"). */
 function commitSha(r: Review): string {
   return r.id.split("#")[1] ?? "";
 }
 
 /** Maps review status to a coloured badge. */
-const statusStyles: Record<Review["status"], string> = {
-  pending: "bg-primer-orange/20 text-primer-orange",
-  in_progress: "bg-primer-blue/20 text-primer-blue",
-  completed: "bg-primer-green/20 text-primer-green",
-  failed: "bg-primer-red/20 text-primer-red",
+const statusStyles: Record<Review["status"], { bg: string; text: string; label: string }> = {
+  pending: { bg: "bg-primer-orange/15", text: "text-primer-orange", label: "Pending" },
+  in_progress: { bg: "bg-primer-blue/15", text: "text-primer-blue", label: "In Progress" },
+  completed: { bg: "bg-primer-green/15", text: "text-primer-green", label: "Completed" },
+  failed: { bg: "bg-primer-red/15", text: "text-primer-red", label: "Failed" },
 };
 
 function StatusBadge({ status }: { status: Review["status"] }) {
+  const s = statusStyles[status];
   return (
-    <span
-      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[status]}`}
-    >
-      {status.replace("_", " ")}
+    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${s.bg} ${s.text}`}>
+      {s.label}
     </span>
   );
 }
@@ -64,13 +57,20 @@ function groupByPR(reviews: Review[]): { key: string; latest: Review; older: Rev
   return groups;
 }
 
-function PRGroup({ latest, older }: { latest: Review; older: Review[] }) {
+function PRGroup({
+  latest,
+  older,
+  onSelect,
+}: {
+  latest: Review;
+  older: Review[];
+  onSelect?: (r: Review) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const hasOlder = older.length > 0;
 
   return (
     <>
-      {/* Main row — latest review */}
       <div className="flex gap-2">
         {hasOlder ? (
           <button
@@ -82,22 +82,22 @@ function PRGroup({ latest, older }: { latest: Review; older: Review[] }) {
         ) : (
           <div className="w-5 shrink-0" />
         )}
-        <Link
-          href={reviewHref(latest)}
-          className="min-w-0 flex-1 block rounded-lg border border-zinc-800 bg-zinc-900/60 px-4 py-3 transition hover:border-zinc-700 hover:bg-zinc-900/80"
+        <button
+          onClick={() => onSelect?.(latest)}
+          className="min-w-0 flex-1 rounded-lg border border-[#1e1e1e] bg-[#0a0a0a] px-4 py-3 text-left transition hover:border-[#333] hover:bg-[#111]"
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <span className="text-sm font-medium text-white">
                 #{latest.prNumber} {latest.prTitle || latest.repoFullName}
               </span>
-              <p className="mt-0.5 truncate text-xs text-primer-muted">
+              <p className="mt-0.5 truncate text-xs text-[#555]">
                 {latest.repoFullName}
               </p>
             </div>
             <StatusBadge status={latest.status} />
           </div>
-          <div className="mt-2 flex items-center gap-3 text-xs text-primer-muted">
+          <div className="mt-2 flex items-center gap-3 text-xs text-[#555]">
             <span className="inline-flex items-center gap-1">
               <GitCommit size={11} />
               <code>{commitSha(latest)}</code>
@@ -105,91 +105,97 @@ function PRGroup({ latest, older }: { latest: Review; older: Review[] }) {
             {latest.model && <span>{latest.model}</span>}
             <RelativeTime date={latest.createdAt} />
           </div>
-        </Link>
+        </button>
       </div>
 
-      {/* Older reviews (expanded) */}
       {expanded && older.map((r) => (
-        <Link
+        <button
           key={r.id}
-          href={reviewHref(r)}
-          className="ml-6 block rounded-lg border border-zinc-800/60 bg-zinc-900/30 px-4 py-2.5 transition hover:border-zinc-700 hover:bg-zinc-900/60"
+          onClick={() => onSelect?.(r)}
+          className="ml-6 w-[calc(100%-1.5rem)] rounded-lg border border-[#1a1a1a] bg-[#060606] px-4 py-2.5 text-left transition hover:border-[#333] hover:bg-[#111]"
         >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-3 text-xs text-primer-muted">
-              <span className="inline-flex items-center gap-1">
-                <GitCommit size={11} />
-                <code>{commitSha(r)}</code>
-              </span>
-              <StatusBadge status={r.status} />
-              <RelativeTime date={r.createdAt} />
-            </div>
+          <div className="flex items-center gap-3 text-xs text-[#555]">
+            <span className="inline-flex items-center gap-1">
+              <GitCommit size={11} />
+              <code>{commitSha(r)}</code>
+            </span>
+            <StatusBadge status={r.status} />
+            <RelativeTime date={r.createdAt} />
           </div>
-        </Link>
+        </button>
       ))}
     </>
   );
 }
 
-function PRTableGroup({ latest, older }: { latest: Review; older: Review[] }) {
+function PRTableGroup({
+  latest,
+  older,
+  onSelect,
+}: {
+  latest: Review;
+  older: Review[];
+  onSelect?: (r: Review) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const hasOlder = older.length > 0;
 
   return (
     <>
-      <tr className="transition hover:bg-zinc-900/40">
+      <tr
+        onClick={() => onSelect?.(latest)}
+        className="cursor-pointer transition hover:bg-[#111]"
+      >
         <td className="w-10 px-2 py-3 text-center">
           {hasOlder ? (
             <button
-              onClick={() => setExpanded(!expanded)}
-              className="inline-flex items-center justify-center rounded p-1 text-primer-blue hover:bg-zinc-800"
+              onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+              className="inline-flex items-center justify-center rounded p-1 text-primer-blue hover:bg-[#1a1a1a]"
             >
               {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             </button>
           ) : null}
         </td>
-        <td className="whitespace-nowrap px-4 py-3 font-medium text-primer-blue">
-          <Link href={reviewHref(latest)} className="hover:underline">
-            {latest.repoFullName}
-          </Link>
+        <td className="whitespace-nowrap px-4 py-3 font-medium text-white">
+          {latest.repoFullName}
         </td>
-        <td className="px-4 py-3">
-          <Link href={reviewHref(latest)} className="hover:underline">
-            #{latest.prNumber} {latest.prTitle}
-          </Link>
+        <td className="px-4 py-3 text-white">
+          #{latest.prNumber} {latest.prTitle}
         </td>
         <td className="whitespace-nowrap px-4 py-3">
-          <Link href={reviewHref(latest)} className="inline-flex items-center gap-1 text-primer-muted hover:text-white">
+          <span className="inline-flex items-center gap-1 text-[#888]">
             <GitCommit size={12} />
             <code className="text-xs">{commitSha(latest)}</code>
-          </Link>
+          </span>
         </td>
         <td className="px-4 py-3">
           <StatusBadge status={latest.status} />
         </td>
-        <td className="whitespace-nowrap px-4 py-3 text-primer-muted">
+        <td className="whitespace-nowrap px-4 py-3 text-[#555]">
           <RelativeTime date={latest.createdAt} />
         </td>
       </tr>
       {expanded && older.map((r) => (
-        <tr key={r.id} className="bg-zinc-900/20 transition hover:bg-zinc-900/40">
+        <tr
+          key={r.id}
+          onClick={() => onSelect?.(r)}
+          className="cursor-pointer bg-[#060606] transition hover:bg-[#111]"
+        >
           <td className="w-10" />
-          <td className="px-4 py-2 pl-8 text-xs text-primer-muted" />
-          <td className="px-4 py-2 text-xs text-primer-muted">
-            <Link href={reviewHref(r)} className="hover:underline opacity-70">
-              #{r.prNumber} {r.prTitle}
-            </Link>
+          <td className="px-4 py-2 text-xs text-[#666]" />
+          <td className="px-4 py-2 text-xs text-[#666]">
+            #{r.prNumber} {r.prTitle}
           </td>
           <td className="whitespace-nowrap px-4 py-2">
-            <Link href={reviewHref(r)} className="inline-flex items-center gap-1 text-primer-muted hover:text-white">
+            <span className="inline-flex items-center gap-1 text-[#666]">
               <GitCommit size={11} />
               <code className="text-xs">{commitSha(r)}</code>
-            </Link>
+            </span>
           </td>
           <td className="px-4 py-2">
             <StatusBadge status={r.status} />
           </td>
-          <td className="whitespace-nowrap px-4 py-2 text-primer-muted">
+          <td className="whitespace-nowrap px-4 py-2 text-[#555]">
             <RelativeTime date={r.createdAt} />
           </td>
         </tr>
@@ -198,10 +204,16 @@ function PRTableGroup({ latest, older }: { latest: Review; older: Review[] }) {
   );
 }
 
-export default function ReviewTable({ reviews }: { reviews: Review[] }) {
+export default function ReviewTable({
+  reviews,
+  onSelect,
+}: {
+  reviews: Review[];
+  onSelect?: (review: Review) => void;
+}) {
   if (reviews.length === 0) {
     return (
-      <p className="py-12 text-center text-sm text-primer-muted">
+      <p className="py-12 text-center text-sm text-[#555]">
         No reviews yet. Connect a repo and open a pull request to get started.
       </p>
     );
@@ -214,14 +226,14 @@ export default function ReviewTable({ reviews }: { reviews: Review[] }) {
       {/* Mobile: card layout */}
       <div className="flex flex-col gap-2 md:hidden">
         {groups.map((g) => (
-          <PRGroup key={g.key} latest={g.latest} older={g.older} />
+          <PRGroup key={g.key} latest={g.latest} older={g.older} onSelect={onSelect} />
         ))}
       </div>
 
       {/* Desktop: table layout */}
-      <div className="hidden overflow-x-auto rounded-lg border border-zinc-800 md:block">
+      <div className="hidden overflow-x-auto rounded-lg border border-[#1e1e1e] md:block">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-800 bg-zinc-900/80 text-xs uppercase tracking-wider text-primer-muted">
+          <thead className="border-b border-[#1e1e1e] bg-[#0a0a0a] text-xs uppercase tracking-wider text-[#444]">
             <tr>
               <th className="w-10 px-2 py-3" />
               <th className="px-4 py-3">Repo</th>
@@ -231,9 +243,9 @@ export default function ReviewTable({ reviews }: { reviews: Review[] }) {
               <th className="px-4 py-3">Time</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800">
+          <tbody className="divide-y divide-[#1a1a1a]">
             {groups.map((g) => (
-              <PRTableGroup key={g.key} latest={g.latest} older={g.older} />
+              <PRTableGroup key={g.key} latest={g.latest} older={g.older} onSelect={onSelect} />
             ))}
           </tbody>
         </table>

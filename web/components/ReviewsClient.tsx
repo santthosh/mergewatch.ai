@@ -1,27 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Markdown from "react-markdown";
 import RelativeTime from "./RelativeTime";
+import ReviewDrawer from "./ReviewDrawer";
 import {
-  X,
-  ExternalLink,
   GitCommit,
-  GitBranch,
-  Clock,
-  Cpu,
-  Shield,
-  Bug,
-  Paintbrush,
-  FileText,
-  BarChart3,
-  MessageSquare,
   ChevronDown,
   ChevronRight,
-  ThumbsUp,
-  ThumbsDown,
   Search,
-  AlertCircle,
 } from "lucide-react";
 
 // -- Types ------------------------------------------------------------------
@@ -45,31 +31,6 @@ interface ReviewListItem {
   durationMs?: number;
 }
 
-interface ReviewDetail extends ReviewListItem {
-  summaryText?: string;
-  findings?: Finding[];
-  settingsUsed?: SettingsUsed;
-  feedback?: "up" | "down";
-  commentId?: number;
-}
-
-interface Finding {
-  file: string;
-  line: number;
-  severity: "critical" | "warning" | "info";
-  category: "security" | "bug" | "style";
-  title: string;
-  description: string;
-  suggestion: string;
-}
-
-interface SettingsUsed {
-  severityThreshold: string;
-  commentTypes: { syntax: boolean; logic: boolean; style: boolean };
-  maxComments: number;
-  summaryEnabled: boolean;
-  customInstructions: boolean;
-}
 
 interface ReviewsClientProps {
   repos: string[];
@@ -188,335 +149,6 @@ function formatDuration(ms: number): string {
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
-// -- Drawer -----------------------------------------------------------------
-
-function DrawerSection({
-  title,
-  icon: Icon,
-  defaultOpen = false,
-  children,
-}: {
-  title: string;
-  icon: typeof Clock;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border-b border-[#1a1a1a]">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-2 px-5 py-3 text-left hover:bg-[#111] transition-colors"
-      >
-        {open ? <ChevronDown size={14} className="text-[#555]" /> : <ChevronRight size={14} className="text-[#555]" />}
-        <Icon size={14} className="text-[#555]" />
-        <span className="text-xs font-semibold uppercase tracking-widest text-[#444]">{title}</span>
-      </button>
-      {open && <div className="px-5 pb-4">{children}</div>}
-    </div>
-  );
-}
-
-function ReviewDrawer({
-  reviewId,
-  onClose,
-}: {
-  reviewId: string;
-  onClose: () => void;
-}) {
-  const [review, setReview] = useState<ReviewDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [feedbackState, setFeedbackState] = useState<"up" | "down" | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    fetch(`/api/reviews/${encodeURIComponent(reviewId)}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setReview(data.review);
-        setFeedbackState(data.review?.feedback ?? null);
-      })
-      .finally(() => setLoading(false));
-  }, [reviewId]);
-
-  async function handleFeedback(fb: "up" | "down") {
-    const newFb = feedbackState === fb ? null : fb;
-    setFeedbackState(newFb);
-    await fetch(`/api/reviews/${encodeURIComponent(reviewId)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ feedback: newFb }),
-    });
-  }
-
-  // Close on Escape
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
-
-  const prUrl = review ? `https://github.com/${review.repoFullName}/pull/${review.prNumber}` : "";
-  const commentUrl = review?.commentId ? `${prUrl}#issuecomment-${review.commentId}` : null;
-
-  return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-black/50"
-        onClick={onClose}
-      />
-
-      {/* Drawer panel */}
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-[#1e1e1e] bg-[#0a0a0a] shadow-2xl">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-[#1e1e1e] px-5 py-4">
-          <div className="min-w-0 flex-1">
-            {loading ? (
-              <div className="h-5 w-48 animate-pulse rounded bg-[#1a1a1a]" />
-            ) : review ? (
-              <>
-                <h2 className="text-base font-semibold text-white truncate">
-                  #{review.prNumber} {review.prTitle || "Untitled PR"}
-                </h2>
-                <p className="mt-0.5 text-xs text-[#555]">{review.repoFullName}</p>
-              </>
-            ) : null}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {review && <StatusBadge status={review.status} />}
-            <button
-              onClick={onClose}
-              className="rounded p-1 text-[#555] hover:bg-[#1a1a1a] hover:text-white transition-colors"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="space-y-4 p-5">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-16 animate-pulse rounded bg-[#1a1a1a]" />
-              ))}
-            </div>
-          ) : review ? (
-            <>
-              {/* Overview section */}
-              <DrawerSection title="Overview" icon={FileText} defaultOpen>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#555]">Author</span>
-                    {review.prAuthor ? (
-                      <span className="flex items-center gap-1.5 text-white">
-                        {review.prAuthorAvatar && (
-                          <img src={review.prAuthorAvatar} alt="" className="h-4 w-4 rounded-full" />
-                        )}
-                        {review.prAuthor}
-                      </span>
-                    ) : (
-                      <span className="text-[#333]">—</span>
-                    )}
-                  </div>
-                  {review.headBranch && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-[#555]">Branch</span>
-                      <code className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-xs text-[#888]">
-                        {review.headBranch} → {review.baseBranch ?? "main"}
-                      </code>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#555]">Commit</span>
-                    <a
-                      href={`https://github.com/${review.repoFullName}/commit/${review.commitSha}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-primer-blue hover:underline"
-                    >
-                      <code className="text-xs">{review.commitSha}</code>
-                      <ExternalLink size={10} />
-                    </a>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#555]">Model</span>
-                    <code className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-xs text-[#888]">
-                      {review.model || "—"}
-                    </code>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#555]">Duration</span>
-                    <span className="text-white">
-                      {review.durationMs ? formatDuration(review.durationMs) : "—"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#555]">Started</span>
-                    <span className="text-white">
-                      {review.createdAt ? <RelativeTime date={review.createdAt} /> : "—"}
-                    </span>
-                  </div>
-                  {commentUrl && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-[#555]">Comment</span>
-                      <a
-                        href={commentUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-primer-blue hover:underline text-xs"
-                      >
-                        View on GitHub <ExternalLink size={10} />
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </DrawerSection>
-
-              {/* Summary section */}
-              {review.summaryText && (
-                <DrawerSection title="Summary" icon={FileText} defaultOpen>
-                  <div className="prose prose-invert prose-sm max-w-none text-sm text-[#999] leading-relaxed [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-0.5 [&_code]:rounded [&_code]:bg-[#1a1a1a] [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[#ccc] [&_pre]:rounded-lg [&_pre]:bg-[#111] [&_pre]:p-3 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h1]:text-white [&_h2]:text-white [&_h3]:text-white [&_strong]:text-white [&_a]:text-primer-blue [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-[#333] [&_blockquote]:pl-3 [&_blockquote]:text-[#777]">
-                    <Markdown>{review.summaryText}</Markdown>
-                  </div>
-                </DrawerSection>
-              )}
-
-              {/* Findings section */}
-              <DrawerSection
-                title={`Findings (${review.findings?.length ?? review.findingCount ?? 0})`}
-                icon={AlertCircle}
-                defaultOpen
-              >
-                {(!review.findings || review.findings.length === 0) ? (
-                  <p className="text-sm text-[#555]">No issues found.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {review.findings.map((f, i) => (
-                      <div key={i} className="rounded-lg border border-[#1a1a1a] p-3">
-                        <div className="flex items-start gap-2">
-                          <SeverityDot severity={f.severity} />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-medium text-white">{f.title}</span>
-                              <span className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-[10px] text-[#666] uppercase">
-                                {f.category}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-xs text-[#888]">
-                              <code className="text-[#666]">{f.file}:{f.line}</code>
-                            </p>
-                            {f.description && (
-                              <p className="mt-1.5 text-xs text-[#777] leading-relaxed">{f.description}</p>
-                            )}
-                            {f.suggestion && (
-                              <div className="mt-2 rounded bg-[#0d1a0d] border border-[#1a2e1a] px-2.5 py-1.5 text-xs text-[#6fcc6f]">
-                                {f.suggestion}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </DrawerSection>
-
-              {/* Settings section */}
-              {review.settingsUsed && (
-                <DrawerSection title="Settings Used" icon={BarChart3}>
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-[#555]">Severity threshold</span>
-                      <span className="text-white">{review.settingsUsed.severityThreshold}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-[#555]">Agents</span>
-                      <div className="flex gap-1">
-                        {(["syntax", "logic", "style"] as const).map((k) => (
-                          <span
-                            key={k}
-                            className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                              review.settingsUsed!.commentTypes[k]
-                                ? "bg-[#00ff88]/10 text-[#00ff88]"
-                                : "bg-[#1a1a1a] text-[#333] line-through"
-                            }`}
-                          >
-                            {k}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-[#555]">Max comments</span>
-                      <span className="text-white">{review.settingsUsed.maxComments}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-[#555]">Summary</span>
-                      <span className={review.settingsUsed.summaryEnabled ? "text-[#00ff88]" : "text-[#555]"}>
-                        {review.settingsUsed.summaryEnabled ? "On" : "Off"}
-                      </span>
-                    </div>
-                  </div>
-                </DrawerSection>
-              )}
-
-              {/* Feedback section */}
-              <div className="border-b border-[#1a1a1a] px-5 py-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-widest text-[#444]">
-                    Was this review helpful?
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleFeedback("up")}
-                      className={`rounded-lg p-2 transition-colors ${
-                        feedbackState === "up"
-                          ? "bg-primer-green/15 text-primer-green"
-                          : "text-[#555] hover:bg-[#1a1a1a] hover:text-white"
-                      }`}
-                    >
-                      <ThumbsUp size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleFeedback("down")}
-                      className={`rounded-lg p-2 transition-colors ${
-                        feedbackState === "down"
-                          ? "bg-primer-red/15 text-primer-red"
-                          : "text-[#555] hover:bg-[#1a1a1a] hover:text-white"
-                      }`}
-                    >
-                      <ThumbsDown size={16} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* GitHub link */}
-              <div className="px-5 py-4">
-                <a
-                  href={prUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 rounded-lg border border-[#1e1e1e] px-4 py-2.5 text-sm text-[#888] hover:border-[#333] hover:text-white transition-colors"
-                >
-                  View PR on GitHub <ExternalLink size={14} />
-                </a>
-              </div>
-            </>
-          ) : (
-            <div className="flex items-center justify-center h-full text-sm text-[#555]">
-              Review not found.
-            </div>
-          )}
-        </div>
-      </div>
-    </>
-  );
-}
 
 // -- Grouping ---------------------------------------------------------------
 
@@ -810,17 +442,17 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
   }
 
   return (
-    <div className="px-4 py-6 sm:px-6">
+    <div>
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-white">Reviews</h1>
-        <p className="mt-1 text-sm text-[#555]">
+      <div className="px-4 pt-6 pb-5 border-b border-[#1e1e1e] sm:px-8 sm:pt-8 sm:pb-6">
+        <h1 className="text-white text-xl font-semibold">Reviews</h1>
+        <p className="text-[#555] text-sm mt-1">
           All PR reviews across your monitored repositories.
         </p>
       </div>
 
       {/* Stats strip */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 px-4 py-4 border-b border-[#1e1e1e] sm:px-8">
         {[
           { label: "Total Reviews", value: totalReviews },
           { label: "Completed", value: completedReviews },
@@ -838,7 +470,7 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
       </div>
 
       {/* Filters */}
-      <div className="mb-4">
+      <div className="px-4 py-4 border-b border-[#1e1e1e] sm:px-8">
         <FilterBar
           repos={repos}
           statusFilter={statusFilter}
@@ -852,13 +484,13 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
 
       {/* Table */}
       {loading ? (
-        <div className="space-y-2">
+        <div className="space-y-2 p-4 sm:p-8">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="h-14 animate-pulse rounded-lg bg-[#111]" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="py-16 text-center">
+        <div className="py-16 text-center px-4 sm:px-8">
           <p className="text-sm text-[#555]">
             {searchQuery || statusFilter || repoFilter
               ? "No reviews match your filters."
@@ -870,7 +502,7 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
         return (
           <>
             {/* Mobile cards */}
-            <div className="flex flex-col gap-2 md:hidden">
+            <div className="flex flex-col gap-2 md:hidden p-4 sm:p-8">
               {groups.map((g) => (
                 <PRCardGroup
                   key={g.key}
@@ -882,7 +514,7 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
             </div>
 
             {/* Desktop table */}
-            <div className="hidden overflow-x-auto rounded-lg border border-[#1e1e1e] md:block">
+            <div className="hidden overflow-x-auto rounded-lg border border-[#1e1e1e] md:block mx-4 mt-4 sm:mx-8 sm:mt-6">
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-[#1e1e1e] bg-[#0a0a0a] text-xs uppercase tracking-wider text-[#444]">
                   <tr>

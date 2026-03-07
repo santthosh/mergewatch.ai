@@ -154,16 +154,19 @@ export default function SettingsForm({
   const disabled = !isAdmin;
 
   return (
-    <div className="px-4 py-6 sm:px-6 sm:py-10">
+    <div>
       {/* Header */}
-      <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Settings</h1>
-      <p className="mt-1 text-sm text-[#555]">
-        Default behavior for all connected repos. Per-repo overrides via{" "}
-        <code className="text-xs text-[#888] bg-[#1a1a1a] px-1 py-0.5 rounded">
-          .mergewatch.yml
-        </code>
-      </p>
+      <div className="px-4 pt-6 pb-5 border-b border-[#1e1e1e] sm:px-8 sm:pt-8 sm:pb-6">
+        <h1 className="text-white text-xl font-semibold">Settings</h1>
+        <p className="text-[#555] text-sm mt-1">
+          Default behavior for all connected repos. Per-repo overrides via{" "}
+          <code className="text-xs text-[#888] bg-[#1a1a1a] px-1 py-0.5 rounded">
+            .mergewatch.yml
+          </code>
+        </p>
+      </div>
 
+      <div className="px-4 sm:px-8 pb-6">
       {/* Read-only banner */}
       {!isAdmin && (
         <div className="flex items-center gap-2 px-4 py-2.5 mt-6 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg text-[#666] text-sm">
@@ -435,6 +438,7 @@ export default function SettingsForm({
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }

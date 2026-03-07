@@ -3,6 +3,7 @@
 import { useState } from "react";
 import RepoCard from "./RepoCard";
 import ReviewTable, { type Review } from "./ReviewTable";
+import ReviewDrawer from "./ReviewDrawer";
 import RepoPicker, { type AvailableRepo } from "./RepoPicker";
 import { LoadingOverlay } from "./Spinner";
 
@@ -23,6 +24,7 @@ export default function DashboardContent({
 }: DashboardContentProps) {
   const [showManage, setShowManage] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
 
   const monitoredSet = new Set(monitoredNamesArray ?? repos.map((r) => r.repoFullName));
 
@@ -48,42 +50,33 @@ export default function DashboardContent({
     }
   }
 
+  function handleReviewSelect(review: Review) {
+    setSelectedReviewId(`${review.repoFullName}:${review.id}`);
+  }
+
   if (saving) {
     return (
-      <div className="px-4 py-6 sm:px-6 sm:py-10">
+      <div className="px-4 py-6 sm:px-8 sm:py-10">
         <LoadingOverlay label="Updating monitored repositories..." />
       </div>
     );
   }
 
   return (
-    <div className="px-4 py-6 sm:px-6 sm:py-10">
-      {/* Actions */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Dashboard</h1>
+    <div>
+      {/* Header */}
+      <div className="px-4 pt-6 pb-5 border-b border-[#1e1e1e] flex items-start justify-between sm:px-8 sm:pt-8 sm:pb-6">
+        <div>
+          <h1 className="text-white text-xl font-semibold">Home</h1>
+          <p className="text-[#555] text-sm mt-1">
+            Overview of your monitored repositories and recent reviews.
+          </p>
+        </div>
         {isAdmin && (
           <button
             onClick={() => setShowManage(true)}
-            className="inline-flex items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-white transition hover:border-primer-blue hover:text-primer-blue"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#111] border border-[#2a2a2a] rounded-md text-sm text-[#888] hover:text-white hover:border-[#333] transition-colors"
           >
-            <svg
-              className="mr-2 h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
             Manage Repositories
           </button>
         )}
@@ -92,8 +85,8 @@ export default function DashboardContent({
       {/* Manage Repos Modal */}
       {showManage && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center">
-          <div className="max-h-[90vh] w-full overflow-y-auto rounded-t-xl border border-zinc-700 bg-zinc-900 p-4 shadow-2xl sm:max-w-xl sm:rounded-xl sm:p-6">
-            <h2 className="mb-4 text-lg font-semibold">Manage Repositories</h2>
+          <div className="max-h-[90vh] w-full overflow-y-auto rounded-t-xl border border-[#1e1e1e] bg-[#0a0a0a] p-4 shadow-2xl sm:max-w-xl sm:rounded-xl sm:p-6">
+            <h2 className="mb-4 text-lg font-semibold text-white">Manage Repositories</h2>
             <RepoPicker
               monitoredNames={monitoredSet}
               onSave={handleSave}
@@ -106,11 +99,13 @@ export default function DashboardContent({
       )}
 
       {/* Connected repos */}
-      <section className="mt-8 sm:mt-10">
-        <h2 className="mb-4 text-lg font-semibold">Monitored Repositories</h2>
+      <section className="px-4 py-6 sm:px-8 sm:py-8">
+        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-[#444] pb-3">
+          Monitored Repositories
+        </h2>
         {repos.length === 0 ? (
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-6 py-10 text-center">
-            <p className="text-sm text-primer-muted">
+          <div className="rounded-lg border border-[#1e1e1e] bg-[#0a0a0a] px-6 py-10 text-center">
+            <p className="text-sm text-[#555]">
               {isAdmin
                 ? "No repositories are being monitored. Click \"Manage Repositories\" to select repos."
                 : "No repositories are being monitored for this organization."}
@@ -129,10 +124,20 @@ export default function DashboardContent({
       </section>
 
       {/* Recent reviews */}
-      <section className="mt-8 sm:mt-12">
-        <h2 className="mb-4 text-lg font-semibold">Recent Reviews</h2>
-        <ReviewTable reviews={reviews} />
+      <section className="px-4 pb-6 sm:px-8 sm:pb-8">
+        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-[#444] pb-3">
+          Recent Reviews
+        </h2>
+        <ReviewTable reviews={reviews} onSelect={handleReviewSelect} />
       </section>
+
+      {/* Drawer */}
+      {selectedReviewId && (
+        <ReviewDrawer
+          reviewId={selectedReviewId}
+          onClose={() => setSelectedReviewId(null)}
+        />
+      )}
     </div>
   );
 }
