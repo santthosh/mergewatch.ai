@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: "MergeWatch.ai — AI-Powered PR Reviews",
   description:
     "Bring your own model. Run in your cloud. AI code reviews that respect your infrastructure.",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 /**

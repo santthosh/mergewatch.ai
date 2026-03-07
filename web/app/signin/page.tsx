@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import Link from "next/link";
-import Image from "next/image";
 import SignInButton from "./SignInButton";
+import { Wordmark, LogoMark } from "@/components/MergeWatchLogo";
 
 export default async function SignInPage() {
   const session = await getServerSession(authOptions);
@@ -15,8 +15,8 @@ export default async function SignInPage() {
     <div className="flex min-h-screen flex-col">
       {/* Navbar */}
       <nav className="flex items-center justify-between px-6 py-4 md:px-12">
-        <Link href="/" className="text-lg font-bold tracking-tight">
-          MergeWatch<span className="text-primer-green">.ai</span>
+        <Link href="/">
+          <Wordmark iconSize={20} />
         </Link>
       </nav>
 
@@ -25,17 +25,11 @@ export default async function SignInPage() {
         <div className="w-full max-w-sm">
           {/* Logo */}
           <div className="mb-8 flex justify-center">
-            <Image
-              src="/logo.png"
-              alt="MergeWatch.ai"
-              width={80}
-              height={80}
-              className="rounded-2xl"
-            />
+            <LogoMark size={60} />
           </div>
 
           <h1 className="text-center text-2xl font-bold tracking-tight">
-            Sign in to MergeWatch<span className="text-primer-green">.ai</span>
+            Sign in to <span className="text-white">merge</span><span className="text-[#00ff88]">watch</span><span className="text-[#555]">.ai</span>
           </h1>
           <p className="mt-2 text-center text-sm text-primer-muted">
             AI-powered PR reviews — your models, your cloud.

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 110" fill="none">
+  <!-- Outer eye shape — asymmetric lids -->
+  <path d="M10 55 C10 55, 50 5, 100 5 C150 5, 190 55, 190 55 C190 55, 150 105, 100 105 C50 105, 10 55, 10 55 Z" stroke="#00ff88" stroke-width="4" fill="none" stroke-linejoin="round"/>
+  <!-- Upper lid accent -->
+  <path d="M25 55 C25 55, 55 15, 100 15 C145 15, 175 55, 175 55" stroke="#00ff88" stroke-width="2" fill="none" opacity="0.3"/>
+  <!-- Iris ring -->
+  <circle cx="100" cy="55" r="28" stroke="#00ff88" stroke-width="3" fill="none"/>
+  <!-- Pupil / lens -->
+  <circle cx="100" cy="55" r="14" fill="#00ff88"/>
+  <!-- Catchlight -->
+  <circle cx="107" cy="48" r="4" fill="#000"/>
+  <circle cx="107" cy="48" r="3" fill="#fff" opacity="0.9"/>
+  <!-- Inner canthus node (left) — merge point -->
+  <circle cx="16" cy="55" r="5" fill="#00ff88"/>
+  <!-- Outer canthus node (right) — merge point -->
+  <circle cx="184" cy="55" r="5" fill="#00ff88"/>
+  <!-- Git branch lines from left node -->
+  <line x1="16" y1="55" x2="40" y2="30" stroke="#00ff88" stroke-width="2" opacity="0.4"/>
+  <line x1="16" y1="55" x2="40" y2="80" stroke="#00ff88" stroke-width="2" opacity="0.4"/>
+  <!-- Git branch lines from right node -->
+  <line x1="184" y1="55" x2="160" y2="30" stroke="#00ff88" stroke-width="2" opacity="0.4"/>
+  <line x1="184" y1="55" x2="160" y2="80" stroke="#00ff88" stroke-width="2" opacity="0.4"/>
+</svg>

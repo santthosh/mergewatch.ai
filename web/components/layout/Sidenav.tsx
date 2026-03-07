@@ -14,6 +14,7 @@ import {
   Menu,
   type LucideIcon,
 } from "lucide-react";
+import { Wordmark, LogoIcon } from "../MergeWatchLogo";
 import type { InstallationInfo } from "./DashboardShell";
 
 type NavEntry =
@@ -113,8 +114,8 @@ export default function Sidenav({
         >
           <Menu size={20} />
         </button>
-        <Link href="/dashboard" className="ml-2 text-lg font-bold tracking-tight">
-          MergeWatch<span className="text-primer-green">.ai</span>
+        <Link href="/dashboard" className="ml-2">
+          <Wordmark iconSize={18} />
         </Link>
       </div>
       {/* Spacer for mobile top bar */}
@@ -141,15 +142,15 @@ export default function Sidenav({
       >
         {/* Logo */}
         <div className="flex h-14 items-center border-b border-[#1e1e1e] px-4 justify-center lg:justify-start">
-          <Link href="/dashboard" className="hidden lg:block text-lg font-bold tracking-tight">
-            MergeWatch<span className="text-primer-green">.ai</span>
+          <Link href="/dashboard" className="hidden lg:block">
+            <Wordmark iconSize={18} />
           </Link>
-          <Link href="/dashboard" className="hidden md:block lg:hidden text-lg font-bold tracking-tight text-primer-green">
-            M
+          <Link href="/dashboard" className="hidden md:block lg:hidden">
+            <LogoIcon size={22} />
           </Link>
           {mobileOpen && (
-            <Link href="/dashboard" className="block md:hidden text-lg font-bold tracking-tight" onClick={onMobileClose}>
-              MergeWatch<span className="text-primer-green">.ai</span>
+            <Link href="/dashboard" className="block md:hidden" onClick={onMobileClose}>
+              <Wordmark iconSize={18} />
             </Link>
           )}
         </div>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Wordmark } from "@/components/MergeWatchLogo";
 
 /**
  * Landing page for mergewatch.ai.
@@ -14,9 +15,7 @@ export default function LandingPage() {
     <div className="flex min-h-screen flex-col">
       {/* ─── Navbar ─────────────────────────────────────────────────────── */}
       <nav className="flex items-center justify-between px-6 py-4 md:px-12">
-        <span className="text-lg font-bold tracking-tight">
-          MergeWatch<span className="text-primer-green">.ai</span>
-        </span>
+        <Wordmark iconSize={20} />
         <Link
           href="/signin"
           className="text-sm text-primer-muted transition hover:text-white"
