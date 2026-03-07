@@ -196,7 +196,7 @@ export default function RepositoriesClient({
         <div>
           <h1 className="text-white text-xl font-semibold">Repositories</h1>
           <p className="text-[#555] text-sm mt-1">
-            Repos connected to this GitHub App installation.
+            Manage which repos MergeWatch actively reviews.
           </p>
         </div>
         {isAdmin && (
