@@ -46,6 +46,7 @@ interface Finding {
   file: string;
   line: number;
   severity: "critical" | "warning" | "info";
+  confidence?: number;
   category: "security" | "bug" | "style";
   title: string;
   description: string;
@@ -309,6 +310,11 @@ export default function ReviewDrawer({
                               <span className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-[10px] text-[#666] uppercase">
                                 {f.category}
                               </span>
+                              {f.confidence != null && (
+                                <span className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-[10px] text-[#888]">
+                                  {f.confidence}%
+                                </span>
+                              )}
                             </div>
                             <p className="mt-1 text-xs text-[#888]">
                               <code className="text-[#666]">{f.file}:{f.line}</code>

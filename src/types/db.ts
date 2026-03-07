@@ -305,6 +305,7 @@ export interface ReviewFinding {
   file: string;
   line: number;
   severity: 'critical' | 'warning' | 'info';
+  confidence?: number;
   category: 'security' | 'bug' | 'style';
   title: string;
   description: string;

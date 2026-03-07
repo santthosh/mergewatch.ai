@@ -22,6 +22,7 @@ export interface AgentFinding {
   file: string;
   line: number;
   severity: 'critical' | 'warning' | 'info';
+  confidence?: number;
   title: string;
   description: string;
   suggestion: string;

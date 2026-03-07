@@ -33,12 +33,15 @@ Return a JSON object with this exact shape:
       "file": "path/to/file.ts",
       "line": 42,
       "severity": "critical" | "warning" | "info",
+      "confidence": 85,
       "title": "Short title (≤80 chars)",
       "description": "Explanation of the vulnerability and its impact.",
       "suggestion": "Concrete code fix or mitigation."
     }
   ]
 }
+
+The "confidence" field is a number from 1 to 100 representing how confident you are that this is a real issue (not a false positive). Use 90+ for obvious, clear-cut issues; 70-89 for likely issues; 50-69 for possible issues worth flagging; below 50 for speculative concerns.
 
 If there are no security findings, return: { "findings": [] }`;
 
@@ -62,12 +65,15 @@ Return a JSON object with this exact shape:
       "file": "path/to/file.ts",
       "line": 42,
       "severity": "critical" | "warning" | "info",
+      "confidence": 85,
       "title": "Short title (≤80 chars)",
       "description": "Explanation of the bug and when it would manifest.",
       "suggestion": "Concrete code fix."
     }
   ]
 }
+
+The "confidence" field is a number from 1 to 100 representing how confident you are that this is a real issue (not a false positive). Use 90+ for obvious, clear-cut issues; 70-89 for likely issues; 50-69 for possible issues worth flagging; below 50 for speculative concerns.
 
 If there are no bug findings, return: { "findings": [] }`;
 
@@ -96,12 +102,15 @@ Return a JSON object with this exact shape:
       "file": "path/to/file.ts",
       "line": 42,
       "severity": "warning" | "info",
+      "confidence": 85,
       "title": "Short title (≤80 chars)",
       "description": "Explanation of the concern.",
       "suggestion": "Concrete improvement."
     }
   ]
 }
+
+The "confidence" field is a number from 1 to 100 representing how confident you are that this is a real issue (not a false positive). Use 90+ for obvious, clear-cut issues; 70-89 for likely issues; 50-69 for possible issues worth flagging; below 50 for speculative concerns.
 
 If there are no style findings, return: { "findings": [] }`;
 
@@ -154,10 +163,13 @@ Return a JSON object:
       "file": "path/to/file.ts",
       "line": 42,
       "severity": "critical" | "warning" | "info",
+      "confidence": 85,
       "category": "security" | "bug" | "style",
       "title": "Short title",
       "description": "Explanation.",
       "suggestion": "Fix."
     }
   ]
-}`;
+}
+
+Preserve the "confidence" score (1-100) from the original agent findings. If two agents flagged the same issue, keep the higher confidence score.`;

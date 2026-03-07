@@ -387,6 +387,7 @@ export async function handler(
       commentFooter: instSettings.commentHeader || undefined,
       showSummary: instSettings.summary.prSummary,
       showIssuesTable: instSettings.summary.issuesTable,
+      showConfidence: instSettings.summary.confidenceScore,
       reviewDetailUrl,
     });
 

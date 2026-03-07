@@ -11,6 +11,7 @@ export interface Finding {
   file: string;
   line: number;
   severity: 'critical' | 'warning' | 'info';
+  confidence?: number;
   category: 'security' | 'bug' | 'style';
   title: string;
   description: string;
@@ -28,6 +29,8 @@ interface FormatOptions {
   showSummary?: boolean;
   /** Whether to show the issues table */
   showIssuesTable?: boolean;
+  /** Whether to show confidence scores per finding */
+  showConfidence?: boolean;
   /** URL to the review detail page on the MergeWatch dashboard */
   reviewDetailUrl?: string;
 }
@@ -54,8 +57,11 @@ function groupBySeverity(findings: Finding[]): Map<Finding['severity'], Finding[
 }
 
 /** Render a single finding as a markdown list item. */
-function renderFinding(f: Finding): string {
-  let line = `- **\`${f.file}:${f.line}\`** — ${f.title}`;
+function renderFinding(f: Finding, showConfidence: boolean): string {
+  const confidenceBadge = showConfidence && f.confidence != null
+    ? ` \`${f.confidence}%\``
+    : '';
+  let line = `- **\`${f.file}:${f.line}\`** — ${f.title}${confidenceBadge}`;
   if (f.description) {
     line += `\n  ${f.description}`;
   }
@@ -79,6 +85,7 @@ export function formatReviewComment(options: FormatOptions): string {
     commentFooter,
     showSummary = true,
     showIssuesTable = true,
+    showConfidence = true,
     reviewDetailUrl,
   } = options;
 
@@ -117,7 +124,7 @@ export function formatReviewComment(options: FormatOptions): string {
       const { emoji, label } = SEVERITY_META[severity];
       lines.push(`### ${emoji} ${label} (${items.length})`);
       for (const item of items) {
-        lines.push(renderFinding(item));
+        lines.push(renderFinding(item, showConfidence));
       }
       lines.push('');
     }
