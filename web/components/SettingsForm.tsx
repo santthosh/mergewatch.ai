@@ -57,30 +57,36 @@ function Toggle({
   disabled: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-[#1a1a1a]">
-      <div>
+    <button
+      type="button"
+      role="switch"
+      disabled={disabled}
+      aria-checked={value}
+      onClick={() => onChange(!value)}
+      className={cn(
+        "flex w-full items-center justify-between px-4 py-3.5 text-left transition-colors",
+        !disabled && "hover:bg-[rgba(255,255,255,0.03)] active:bg-[rgba(255,255,255,0.05)]",
+        "disabled:opacity-40 disabled:cursor-not-allowed"
+      )}
+    >
+      <div className="mr-4">
         <div className="text-sm text-white">{label}</div>
         <div className="text-xs text-[#555] mt-0.5">{description}</div>
       </div>
-      <button
-        role="switch"
-        disabled={disabled}
-        aria-checked={value}
-        onClick={() => onChange(!value)}
+      <div
         className={cn(
-          "relative w-9 h-5 rounded-full transition-colors",
-          value ? "bg-[#00ff88]" : "bg-[#2a2a2a]",
-          "disabled:opacity-40 disabled:cursor-not-allowed"
+          "relative w-11 h-6 shrink-0 rounded-full transition-colors duration-200",
+          value ? "bg-[#00ff88]" : "bg-[#2a2a2a]"
         )}
       >
         <span
           className={cn(
-            "absolute top-0.5 w-4 h-4 rounded-full bg-black transition-transform",
-            value ? "translate-x-4" : "translate-x-0.5"
+            "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-black transition-transform duration-200",
+            value && "translate-x-5"
           )}
         />
-      </button>
-    </div>
+      </div>
+    </button>
   );
 }
 
@@ -148,7 +154,7 @@ export default function SettingsForm({
   const disabled = !isAdmin;
 
   return (
-    <div className="px-4 py-6 sm:px-6 sm:py-10 max-w-2xl">
+    <div className="px-4 py-6 sm:px-6 sm:py-10">
       {/* Header */}
       <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Settings</h1>
       <p className="mt-1 text-sm text-[#555]">
@@ -189,82 +195,102 @@ export default function SettingsForm({
           Comments
         </h2>
 
-        {/* Severity Threshold */}
-        <div className="mt-4">
-          <label className="block text-sm text-white mb-2">
-            Severity threshold
-          </label>
-          <div className="flex rounded-md border border-[#2a2a2a] overflow-hidden w-fit">
-            {(["Low", "Med", "High"] as const).map((level) => (
-              <button
-                key={level}
-                disabled={disabled}
-                onClick={() =>
-                  setSettings((s) => ({ ...s, severityThreshold: level }))
-                }
-                className={cn(
-                  "px-4 py-1.5 text-sm transition-colors",
-                  settings.severityThreshold === level
-                    ? "bg-[#00ff88] text-black font-medium"
-                    : "text-[#666] hover:text-[#aaa]",
-                  "disabled:opacity-40 disabled:cursor-not-allowed"
-                )}
-              >
-                {level}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Comment Types */}
-        <div className="mt-5">
-          <label className="block text-sm text-white mb-2">Comment types</label>
-          <div className="flex gap-4">
-            {(["syntax", "logic", "style"] as const).map((type) => (
-              <label
-                key={type}
-                className="flex items-center gap-2 cursor-pointer"
-              >
-                <input
-                  type="checkbox"
+        <div className="mt-3 rounded-lg border border-[#1e1e1e] divide-y divide-[#1a1a1a] overflow-hidden">
+          {/* Severity Threshold */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3.5 gap-2">
+            <div>
+              <div className="text-sm text-white">Severity threshold</div>
+              <div className="text-xs text-[#555] mt-0.5">
+                Minimum severity level to include in reviews
+              </div>
+            </div>
+            <div className="flex rounded-md border border-[#2a2a2a] overflow-hidden w-fit">
+              {(["Low", "Med", "High"] as const).map((level) => (
+                <button
+                  key={level}
                   disabled={disabled}
-                  checked={settings.commentTypes[type]}
-                  onChange={(e) =>
-                    setSettings((s) => ({
-                      ...s,
-                      commentTypes: {
-                        ...s.commentTypes,
-                        [type]: e.target.checked,
-                      },
-                    }))
+                  onClick={() =>
+                    setSettings((s) => ({ ...s, severityThreshold: level }))
                   }
-                  className="accent-[#00ff88]"
-                />
-                <span className="text-sm text-[#888] capitalize">{type}</span>
-              </label>
-            ))}
+                  className={cn(
+                    "px-4 py-1.5 text-sm transition-colors",
+                    settings.severityThreshold === level
+                      ? "bg-[#00ff88] text-black font-medium"
+                      : "text-[#666] hover:text-[#aaa]",
+                    "disabled:opacity-40 disabled:cursor-not-allowed"
+                  )}
+                >
+                  {level}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Max Comments */}
-        <div className="mt-5">
-          <label className="block text-sm text-white mb-2">
-            Max comments per review
-          </label>
-          <input
-            type="number"
-            min={1}
-            max={50}
-            disabled={disabled}
-            value={settings.maxComments}
-            onChange={(e) =>
-              setSettings((s) => ({
-                ...s,
-                maxComments: Math.max(1, Math.min(50, Number(e.target.value))),
-              }))
-            }
-            className="w-20 bg-[#111] border border-[#2a2a2a] rounded px-3 py-1.5 text-sm text-white text-center disabled:opacity-40 disabled:cursor-not-allowed"
-          />
+          {/* Comment Types */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3.5 gap-2">
+            <div>
+              <div className="text-sm text-white">Comment types</div>
+              <div className="text-xs text-[#555] mt-0.5">
+                Categories of issues to flag
+              </div>
+            </div>
+            <div className="flex gap-4">
+              {(["syntax", "logic", "style"] as const).map((type) => (
+                <label
+                  key={type}
+                  className={cn(
+                    "flex items-center gap-2 cursor-pointer select-none rounded-md px-3 py-1.5 transition-colors",
+                    settings.commentTypes[type]
+                      ? "bg-[#00ff88]/10 text-[#00ff88]"
+                      : "text-[#555]",
+                    !disabled && "hover:bg-[rgba(255,255,255,0.04)]",
+                    disabled && "opacity-40 cursor-not-allowed"
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    disabled={disabled}
+                    checked={settings.commentTypes[type]}
+                    onChange={(e) =>
+                      setSettings((s) => ({
+                        ...s,
+                        commentTypes: {
+                          ...s.commentTypes,
+                          [type]: e.target.checked,
+                        },
+                      }))
+                    }
+                    className="sr-only"
+                  />
+                  <span className="text-sm font-medium capitalize">{type}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Max Comments */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3.5 gap-2">
+            <div>
+              <div className="text-sm text-white">Max comments per review</div>
+              <div className="text-xs text-[#555] mt-0.5">
+                Limit the number of findings posted (1–50)
+              </div>
+            </div>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              disabled={disabled}
+              value={settings.maxComments}
+              onChange={(e) =>
+                setSettings((s) => ({
+                  ...s,
+                  maxComments: Math.max(1, Math.min(50, Number(e.target.value))),
+                }))
+              }
+              className="w-20 bg-[#111] border border-[#2a2a2a] rounded px-3 py-1.5 text-sm text-white text-center disabled:opacity-40 disabled:cursor-not-allowed"
+            />
+          </div>
         </div>
       </section>
 
@@ -273,7 +299,7 @@ export default function SettingsForm({
         <h2 className="text-[11px] font-semibold uppercase tracking-widest text-[#444] pb-2 border-b border-[#1e1e1e]">
           PR Summary
         </h2>
-        <div className="mt-2">
+        <div className="mt-3 divide-y divide-[#1a1a1a] rounded-lg border border-[#1e1e1e] overflow-hidden">
           <Toggle
             label="PR Summary"
             description="Plain-language description of what changed"
