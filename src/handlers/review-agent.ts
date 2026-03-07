@@ -29,7 +29,7 @@ import { runReviewPipeline } from '../agents/reviewer';
 import { formatReviewComment } from '../comment-formatter';
 import { mergeConfig, type MergeWatchConfig } from '../config/defaults';
 import type { ReviewJobPayload } from '../types/github';
-import type { ReviewItem, ReviewStatus, InstallationItem, InstallationSettings } from '../types/db';
+import type { ReviewItem, ReviewStatus, ReviewFinding, InstallationItem, InstallationSettings } from '../types/db';
 import { DEFAULT_INSTALLATION_SETTINGS as DEFAULTS } from '../types/db';
 
 // -- AWS clients (re-used across warm invocations) ---------------------------
@@ -95,28 +95,28 @@ async function updateReviewStatus(
   repoFullName: string,
   prNumberCommitSha: string,
   status: ReviewStatus,
-  extra: { commentId?: number; completedAt?: string; model?: string; settingsUsed?: ReviewItem['settingsUsed'] } = {},
+  extra: Partial<Omit<ReviewItem, 'repoFullName' | 'prNumberCommitSha' | 'status' | 'createdAt'>> = {},
 ): Promise<void> {
   const updateParts: string[] = ['#s = :status'];
   const names: Record<string, string> = { '#s': 'status' };
   const values: Record<string, unknown> = { ':status': status };
 
-  if (extra.commentId !== undefined) {
-    updateParts.push('commentId = :cid');
-    values[':cid'] = extra.commentId;
-  }
-  if (extra.completedAt !== undefined) {
-    updateParts.push('completedAt = :cat');
-    values[':cat'] = extra.completedAt;
-  }
-  if (extra.model !== undefined) {
-    updateParts.push('#m = :model');
-    names['#m'] = 'model';
-    values[':model'] = extra.model;
-  }
-  if (extra.settingsUsed !== undefined) {
-    updateParts.push('settingsUsed = :su');
-    values[':su'] = extra.settingsUsed;
+  // Dynamically add all extra fields to the update expression.
+  // Reserved words (model, status) use expression attribute names.
+  const reserved = new Set(['model', 'status']);
+  let idx = 0;
+  for (const [key, val] of Object.entries(extra)) {
+    if (val === undefined) continue;
+    idx++;
+    const alias = `v${idx}`;
+    if (reserved.has(key)) {
+      const nameAlias = `#n${idx}`;
+      names[nameAlias] = key;
+      updateParts.push(`${nameAlias} = :${alias}`);
+    } else {
+      updateParts.push(`${key} = :${alias}`);
+    }
+    values[`:${alias}`] = val;
   }
 
   await dynamodb.send(
@@ -190,12 +190,18 @@ export async function handler(
   const prNumberCommitSha = `${prNumber}#${shortSha}`;
 
   // Create the initial review record in DynamoDB with status "in_progress".
+  const reviewStartedAt = new Date().toISOString();
   const reviewRecord: ReviewItem = {
     repoFullName,
     prNumberCommitSha,
     status: 'in_progress',
-    createdAt: new Date().toISOString(),
+    createdAt: reviewStartedAt,
     prTitle: prContext.title,
+    prAuthor: prDetails.data.user?.login,
+    prAuthorAvatar: prDetails.data.user?.avatar_url,
+    headBranch: prDetails.data.head.ref,
+    baseBranch: prDetails.data.base.ref,
+    installationId: String(installationId),
   };
   await upsertReviewRecord(reviewRecord);
 
@@ -297,10 +303,21 @@ export async function handler(
     // React with 👍 to signal review is complete
     await addPRReaction(octokit, owner, repo, prNumber, '+1');
 
-    // Update the review record to "complete" with the comment ID and settings snapshot.
+    // Compute top severity across findings
+    const severityRank = { critical: 0, warning: 1, info: 2 } as const;
+    const topSeverity = result.findings.length > 0
+      ? result.findings.reduce((top, f) =>
+          severityRank[f.severity] < severityRank[top] ? f.severity : top,
+        result.findings[0].severity)
+      : undefined;
+
+    const completedAt = new Date().toISOString();
+    const durationMs = new Date(completedAt).getTime() - new Date(reviewStartedAt).getTime();
+
+    // Update the review record to "complete" with rich data.
     await updateReviewStatus(repoFullName, prNumberCommitSha, 'complete', {
       commentId,
-      completedAt: new Date().toISOString(),
+      completedAt,
       model: modelName,
       settingsUsed: {
         severityThreshold: instSettings.severityThreshold,
@@ -309,6 +326,11 @@ export async function handler(
         summaryEnabled: instSettings.summary.prSummary,
         customInstructions: !!instSettings.customInstructions,
       },
+      findingCount: result.findings.length,
+      topSeverity,
+      durationMs,
+      summaryText: result.summary || undefined,
+      findings: result.findings as ReviewFinding[],
     });
 
     console.log(

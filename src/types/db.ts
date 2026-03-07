@@ -271,6 +271,42 @@ export interface ReviewItem {
     summaryEnabled: boolean;
     customInstructions: boolean;
   };
+
+  // --- Rich review data (Phase 1 — Reviews page) ---
+
+  /** PR author login from GitHub. */
+  prAuthor?: string;
+  /** PR author avatar URL. */
+  prAuthorAvatar?: string;
+  /** Head branch name (e.g. "feature/foo"). */
+  headBranch?: string;
+  /** Base branch name (e.g. "main"). */
+  baseBranch?: string;
+  /** Number of findings in the review. */
+  findingCount?: number;
+  /** Highest severity found (critical > warning > info). */
+  topSeverity?: 'critical' | 'warning' | 'info';
+  /** Review duration in milliseconds. */
+  durationMs?: number;
+  /** Full summary text from the summary agent. */
+  summaryText?: string;
+  /** All findings from the review. */
+  findings?: ReviewFinding[];
+  /** User feedback: thumbs up or down. */
+  feedback?: 'up' | 'down';
+  /** GitHub App installation ID (stored for dashboard queries). */
+  installationId?: string;
+}
+
+/** A single finding stored on a ReviewItem (matches comment-formatter Finding). */
+export interface ReviewFinding {
+  file: string;
+  line: number;
+  severity: 'critical' | 'warning' | 'info';
+  category: 'security' | 'bug' | 'style';
+  title: string;
+  description: string;
+  suggestion: string;
 }
 
 // =============================================================================
