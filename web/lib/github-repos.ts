@@ -27,6 +27,9 @@ export interface RepoResult {
   repoFullName: string;
   installedAt: string;
   installationId: string;
+  language: string | null;
+  isPrivate: boolean;
+  htmlUrl: string;
 }
 
 /**
@@ -91,6 +94,9 @@ export async function fetchInstallationRepos(
         repoFullName: repo.full_name,
         installedAt: repo.created_at ?? "",
         installationId: String(installationId),
+        language: repo.language ?? null,
+        isPrivate: repo.private ?? false,
+        htmlUrl: repo.html_url ?? `https://github.com/${repo.full_name}`,
       });
     }
 
