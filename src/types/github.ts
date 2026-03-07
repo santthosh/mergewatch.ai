@@ -157,7 +157,7 @@ export type WebhookEvent =
 // ---------------------------------------------------------------------------
 
 /** The review "mode" derived from an @mergewatch mention. */
-export type ReviewMode = "review" | "summary";
+export type ReviewMode = "review" | "summary" | "respond";
 
 /** Context we extract from a PR before handing it to the review agent. */
 export interface PRContext {
@@ -180,4 +180,8 @@ export interface ReviewJobPayload {
   mode: ReviewMode;
   /** If we already found an existing bot comment, pass its ID so the agent can update it. */
   existingCommentId?: number;
+  /** For "respond" mode: the user's comment body that triggered the response. */
+  userComment?: string;
+  /** For "respond" mode: the login of the user who commented. */
+  userCommentAuthor?: string;
 }

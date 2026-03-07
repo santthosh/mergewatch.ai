@@ -275,3 +275,66 @@ export async function findExistingBotComment(
 
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Reactions on comments
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch reaction counts on a specific comment.
+ * Returns a map of reaction type → count.
+ */
+export async function getCommentReactions(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  commentId: number,
+): Promise<Record<string, number>> {
+  try {
+    const { data: comment } = await octokit.issues.getComment({
+      owner,
+      repo,
+      comment_id: commentId,
+    });
+
+    const reactions = comment.reactions;
+    if (!reactions) return {};
+
+    const counts: Record<string, number> = {};
+    const keys = ['+1', '-1', 'laugh', 'hooray', 'confused', 'heart', 'rocket', 'eyes'] as const;
+    for (const key of keys) {
+      const val = (reactions as Record<string, unknown>)[key];
+      if (typeof val === 'number' && val > 0) {
+        counts[key] = val;
+      }
+    }
+    return counts;
+  } catch (err) {
+    console.warn(`Failed to fetch reactions for comment ${commentId}:`, err);
+    return {};
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Reply comments (for conversational responses)
+// ---------------------------------------------------------------------------
+
+/**
+ * Post a reply comment on a PR (without the bot marker).
+ * Used for conversational follow-up responses, not review comments.
+ */
+export async function postReplyComment(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  body: string,
+): Promise<number> {
+  const { data } = await octokit.issues.createComment({
+    owner,
+    repo,
+    issue_number: prNumber,
+    body,
+  });
+  return data.id;
+}

@@ -109,17 +109,20 @@ function verifySignature(
  *  - `@mergewatch review`  → full review
  *  - `@mergewatch summary` → summary-only (shorter output)
  *  - `@mergewatch` (alone) → defaults to full review
+ *  - `@mergewatch <anything else>` → conversational response
  */
 function parseReviewMode(commentBody: string): ReviewMode | null {
-  // Case-insensitive match for @mergewatch followed by an optional command.
-  const match = commentBody.match(/@mergewatch\s*(review|summary)?/i);
-  if (!match) return null;
+  if (!/@mergewatch/i.test(commentBody)) return null;
 
-  const command = match[1]?.toLowerCase();
-  if (command === "summary") return "summary";
+  // Check for explicit commands: @mergewatch review, @mergewatch summary
+  if (/@mergewatch\s+review\b/i.test(commentBody)) return "review";
+  if (/@mergewatch\s+summary\b/i.test(commentBody)) return "summary";
 
-  // Default to full review for bare `@mergewatch` or `@mergewatch review`.
-  return "review";
+  // Bare @mergewatch at end of string or followed only by whitespace → full review
+  if (/@mergewatch\s*$/im.test(commentBody)) return "review";
+
+  // @mergewatch followed by other text → conversational follow-up
+  return "respond";
 }
 
 /**
@@ -285,14 +288,22 @@ async function handleIssueCommentEvent(
   const existingCommentId =
     (await findExistingBotComment(octokit, owner, repo, prNumber)) ?? undefined;
 
-  await enqueueReviewJob({
+  const payload: ReviewJobPayload = {
     installationId,
     owner,
     repo,
     prNumber,
     mode,
     existingCommentId,
-  });
+  };
+
+  // For conversational responses, include the user's comment
+  if (mode === "respond") {
+    payload.userComment = event.comment.body;
+    payload.userCommentAuthor = event.sender.login;
+  }
+
+  await enqueueReviewJob(payload);
 
   console.log(
     `Enqueued ${mode} job from comment: ${owner}/${repo}#${prNumber} (existingComment=${existingCommentId ?? "none"})`

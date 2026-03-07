@@ -292,8 +292,10 @@ export interface ReviewItem {
   summaryText?: string;
   /** All findings from the review. */
   findings?: ReviewFinding[];
-  /** User feedback: thumbs up or down. */
+  /** User feedback from dashboard: thumbs up or down. */
   feedback?: 'up' | 'down';
+  /** Reactions collected from the GitHub PR comment. */
+  reactions?: Record<string, number>;
   /** GitHub App installation ID (stored for dashboard queries). */
   installationId?: string;
 }

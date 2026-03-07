@@ -24,8 +24,12 @@ import {
   postReviewComment,
   updateReviewComment,
   addPRReaction,
+  getCommentReactions,
+  postReplyComment,
 } from '../github/client';
 import { runReviewPipeline } from '../agents/reviewer';
+import { invokeModel } from '../bedrock/client';
+import { RESPOND_PROMPT } from '../agents/prompts';
 import { formatReviewComment } from '../comment-formatter';
 import { mergeConfig, type MergeWatchConfig } from '../config/defaults';
 import type { ReviewJobPayload } from '../types/github';
@@ -160,6 +164,97 @@ async function loadInstallationSettings(
   }
 }
 
+// -- Conversational response handler -----------------------------------------
+
+/**
+ * Handle a conversational follow-up to a MergeWatch review.
+ *
+ * Loads the most recent review for this PR, builds a prompt with the review
+ * context + user's comment, and posts a reply.
+ */
+async function handleRespondMode(
+  octokit: Awaited<ReturnType<typeof getInstallationOctokit>>,
+  event: ReviewJobPayload,
+): Promise<{ statusCode: number; body: string }> {
+  const { installationId, owner, repo, prNumber, userComment, userCommentAuthor } = event;
+  const repoFullName = `${owner}/${repo}`;
+
+  try {
+    // Find the most recent completed review for this PR
+    const prevReviews = await dynamodb.send(
+      new QueryCommand({
+        TableName: REVIEWS_TABLE,
+        KeyConditionExpression: 'repoFullName = :repo AND begins_with(prNumberCommitSha, :pr)',
+        ExpressionAttributeValues: {
+          ':repo': repoFullName,
+          ':pr': `${prNumber}#`,
+        },
+        ScanIndexForward: false,
+        Limit: 5,
+      }),
+    );
+
+    const latestReview = (prevReviews.Items ?? []).find((item) => item.status === 'complete');
+
+    // Build context from previous review
+    const findingsContext = latestReview?.findings
+      ? JSON.stringify(latestReview.findings, null, 2)
+      : 'No previous findings available.';
+    const summaryContext = (latestReview?.summaryText as string) ?? 'No summary available.';
+
+    // Also collect reactions on the bot comment while we're here
+    if (latestReview?.commentId) {
+      const reactions = await getCommentReactions(
+        octokit, owner, repo, latestReview.commentId as number,
+      );
+      if (Object.keys(reactions).length > 0) {
+        await updateReviewStatus(
+          repoFullName,
+          latestReview.prNumberCommitSha as string,
+          latestReview.status as 'complete',
+          { reactions },
+        ).catch(() => {}); // best-effort
+      }
+    }
+
+    const modelId = DEFAULT_BEDROCK_MODEL_ID;
+
+    const prompt = `${RESPOND_PROMPT}
+
+--- Previous Review Summary ---
+${summaryContext}
+
+--- Previous Review Findings ---
+${findingsContext}
+
+--- Developer Comment (from @${userCommentAuthor ?? 'unknown'}) ---
+${userComment}
+
+Please respond to the developer's comment:`;
+
+    const response = await invokeModel(modelId, prompt);
+
+    // Post as a reply comment (not updating the review comment)
+    await postReplyComment(octokit, owner, repo, prNumber, response);
+
+    console.log(`Posted conversational response for ${repoFullName}#${prNumber}`);
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ message: 'Response posted' }),
+    };
+  } catch (error) {
+    console.error(`Respond failed for ${repoFullName}#${prNumber}:`, error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        message: 'Respond failed',
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    };
+  }
+}
+
 // -- Lambda handler ----------------------------------------------------------
 
 /**
@@ -171,13 +266,20 @@ async function loadInstallationSettings(
 export async function handler(
   event: ReviewJobPayload,
 ): Promise<{ statusCode: number; body: string }> {
-  const { installationId, owner, repo, prNumber, mode, existingCommentId } = event;
+  const { installationId, owner, repo, prNumber, mode, existingCommentId, userComment, userCommentAuthor } = event;
   const repoFullName = `${owner}/${repo}`;
 
   console.log(`Starting ${mode} for ${repoFullName}#${prNumber}`);
 
   // Get an authenticated Octokit client for this GitHub App installation.
   const octokit = await getInstallationOctokit(installationId);
+
+  // ── Handle "respond" mode: conversational follow-up ────────────────────
+  if (mode === 'respond' && userComment) {
+    return handleRespondMode(octokit, event);
+  }
+
+  // ── Handle "review" / "summary" modes ──────────────────────────────────
 
   // Fetch PR context (title, description, branches, files) and head SHA.
   const prContext = await getPRContext(octokit, owner, repo, prNumber);
@@ -329,6 +431,15 @@ export async function handler(
     // React with 👍 to signal review is complete
     await addPRReaction(octokit, owner, repo, prNumber, '+1');
 
+    // Collect reactions on the bot comment (from previous reviews)
+    let reactions: Record<string, number> | undefined;
+    if (commentId) {
+      const reactionCounts = await getCommentReactions(octokit, owner, repo, commentId);
+      if (Object.keys(reactionCounts).length > 0) {
+        reactions = reactionCounts;
+      }
+    }
+
     // Compute top severity across findings
     const severityRank = { critical: 0, warning: 1, info: 2 } as const;
     const topSeverity = result.findings.length > 0
@@ -357,6 +468,7 @@ export async function handler(
       durationMs,
       summaryText: result.summary || undefined,
       findings: result.findings as ReviewFinding[],
+      reactions,
     });
 
     console.log(
