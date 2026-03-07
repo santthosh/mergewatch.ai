@@ -70,6 +70,7 @@ const statusStyles: Record<string, { bg: string; text: string; label: string }> 
   in_progress: { bg: "bg-primer-blue/15", text: "text-primer-blue", label: "In Progress" },
   completed: { bg: "bg-primer-green/15", text: "text-primer-green", label: "Completed" },
   failed: { bg: "bg-primer-red/15", text: "text-primer-red", label: "Failed" },
+  skipped: { bg: "bg-[#555]/15", text: "text-[#888]", label: "Skipped" },
 };
 
 const severityStyles: Record<string, { dot: string; label: string }> = {

@@ -34,6 +34,7 @@ import { RESPOND_PROMPT } from '../agents/prompts';
 import { formatReviewComment } from '../comment-formatter';
 import { mergeConfig, type MergeWatchConfig } from '../config/defaults';
 import type { ReviewJobPayload } from '../types/github';
+import { minimatch } from 'minimatch';
 import type { ReviewItem, ReviewStatus, ReviewFinding, InstallationItem, InstallationSettings } from '../types/db';
 import { DEFAULT_INSTALLATION_SETTINGS as DEFAULTS } from '../types/db';
 
@@ -165,6 +166,85 @@ async function loadInstallationSettings(
   }
 }
 
+// -- Smart skip logic ---------------------------------------------------------
+
+/**
+ * File patterns that indicate a trivial PR not worth reviewing.
+ * If ALL changed files match these patterns, the PR is skipped.
+ */
+const SKIP_PATTERNS = [
+  // Lock files and dependency manifests
+  '**/*.lock',
+  '**/package-lock.json',
+  '**/yarn.lock',
+  '**/pnpm-lock.yaml',
+  '**/Gemfile.lock',
+  '**/Pipfile.lock',
+  '**/poetry.lock',
+  '**/composer.lock',
+  '**/go.sum',
+  // Documentation
+  '**/*.md',
+  '**/*.mdx',
+  '**/*.txt',
+  '**/*.rst',
+  '**/docs/**',
+  '**/CHANGELOG*',
+  '**/CHANGES*',
+  '**/LICENSE*',
+  '**/NOTICE*',
+  // Generated / build artifacts
+  '**/*.min.js',
+  '**/*.min.css',
+  '**/*.map',
+  '**/dist/**',
+  '**/build/**',
+  '**/node_modules/**',
+  '**/.gitignore',
+  '**/.gitattributes',
+  // Config-only files (version bumps, CI tweaks)
+  '**/.github/**',
+  '**/.vscode/**',
+  '**/.idea/**',
+  '**/.editorconfig',
+  '**/.eslintignore',
+  '**/.prettierignore',
+  '**/.prettierrc*',
+  '**/.eslintrc*',
+  '**/tsconfig.json',
+  '**/renovate.json',
+  '**/.renovaterc*',
+];
+
+/**
+ * Check if a PR should be skipped because all changed files are trivial.
+ * Returns a skip reason string if skipped, or null if the PR should be reviewed.
+ */
+function shouldSkipPR(files: string[]): string | null {
+  if (files.length === 0) return 'No changed files';
+
+  const nonTrivialFiles = files.filter(
+    (file) => !SKIP_PATTERNS.some((pattern) => minimatch(file, pattern)),
+  );
+
+  if (nonTrivialFiles.length === 0) {
+    // Categorize what the PR contains for the skip reason
+    const hasLockFiles = files.some((f) => /\.lock$|lock\.json$|lock\.yaml$|go\.sum$/.test(f));
+    const hasDocs = files.some((f) => /\.(md|mdx|txt|rst)$/i.test(f) || /docs\//i.test(f));
+    const hasConfig = files.some((f) => /^\.|tsconfig|renovate|eslint|prettier/i.test(f.split('/').pop() ?? ''));
+
+    const reasons: string[] = [];
+    if (hasLockFiles) reasons.push('lock files');
+    if (hasDocs) reasons.push('docs');
+    if (hasConfig) reasons.push('config');
+    if (reasons.length === 0) reasons.push('generated/trivial files');
+
+    return `Only ${reasons.join(' + ')} changed`;
+  }
+
+  return null;
+}
+
 // -- Conversational response handler -----------------------------------------
 
 /**
@@ -288,6 +368,42 @@ export async function handler(
   const headSha = prDetails.data.head.sha;
   const shortSha = headSha.slice(0, 7);
   const prNumberCommitSha = `${prNumber}#${shortSha}`;
+
+  // ── Smart skip: auto-skip trivial PRs (docs-only, lock files, etc.) ────
+  const skipReason = shouldSkipPR(prContext.files);
+  if (skipReason) {
+    console.log(`Skipping ${repoFullName}#${prNumber}: ${skipReason}`);
+
+    // Record as skipped in DynamoDB
+    const skippedRecord: ReviewItem = {
+      repoFullName,
+      prNumberCommitSha,
+      status: 'skipped',
+      createdAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      prTitle: prContext.title,
+      prAuthor: prDetails.data.user?.login,
+      prAuthorAvatar: prDetails.data.user?.avatar_url,
+      headBranch: prDetails.data.head.ref,
+      baseBranch: prDetails.data.base.ref,
+      installationId: String(installationId),
+      skipReason,
+    };
+    await upsertReviewRecord(skippedRecord);
+
+    // Post a neutral check run so the PR merge box shows "Skipped"
+    await createCheckRun(octokit, owner, repo, headSha, {
+      status: 'completed',
+      conclusion: 'neutral',
+      title: 'Review skipped',
+      summary: skipReason,
+    });
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ message: 'Skipped', reason: skipReason }),
+    };
+  }
 
   // Create the initial review record in DynamoDB with status "in_progress".
   const reviewStartedAt = new Date().toISOString();

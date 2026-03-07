@@ -23,19 +23,21 @@
     "logs:agent": "sam logs --name mergewatch-review-agent-prod --tail --stack-name mergewatch"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.721.0",
     "@aws-sdk/client-dynamodb": "^3.721.0",
     "@aws-sdk/client-lambda": "^3.721.0",
     "@aws-sdk/client-ssm": "^3.721.0",
-    "@aws-sdk/client-bedrock-runtime": "^3.721.0",
     "@aws-sdk/lib-dynamodb": "^3.721.0",
     "@aws-sdk/util-dynamodb": "^3.721.0",
+    "@octokit/auth-app": "^7.1.0",
     "@octokit/rest": "^21.0.0",
-    "@octokit/auth-app": "^7.1.0"
+    "minimatch": "^10.2.4"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.145",
+    "@types/minimatch": "^5.1.2",
     "@types/node": "^20.17.12",
-    "typescript": "^5.7.3",
-    "esbuild": "^0.24.0"
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.3"
   }
 }

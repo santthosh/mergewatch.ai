@@ -180,7 +180,7 @@ export const DEFAULT_INSTALLATION_SETTINGS: InstallationSettings = {
  * - complete:    Review posted to GitHub successfully
  * - failed:      Review failed (error details logged to CloudWatch)
  */
-export type ReviewStatus = 'pending' | 'in_progress' | 'complete' | 'failed';
+export type ReviewStatus = 'pending' | 'in_progress' | 'complete' | 'failed' | 'skipped';
 
 /**
  * DynamoDB item for the `mergewatch-reviews` table.
@@ -292,6 +292,8 @@ export interface ReviewItem {
   summaryText?: string;
   /** Mermaid diagram text from the diagram agent. */
   diagramText?: string;
+  /** Reason the review was skipped (only set when status is 'skipped'). */
+  skipReason?: string;
   /** All findings from the review. */
   findings?: ReviewFinding[];
   /** User feedback from dashboard: thumbs up or down. */

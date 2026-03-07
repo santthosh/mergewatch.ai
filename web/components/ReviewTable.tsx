@@ -10,7 +10,7 @@ export interface Review {
   repoFullName: string;
   prNumber: number;
   prTitle: string;
-  status: "pending" | "in_progress" | "completed" | "failed";
+  status: "pending" | "in_progress" | "completed" | "failed" | "skipped";
   model: string;
   createdAt: string;
 }
@@ -26,6 +26,7 @@ const statusStyles: Record<Review["status"], { bg: string; text: string; label: 
   in_progress: { bg: "bg-primer-blue/15", text: "text-primer-blue", label: "In Progress" },
   completed: { bg: "bg-primer-green/15", text: "text-primer-green", label: "Completed" },
   failed: { bg: "bg-primer-red/15", text: "text-primer-red", label: "Failed" },
+  skipped: { bg: "bg-[#555]/15", text: "text-[#888]", label: "Skipped" },
 };
 
 function StatusBadge({ status }: { status: Review["status"] }) {
