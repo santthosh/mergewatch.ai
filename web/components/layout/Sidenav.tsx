@@ -160,8 +160,11 @@ export default function Sidenav({
                   alt={activeInstallation.login}
                   className="h-5 w-5 rounded-full"
                 />
-                <span className="flex-1 truncate text-left text-xs font-medium">
-                  {activeInstallation.login}
+                <span className="flex-1 truncate text-left">
+                  <span className="block text-xs font-medium">{activeInstallation.login}</span>
+                  <span className="block text-[10px] text-[#444]">
+                    {activeInstallation.type === "Organization" ? "Organization" : "Personal"}
+                  </span>
                 </span>
                 <ChevronDown
                   size={14}
@@ -216,6 +219,9 @@ export default function Sidenav({
                 </button>
                 <div className="pointer-events-none absolute left-full top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap rounded bg-[#1e1e1e] px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
                   {activeInstallation.login}
+                  <span className="ml-1 text-[#555]">
+                    · {activeInstallation.type === "Organization" ? "Org" : "Personal"}
+                  </span>
                 </div>
               </div>
             </div>
