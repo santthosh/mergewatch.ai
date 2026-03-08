@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { redirect, notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
