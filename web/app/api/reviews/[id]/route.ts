@@ -70,6 +70,8 @@ export async function GET(
       findings: item.findings ?? [],
       settingsUsed: item.settingsUsed ?? undefined,
       feedback: item.feedback ?? undefined,
+      mergeScore: item.mergeScore ?? undefined,
+      mergeScoreReason: item.mergeScoreReason ?? undefined,
     },
   });
 }

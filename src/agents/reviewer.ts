@@ -181,11 +181,17 @@ interface TaggedFindings {
  * Run the orchestrator agent that deduplicates and ranks all findings from
  * the specialised agents.
  */
+export interface OrchestratorResult {
+  findings: OrchestratedFinding[];
+  mergeScore: number;
+  mergeScoreReason: string;
+}
+
 export async function runOrchestratorAgent(
   taggedFindings: TaggedFindings[],
   modelId: string,
   maxFindings: number,
-): Promise<OrchestratedFinding[]> {
+): Promise<OrchestratorResult> {
   // Build a combined findings list with category tags for the orchestrator
   const allFindings = taggedFindings.flatMap(({ category, findings }) =>
     findings.map((f) => ({ ...f, category })),
@@ -193,7 +199,7 @@ export async function runOrchestratorAgent(
 
   // If there are no findings, skip the orchestrator entirely
   if (allFindings.length === 0) {
-    return [];
+    return { findings: [], mergeScore: 5, mergeScoreReason: 'No issues found — clean PR.' };
   }
 
   const prompt = ORCHESTRATOR_PROMPT
@@ -201,8 +207,15 @@ export async function runOrchestratorAgent(
     + `\n\n--- Findings from all agents ---\n${JSON.stringify(allFindings, null, 2)}`;
 
   const raw = await invokeModel(modelId, prompt);
-  const parsed = safeParseJson<{ findings: OrchestratedFinding[] }>(raw, { findings: [] });
-  return parsed.findings;
+  const parsed = safeParseJson<{ findings: OrchestratedFinding[]; mergeScore?: number; mergeScoreReason?: string }>(
+    raw,
+    { findings: [] },
+  );
+  return {
+    findings: parsed.findings,
+    mergeScore: Math.max(1, Math.min(5, parsed.mergeScore ?? 3)),
+    mergeScoreReason: parsed.mergeScoreReason ?? '',
+  };
 }
 
 // ─── Full pipeline ─────────────────────────────────────────────────────────
@@ -228,6 +241,8 @@ export interface ReviewPipelineResult {
   findings: OrchestratedFinding[];
   diagram: string;
   diagramCaption: string;
+  mergeScore: number;
+  mergeScoreReason: string;
 }
 
 /**
@@ -273,7 +288,7 @@ export async function runReviewPipeline(
     { category: 'style', findings: styleFindings },
   ];
 
-  const orchestratedFindings = await runOrchestratorAgent(
+  const orchestratorResult = await runOrchestratorAgent(
     taggedFindings,
     lightModelId,
     maxFindings,
@@ -281,8 +296,10 @@ export async function runReviewPipeline(
 
   return {
     summary,
-    findings: orchestratedFindings,
+    findings: orchestratorResult.findings,
     diagram: diagramResult.diagram,
     diagramCaption: diagramResult.caption,
+    mergeScore: orchestratorResult.mergeScore,
+    mergeScoreReason: orchestratorResult.mergeScoreReason,
   };
 }

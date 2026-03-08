@@ -508,6 +508,8 @@ export async function handler(
       diagramCaption: result.diagramCaption || undefined,
       showDiagram: instSettings.summary.diagram,
       reviewDetailUrl,
+      mergeScore: result.mergeScore,
+      mergeScoreReason: result.mergeScoreReason || undefined,
     });
 
     // Post or update the review comment on the PR.
@@ -598,6 +600,8 @@ export async function handler(
       diagramText: result.diagram || undefined,
       findings: result.findings as ReviewFinding[],
       reactions,
+      mergeScore: result.mergeScore,
+      mergeScoreReason: result.mergeScoreReason || undefined,
     });
 
     // Post completed check run with pass/fail based on critical findings

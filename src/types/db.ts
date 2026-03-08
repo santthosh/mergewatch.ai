@@ -294,6 +294,10 @@ export interface ReviewItem {
   diagramText?: string;
   /** Reason the review was skipped (only set when status is 'skipped'). */
   skipReason?: string;
+  /** Overall merge readiness score (1-5, where 5 = safe to merge). */
+  mergeScore?: number;
+  /** One-line justification for the merge score. */
+  mergeScoreReason?: string;
   /** All findings from the review. */
   findings?: ReviewFinding[];
   /** User feedback from dashboard: thumbs up or down. */

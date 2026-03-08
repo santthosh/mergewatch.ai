@@ -182,6 +182,13 @@ Your job:
 4. Drop findings that are speculative or low-confidence.
 5. Cap the total to MAX_FINDINGS_PLACEHOLDER findings.
 
+Also assess the overall merge readiness of the PR on a 1–5 scale:
+- 5 = No issues, clean PR — safe to merge
+- 4 = Minor info-level findings only — generally safe
+- 3 = Warnings present — review recommended before merging
+- 2 = Multiple warnings or critical issues — needs fixes
+- 1 = Serious critical issues — do not merge
+
 Return a JSON object:
 {
   "findings": [
@@ -195,7 +202,9 @@ Return a JSON object:
       "description": "Explanation.",
       "suggestion": "Fix."
     }
-  ]
+  ],
+  "mergeScore": 4,
+  "mergeScoreReason": "One-sentence justification for the score."
 }
 
 Preserve the "confidence" score (1-100) from the original agent findings. If two agents flagged the same issue, keep the higher confidence score.`;

@@ -42,6 +42,8 @@ interface ReviewDetail {
   settingsUsed?: SettingsUsed;
   feedback?: "up" | "down";
   commentId?: number;
+  mergeScore?: number;
+  mergeScoreReason?: string;
 }
 
 interface Finding {
@@ -96,6 +98,41 @@ function SeverityDot({ severity }: { severity?: string }) {
     <span className="inline-flex items-center gap-1" title={s.label}>
       <span className={`inline-block h-2 w-2 rounded-full ${s.dot}`} />
     </span>
+  );
+}
+
+const mergeScoreMeta: Record<number, { color: string; bg: string; label: string }> = {
+  5: { color: "text-primer-green", bg: "bg-primer-green/10", label: "Safe to merge" },
+  4: { color: "text-primer-green", bg: "bg-primer-green/10", label: "Generally safe" },
+  3: { color: "text-primer-orange", bg: "bg-primer-orange/10", label: "Review recommended" },
+  2: { color: "text-orange-500", bg: "bg-orange-500/10", label: "Needs fixes" },
+  1: { color: "text-primer-red", bg: "bg-primer-red/10", label: "Do not merge" },
+};
+
+function MergeScoreBadge({ score, reason }: { score: number; reason?: string }) {
+  const s = mergeScoreMeta[score] ?? mergeScoreMeta[3];
+  return (
+    <div className={`mx-5 mt-4 rounded-lg border border-[#1e1e1e] ${s.bg} px-4 py-3`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={`text-2xl font-bold ${s.color}`}>{score}/5</span>
+          <span className={`text-sm font-medium ${s.color}`}>{s.label}</span>
+        </div>
+        <div className="flex gap-0.5">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <span
+              key={i}
+              className={`inline-block h-2.5 w-2.5 rounded-full ${
+                i <= score ? s.color.replace("text-", "bg-") : "bg-[#333]"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+      {reason && (
+        <p className="mt-1.5 text-xs text-[#888]">{reason}</p>
+      )}
+    </div>
   );
 }
 
@@ -217,6 +254,9 @@ export default function ReviewDrawer({
             </div>
           ) : review ? (
             <>
+              {review.mergeScore != null && (
+                <MergeScoreBadge score={review.mergeScore} reason={review.mergeScoreReason} />
+              )}
               <DrawerSection title="Overview" icon={FileText} defaultOpen>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-sm">

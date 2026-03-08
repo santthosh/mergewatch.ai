@@ -29,6 +29,7 @@ interface ReviewListItem {
   findingCount?: number;
   topSeverity?: "critical" | "warning" | "info";
   durationMs?: number;
+  mergeScore?: number;
 }
 
 
@@ -71,6 +72,24 @@ function SeverityDot({ severity }: { severity?: string }) {
   return (
     <span className="inline-flex items-center gap-1" title={s.label}>
       <span className={`inline-block h-2 w-2 rounded-full ${s.dot}`} />
+    </span>
+  );
+}
+
+const mergeScoreColors: Record<number, string> = {
+  5: "text-primer-green",
+  4: "text-primer-green",
+  3: "text-primer-orange",
+  2: "text-orange-500",
+  1: "text-primer-red",
+};
+
+function MergeScoreCompact({ score }: { score?: number }) {
+  if (score == null) return null;
+  const color = mergeScoreColors[score] ?? "text-[#888]";
+  return (
+    <span className={`inline-flex items-center gap-0.5 font-semibold ${color}`} title={`Merge readiness: ${score}/5`}>
+      <span className="text-xs">{score}/5</span>
     </span>
   );
 }
@@ -213,7 +232,10 @@ function PRCardGroup({
               </span>
               <p className="mt-0.5 truncate text-xs text-[#555]">{latest.repoFullName}</p>
             </div>
-            <StatusBadge status={latest.status} />
+            <div className="flex items-center gap-2">
+              <MergeScoreCompact score={latest.mergeScore} />
+              <StatusBadge status={latest.status} />
+            </div>
           </div>
           <div className="mt-2 flex items-center gap-3 text-xs text-[#555]">
             <span className="inline-flex items-center gap-1">
@@ -308,6 +330,9 @@ function PRTableGroup({
           )}
         </td>
         <td className="px-4 py-3">
+          <MergeScoreCompact score={latest.mergeScore} />
+        </td>
+        <td className="px-4 py-3">
           <StatusBadge status={latest.status} />
         </td>
         <td className="px-4 py-3">
@@ -344,6 +369,9 @@ function PRTableGroup({
             </td>
             <td className="px-4 py-2" />
             <td className="px-4 py-2">
+              <MergeScoreCompact score={r.mergeScore} />
+            </td>
+            <td className="px-4 py-2">
               <StatusBadge status={r.status} />
             </td>
             <td className="px-4 py-2">
@@ -359,7 +387,6 @@ function PRTableGroup({
             <td className="whitespace-nowrap px-4 py-2 text-[#555]">
               <RelativeTime date={r.createdAt} />
             </td>
-            <td />
           </tr>
         );
       })}
@@ -523,6 +550,7 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
                     <th className="px-4 py-3">Pull Request</th>
                     <th className="px-4 py-3">Commit</th>
                     <th className="px-4 py-3">Author</th>
+                    <th className="px-4 py-3">Score</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Findings</th>
                     <th className="px-4 py-3">Time</th>

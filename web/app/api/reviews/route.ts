@@ -167,6 +167,7 @@ export async function GET(req: NextRequest) {
         findingCount: item.findingCount ?? undefined,
         topSeverity: item.topSeverity ?? undefined,
         durationMs: item.durationMs ?? undefined,
+        mergeScore: item.mergeScore ?? undefined,
       };
     });
 
