@@ -72,7 +72,7 @@ const statusStyles: Record<string, { bg: string; text: string; label: string }> 
   in_progress: { bg: "bg-primer-blue/15", text: "text-primer-blue", label: "In Progress" },
   completed: { bg: "bg-primer-green/15", text: "text-primer-green", label: "Completed" },
   failed: { bg: "bg-primer-red/15", text: "text-primer-red", label: "Failed" },
-  skipped: { bg: "bg-[#555]/15", text: "text-[#888]", label: "Skipped" },
+  skipped: { bg: "bg-[#555]/15", text: "text-fg-secondary", label: "Skipped" },
 };
 
 const severityStyles: Record<string, { dot: string; label: string }> = {
@@ -112,7 +112,7 @@ const mergeScoreMeta: Record<number, { color: string; bg: string; label: string 
 function MergeScoreBadge({ score, reason }: { score: number; reason?: string }) {
   const s = mergeScoreMeta[score] ?? mergeScoreMeta[3];
   return (
-    <div className={`mx-5 mt-4 rounded-lg border border-[#1e1e1e] ${s.bg} px-4 py-3`}>
+    <div className={`mx-5 mt-4 rounded-lg border border-border-default ${s.bg} px-4 py-3`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className={`text-2xl font-bold ${s.color}`}>{score}/5</span>
@@ -123,14 +123,14 @@ function MergeScoreBadge({ score, reason }: { score: number; reason?: string }) 
             <span
               key={i}
               className={`inline-block h-2.5 w-2.5 rounded-full ${
-                i <= score ? s.color.replace("text-", "bg-") : "bg-[#333]"
+                i <= score ? s.color.replace("text-", "bg-") : "bg-fg-faint"
               }`}
             />
           ))}
         </div>
       </div>
       {reason && (
-        <p className="mt-1.5 text-xs text-[#888]">{reason}</p>
+        <p className="mt-1.5 text-xs text-fg-secondary">{reason}</p>
       )}
     </div>
   );
@@ -155,14 +155,14 @@ function DrawerSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border-b border-[#1a1a1a]">
+    <div className="border-b border-border-subtle">
       <button
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-2 px-5 py-3 text-left hover:bg-[#111] transition-colors"
+        className="flex w-full items-center gap-2 px-5 py-3 text-left hover:bg-surface-card-hover transition-colors"
       >
-        {open ? <ChevronDown size={14} className="text-[#555]" /> : <ChevronRight size={14} className="text-[#555]" />}
-        <Icon size={14} className="text-[#555]" />
-        <span className="text-xs font-semibold uppercase tracking-widest text-[#444]">{title}</span>
+        {open ? <ChevronDown size={14} className="text-fg-tertiary" /> : <ChevronRight size={14} className="text-fg-tertiary" />}
+        <Icon size={14} className="text-fg-tertiary" />
+        <span className="text-xs font-semibold uppercase tracking-widest text-fg-muted">{title}</span>
       </button>
       {open && <div className="px-5 pb-4">{children}</div>}
     </div>
@@ -216,20 +216,20 @@ export default function ReviewDrawer({
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
+      <div className="fixed inset-0 z-40 bg-overlay" onClick={onClose} />
 
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-[#1e1e1e] bg-[#0a0a0a] shadow-2xl">
+      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-border-default bg-surface-card shadow-2xl">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-[#1e1e1e] px-5 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-border-default px-5 py-4">
           <div className="min-w-0 flex-1">
             {loading ? (
-              <div className="h-5 w-48 animate-pulse rounded bg-[#1a1a1a]" />
+              <div className="h-5 w-48 animate-pulse rounded bg-surface-subtle" />
             ) : review ? (
               <>
-                <h2 className="text-base font-semibold text-white truncate">
+                <h2 className="text-base font-semibold text-fg-primary truncate">
                   #{review.prNumber} {review.prTitle || "Untitled PR"}
                 </h2>
-                <p className="mt-0.5 text-xs text-[#555]">{review.repoFullName}</p>
+                <p className="mt-0.5 text-xs text-fg-tertiary">{review.repoFullName}</p>
               </>
             ) : null}
           </div>
@@ -237,7 +237,7 @@ export default function ReviewDrawer({
             {review && <StatusBadge status={review.status} />}
             <button
               onClick={onClose}
-              className="rounded p-1 text-[#555] hover:bg-[#1a1a1a] hover:text-white transition-colors"
+              className="rounded p-1 text-fg-tertiary hover:bg-surface-subtle hover:text-fg-primary transition-colors"
             >
               <X size={16} />
             </button>
@@ -249,7 +249,7 @@ export default function ReviewDrawer({
           {loading ? (
             <div className="space-y-4 p-5">
               {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-16 animate-pulse rounded bg-[#1a1a1a]" />
+                <div key={i} className="h-16 animate-pulse rounded bg-surface-subtle" />
               ))}
             </div>
           ) : review ? (
@@ -260,28 +260,28 @@ export default function ReviewDrawer({
               <DrawerSection title="Overview" icon={FileText} defaultOpen>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#555]">Author</span>
+                    <span className="text-fg-tertiary">Author</span>
                     {review.prAuthor ? (
-                      <span className="flex items-center gap-1.5 text-white">
+                      <span className="flex items-center gap-1.5 text-fg-primary">
                         {review.prAuthorAvatar && (
                           <img src={review.prAuthorAvatar} alt="" className="h-4 w-4 rounded-full" />
                         )}
                         {review.prAuthor}
                       </span>
                     ) : (
-                      <span className="text-[#333]">&mdash;</span>
+                      <span className="text-fg-faint">&mdash;</span>
                     )}
                   </div>
                   {review.headBranch && (
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-[#555]">Branch</span>
-                      <code className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-xs text-[#888]">
+                      <span className="text-fg-tertiary">Branch</span>
+                      <code className="rounded bg-surface-subtle px-1.5 py-0.5 text-xs text-fg-secondary">
                         {review.headBranch} &rarr; {review.baseBranch ?? "main"}
                       </code>
                     </div>
                   )}
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#555]">Commit</span>
+                    <span className="text-fg-tertiary">Commit</span>
                     <a
                       href={`https://github.com/${review.repoFullName}/commit/${review.commitSha}`}
                       target="_blank"
@@ -293,26 +293,26 @@ export default function ReviewDrawer({
                     </a>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#555]">Model</span>
-                    <code className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-xs text-[#888]">
+                    <span className="text-fg-tertiary">Model</span>
+                    <code className="rounded bg-surface-subtle px-1.5 py-0.5 text-xs text-fg-secondary">
                       {review.model || "&mdash;"}
                     </code>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#555]">Duration</span>
-                    <span className="text-white">
+                    <span className="text-fg-tertiary">Duration</span>
+                    <span className="text-fg-primary">
                       {review.durationMs ? formatDuration(review.durationMs) : "&mdash;"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#555]">Started</span>
-                    <span className="text-white">
+                    <span className="text-fg-tertiary">Started</span>
+                    <span className="text-fg-primary">
                       {review.createdAt ? <RelativeTime date={review.createdAt} /> : "&mdash;"}
                     </span>
                   </div>
                   {commentUrl && (
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-[#555]">Comment</span>
+                      <span className="text-fg-tertiary">Comment</span>
                       <a
                         href={commentUrl}
                         target="_blank"
@@ -328,7 +328,7 @@ export default function ReviewDrawer({
 
               {review.summaryText && (
                 <DrawerSection title="Summary" icon={FileText} defaultOpen>
-                  <div className="prose prose-invert prose-sm max-w-none text-sm text-[#999] leading-relaxed [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-0.5 [&_code]:rounded [&_code]:bg-[#1a1a1a] [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[#ccc] [&_pre]:rounded-lg [&_pre]:bg-[#111] [&_pre]:p-3 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h1]:text-white [&_h2]:text-white [&_h3]:text-white [&_strong]:text-white [&_a]:text-primer-blue [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-[#333] [&_blockquote]:pl-3 [&_blockquote]:text-[#777]">
+                  <div className="prose prose-invert prose-sm max-w-none text-sm text-fg-secondary leading-relaxed [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-0.5 [&_code]:rounded [&_code]:bg-surface-subtle [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-fg-secondary [&_pre]:rounded-lg [&_pre]:bg-surface-card-hover [&_pre]:p-3 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h1]:text-fg-primary [&_h2]:text-fg-primary [&_h3]:text-fg-primary [&_strong]:text-fg-primary [&_a]:text-primer-blue [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-fg-faint [&_blockquote]:pl-3 [&_blockquote]:text-fg-secondary">
                     <Markdown>{review.summaryText}</Markdown>
                   </div>
                 </DrawerSection>
@@ -336,8 +336,8 @@ export default function ReviewDrawer({
 
               {review.diagramText && (
                 <DrawerSection title="Diagram" icon={GitBranch}>
-                  <div className="overflow-x-auto rounded-lg bg-[#111] border border-[#1a1a1a] p-3">
-                    <pre className="text-xs text-[#999] whitespace-pre-wrap">{review.diagramText}</pre>
+                  <div className="overflow-x-auto rounded-lg bg-surface-card-hover border border-border-subtle p-3">
+                    <pre className="text-xs text-fg-secondary whitespace-pre-wrap">{review.diagramText}</pre>
                   </div>
                 </DrawerSection>
               )}
@@ -348,30 +348,30 @@ export default function ReviewDrawer({
                 defaultOpen
               >
                 {(!review.findings || review.findings.length === 0) ? (
-                  <p className="text-sm text-[#555]">No issues found.</p>
+                  <p className="text-sm text-fg-tertiary">No issues found.</p>
                 ) : (
                   <div className="space-y-3">
                     {review.findings.map((f, i) => (
-                      <div key={i} className="rounded-lg border border-[#1a1a1a] p-3">
+                      <div key={i} className="rounded-lg border border-border-subtle p-3">
                         <div className="flex items-start gap-2">
                           <SeverityDot severity={f.severity} />
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-medium text-white">{f.title}</span>
-                              <span className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-[10px] text-[#666] uppercase">
+                              <span className="text-sm font-medium text-fg-primary">{f.title}</span>
+                              <span className="rounded bg-surface-subtle px-1.5 py-0.5 text-[10px] text-fg-secondary uppercase">
                                 {f.category}
                               </span>
                               {f.confidence != null && (
-                                <span className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-[10px] text-[#888]">
+                                <span className="rounded bg-surface-subtle px-1.5 py-0.5 text-[10px] text-fg-secondary">
                                   {f.confidence}%
                                 </span>
                               )}
                             </div>
-                            <p className="mt-1 text-xs text-[#888]">
-                              <code className="text-[#666]">{f.file}:{f.line}</code>
+                            <p className="mt-1 text-xs text-fg-secondary">
+                              <code className="text-fg-secondary">{f.file}:{f.line}</code>
                             </p>
                             {f.description && (
-                              <p className="mt-1.5 text-xs text-[#777] leading-relaxed">{f.description}</p>
+                              <p className="mt-1.5 text-xs text-fg-secondary leading-relaxed">{f.description}</p>
                             )}
                             {f.suggestion && (
                               <div className="mt-2 rounded bg-[#0d1a0d] border border-[#1a2e1a] px-2.5 py-1.5 text-xs text-[#6fcc6f]">
@@ -390,19 +390,19 @@ export default function ReviewDrawer({
                 <DrawerSection title="Settings Used" icon={BarChart3}>
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-[#555]">Severity threshold</span>
-                      <span className="text-white">{review.settingsUsed.severityThreshold}</span>
+                      <span className="text-fg-tertiary">Severity threshold</span>
+                      <span className="text-fg-primary">{review.settingsUsed.severityThreshold}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-[#555]">Agents</span>
+                      <span className="text-fg-tertiary">Agents</span>
                       <div className="flex gap-1">
                         {(["syntax", "logic", "style"] as const).map((k) => (
                           <span
                             key={k}
                             className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
                               review.settingsUsed!.commentTypes[k]
-                                ? "bg-[#00ff88]/10 text-[#00ff88]"
-                                : "bg-[#1a1a1a] text-[#333] line-through"
+                                ? "bg-[#00ff88]/10 text-accent-green"
+                                : "bg-surface-subtle text-fg-faint line-through"
                             }`}
                           >
                             {k}
@@ -411,12 +411,12 @@ export default function ReviewDrawer({
                       </div>
                     </div>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-[#555]">Max comments</span>
-                      <span className="text-white">{review.settingsUsed.maxComments}</span>
+                      <span className="text-fg-tertiary">Max comments</span>
+                      <span className="text-fg-primary">{review.settingsUsed.maxComments}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-[#555]">Summary</span>
-                      <span className={review.settingsUsed.summaryEnabled ? "text-[#00ff88]" : "text-[#555]"}>
+                      <span className="text-fg-tertiary">Summary</span>
+                      <span className={review.settingsUsed.summaryEnabled ? "text-accent-green" : "text-fg-tertiary"}>
                         {review.settingsUsed.summaryEnabled ? "On" : "Off"}
                       </span>
                     </div>
@@ -424,9 +424,9 @@ export default function ReviewDrawer({
                 </DrawerSection>
               )}
 
-              <div className="border-b border-[#1a1a1a] px-5 py-4">
+              <div className="border-b border-border-subtle px-5 py-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-widest text-[#444]">
+                  <span className="text-xs font-semibold uppercase tracking-widest text-fg-muted">
                     Was this review helpful?
                   </span>
                   <div className="flex gap-2">
@@ -435,7 +435,7 @@ export default function ReviewDrawer({
                       className={`rounded-lg p-2 transition-colors ${
                         feedbackState === "up"
                           ? "bg-primer-green/15 text-primer-green"
-                          : "text-[#555] hover:bg-[#1a1a1a] hover:text-white"
+                          : "text-fg-tertiary hover:bg-surface-subtle hover:text-fg-primary"
                       }`}
                     >
                       <ThumbsUp size={16} />
@@ -445,7 +445,7 @@ export default function ReviewDrawer({
                       className={`rounded-lg p-2 transition-colors ${
                         feedbackState === "down"
                           ? "bg-primer-red/15 text-primer-red"
-                          : "text-[#555] hover:bg-[#1a1a1a] hover:text-white"
+                          : "text-fg-tertiary hover:bg-surface-subtle hover:text-fg-primary"
                       }`}
                     >
                       <ThumbsDown size={16} />
@@ -459,14 +459,14 @@ export default function ReviewDrawer({
                   href={prUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 rounded-lg border border-[#1e1e1e] px-4 py-2.5 text-sm text-[#888] hover:border-[#333] hover:text-white transition-colors"
+                  className="flex items-center justify-center gap-2 rounded-lg border border-border-default px-4 py-2.5 text-sm text-fg-secondary hover:border-fg-faint hover:text-fg-primary transition-colors"
                 >
                   View PR on GitHub <ExternalLink size={14} />
                 </a>
               </div>
             </>
           ) : (
-            <div className="flex items-center justify-center h-full text-sm text-[#555]">
+            <div className="flex items-center justify-center h-full text-sm text-fg-tertiary">
               Review not found.
             </div>
           )}

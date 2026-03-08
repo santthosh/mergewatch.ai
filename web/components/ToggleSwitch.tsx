@@ -16,7 +16,7 @@ export default function ToggleSwitch({ checked, disabled, onChange }: ToggleSwit
       onClick={() => onChange(!checked)}
       className={[
         "relative w-11 h-6 shrink-0 rounded-full transition-colors duration-200",
-        checked ? "bg-[#00ff88]" : "bg-[#2a2a2a]",
+        checked ? "bg-accent-green" : "bg-[#2a2a2a]",
         disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
       ].join(" ")}
     >

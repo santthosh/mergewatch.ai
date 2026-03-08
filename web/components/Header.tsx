@@ -40,13 +40,13 @@ export default function Header({ userName, userImage, onMenuToggle }: HeaderProp
     .toUpperCase();
 
   return (
-    <header className="sticky top-0 z-20 border-b border-[#1e1e1e] bg-[#0f0f0f]">
+    <header className="sticky top-0 z-20 border-b border-border-default bg-surface-page">
       <div className="flex h-14 items-center justify-between px-6">
         {/* Hamburger — mobile only */}
         {onMenuToggle && (
           <button
             onClick={onMenuToggle}
-            className="p-2 text-[#555] transition-colors hover:text-white md:hidden"
+            className="p-2 text-fg-tertiary transition-colors hover:text-fg-primary md:hidden"
             aria-label="Open menu"
           >
             <Menu size={20} />
@@ -59,7 +59,7 @@ export default function Header({ userName, userImage, onMenuToggle }: HeaderProp
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setOpen((v) => !v)}
-            className="flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-800 py-1 pl-1 pr-3 text-sm font-medium text-white transition hover:border-zinc-500"
+            className="flex items-center gap-2 rounded-full border border-border-default bg-surface-card py-1 pl-1 pr-3 text-sm font-medium text-fg-primary transition hover:border-zinc-500"
           >
             {userImage ? (
               <img
@@ -85,21 +85,21 @@ export default function Header({ userName, userImage, onMenuToggle }: HeaderProp
           </button>
 
           {open && (
-            <div className="absolute right-0 mt-2 w-56 rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-2xl">
+            <div className="absolute right-0 mt-2 w-56 rounded-lg border border-border-default bg-surface-card py-1 shadow-2xl">
               <Link
                 href="/dashboard/profile"
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-3 border-b border-zinc-700 px-4 py-3 transition hover:bg-zinc-800"
+                className="flex items-center gap-3 border-b border-border-default px-4 py-3 transition hover:bg-surface-card"
               >
                 <User size={14} className="text-primer-muted" />
                 <div>
-                  <p className="text-sm font-medium text-white">{userName}</p>
+                  <p className="text-sm font-medium text-fg-primary">{userName}</p>
                   <p className="text-xs text-primer-muted">GitHub</p>
                 </div>
               </Link>
               <button
                 onClick={() => signOut({ callbackUrl: "/" })}
-                className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-primer-muted transition hover:bg-zinc-800 hover:text-red-400"
+                className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-primer-muted transition hover:bg-surface-card hover:text-red-400"
               >
                 <svg
                   className="h-4 w-4"

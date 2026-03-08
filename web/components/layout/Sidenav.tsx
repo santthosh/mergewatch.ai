@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { useTheme } from "next-themes";
 import {
   Home,
   GitPullRequest,
@@ -12,6 +13,8 @@ import {
   ChevronDown,
   LogOut,
   Menu,
+  Sun,
+  Moon,
   type LucideIcon,
 } from "lucide-react";
 import { Wordmark, LogoIcon } from "../MergeWatchLogo";
@@ -55,6 +58,7 @@ export default function Sidenav({
   orgParam,
 }: SidenavProps) {
   const pathname = usePathname();
+  const { theme, setTheme } = useTheme();
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -106,10 +110,10 @@ export default function Sidenav({
   return (
     <>
       {/* Mobile top bar — hamburger only */}
-      <div className="fixed top-0 left-0 right-0 z-20 flex h-14 items-center border-b border-[#1e1e1e] bg-[#0f0f0f] px-4 md:hidden">
+      <div className="fixed top-0 left-0 right-0 z-20 flex h-14 items-center border-b border-border-default bg-surface-page px-4 md:hidden">
         <button
           onClick={onMobileOpen}
-          className="p-2 text-[#555] transition-colors hover:text-white"
+          className="p-2 text-fg-tertiary transition-colors hover:text-fg-primary"
           aria-label="Open menu"
         >
           <Menu size={20} />
@@ -124,7 +128,7 @@ export default function Sidenav({
       {/* Mobile backdrop */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/60 md:hidden"
+          className="fixed inset-0 z-30 bg-overlay md:hidden"
           onClick={onMobileClose}
         />
       )}
@@ -132,7 +136,7 @@ export default function Sidenav({
       {/* Sidenav */}
       <nav
         className={[
-          "fixed top-0 left-0 h-screen z-40 bg-[#0f0f0f] border-r border-[#1e1e1e]",
+          "fixed top-0 left-0 h-screen z-40 bg-surface-page border-r border-border-default",
           "flex flex-col",
           "transition-transform duration-200 ease-in-out",
           "lg:translate-x-0 lg:w-[240px]",
@@ -141,7 +145,7 @@ export default function Sidenav({
         ].join(" ")}
       >
         {/* Logo */}
-        <div className="flex h-14 items-center border-b border-[#1e1e1e] px-4 justify-center lg:justify-start">
+        <div className="flex h-14 items-center border-b border-border-default px-4 justify-center lg:justify-start">
           <Link href="/dashboard" className="hidden lg:block">
             <Wordmark iconSize={18} />
           </Link>
@@ -157,12 +161,12 @@ export default function Sidenav({
 
         {/* Org switcher */}
         {showOrgSwitcher && (
-          <div className="border-b border-[#1e1e1e] px-2 py-2" ref={dropdownRef}>
+          <div className="border-b border-border-default px-2 py-2" ref={dropdownRef}>
             {/* Desktop / mobile drawer: full switcher */}
             <div className={mobileOpen ? "block" : "hidden lg:block"}>
               <button
                 onClick={() => setOrgDropdownOpen((v) => !v)}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-white transition hover:bg-[rgba(255,255,255,0.04)]"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-fg-primary transition hover:bg-hover"
               >
                 <img
                   src={activeInstallation.avatarUrl}
@@ -171,18 +175,18 @@ export default function Sidenav({
                 />
                 <span className="flex-1 truncate text-left">
                   <span className="block text-xs font-medium">{activeInstallation.login}</span>
-                  <span className="block text-[10px] text-[#444]">
+                  <span className="block text-[10px] text-fg-muted">
                     {activeInstallation.type === "Organization" ? "Organization" : "Personal"}
                   </span>
                 </span>
                 <ChevronDown
                   size={14}
-                  className={`text-[#555] transition ${orgDropdownOpen ? "rotate-180" : ""}`}
+                  className={`text-fg-tertiary transition ${orgDropdownOpen ? "rotate-180" : ""}`}
                 />
               </button>
 
               {orgDropdownOpen && (
-                <div className="mt-1 rounded-md border border-[#1e1e1e] bg-[#161616] py-1">
+                <div className="mt-1 rounded-md border border-border-default bg-surface-elevated py-1">
                   {installations.map((inst) => (
                     <button
                       key={inst.id}
@@ -194,8 +198,8 @@ export default function Sidenav({
                       className={[
                         "flex w-full items-center gap-2 px-3 py-1.5 text-xs transition",
                         inst.id === activeInstallation.id
-                          ? "bg-[rgba(0,255,136,0.08)] text-white"
-                          : "text-[#888] hover:bg-[rgba(255,255,255,0.04)] hover:text-white",
+                          ? "bg-active text-fg-primary"
+                          : "text-fg-secondary hover:bg-hover hover:text-fg-primary",
                       ].join(" ")}
                     >
                       <img
@@ -204,7 +208,7 @@ export default function Sidenav({
                         className="h-4 w-4 rounded-full"
                       />
                       <span className="truncate">{inst.login}</span>
-                      <span className="ml-auto text-[10px] text-[#555]">
+                      <span className="ml-auto text-[10px] text-fg-tertiary">
                         {inst.type === "Organization" ? "Org" : "Personal"}
                       </span>
                     </button>
@@ -218,7 +222,7 @@ export default function Sidenav({
               <div className="group relative">
                 <button
                   onClick={() => setOrgDropdownOpen((v) => !v)}
-                  className="rounded-md p-1 transition hover:bg-[rgba(255,255,255,0.04)]"
+                  className="rounded-md p-1 transition hover:bg-hover"
                 >
                   <img
                     src={activeInstallation.avatarUrl}
@@ -226,9 +230,9 @@ export default function Sidenav({
                     className="h-6 w-6 rounded-full"
                   />
                 </button>
-                <div className="pointer-events-none absolute left-full top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap rounded bg-[#1e1e1e] px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                <div className="pointer-events-none absolute left-full top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap rounded bg-surface-elevated px-2 py-1 text-xs text-fg-primary opacity-0 transition-opacity group-hover:opacity-100">
                   {activeInstallation.login}
-                  <span className="ml-1 text-[#555]">
+                  <span className="ml-1 text-fg-tertiary">
                     · {activeInstallation.type === "Organization" ? "Org" : "Personal"}
                   </span>
                 </div>
@@ -244,7 +248,7 @@ export default function Sidenav({
               return (
                 <div
                   key={i}
-                  className="hidden lg:block px-5 pt-5 pb-1 text-[10px] font-semibold uppercase tracking-widest text-[#333]"
+                  className="hidden lg:block px-5 pt-5 pb-1 text-[10px] font-semibold uppercase tracking-widest text-fg-faint"
                 >
                   {entry.label}
                 </div>
@@ -264,19 +268,19 @@ export default function Sidenav({
                     "px-3 py-2 mx-1 lg:mx-2",
                     "justify-center lg:justify-start",
                     active
-                      ? "bg-[rgba(0,255,136,0.08)] text-white"
-                      : "text-[#888] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#bbb]",
+                      ? "bg-active text-fg-primary"
+                      : "text-fg-secondary hover:bg-hover hover:text-fg-secondary",
                   ].join(" ")}
                 >
                   <Icon
                     size={15}
-                    className={active ? "text-[#00ff88]" : "text-[#555]"}
+                    className={active ? "text-accent-green" : "text-fg-tertiary"}
                   />
                   <span className="hidden lg:inline">{label}</span>
                   {mobileOpen && <span className="inline lg:hidden">{label}</span>}
                 </Link>
 
-                <div className="pointer-events-none absolute left-full top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap rounded bg-[#1e1e1e] px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100 hidden md:block lg:hidden">
+                <div className="pointer-events-none absolute left-full top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap rounded bg-surface-elevated px-2 py-1 text-xs text-fg-primary opacity-0 transition-opacity group-hover:opacity-100 hidden md:block lg:hidden">
                   {label}
                 </div>
               </div>
@@ -293,12 +297,12 @@ export default function Sidenav({
         </div>
 
         {/* User menu — bottom of sidenav */}
-        <div className="border-t border-[#1e1e1e] px-2 py-2 relative" ref={userMenuRef}>
+        <div className="border-t border-border-default px-2 py-2 relative" ref={userMenuRef}>
           {/* Desktop / mobile drawer: full user button */}
           <div className={mobileOpen ? "block" : "hidden lg:block"}>
             <button
               onClick={() => setUserMenuOpen((v) => !v)}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-white transition hover:bg-[rgba(255,255,255,0.04)]"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-fg-primary transition hover:bg-hover"
             >
               {userImage ? (
                 <img src={userImage} alt={userName} className="h-6 w-6 rounded-full" />
@@ -310,15 +314,22 @@ export default function Sidenav({
               <span className="flex-1 truncate text-left text-xs font-medium">{userName}</span>
               <ChevronDown
                 size={14}
-                className={`text-[#555] transition ${userMenuOpen ? "rotate-180" : ""}`}
+                className={`text-fg-tertiary transition ${userMenuOpen ? "rotate-180" : ""}`}
               />
             </button>
 
             {userMenuOpen && (
-              <div className="absolute bottom-full left-2 right-2 mb-1 rounded-md border border-[#1e1e1e] bg-[#161616] py-1 shadow-2xl">
+              <div className="absolute bottom-full left-2 right-2 mb-1 rounded-md border border-border-default bg-surface-elevated py-1 shadow-2xl">
+                <button
+                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-secondary transition hover:bg-hover hover:text-fg-primary"
+                >
+                  {theme === "dark" ? <Sun size={13} /> : <Moon size={13} />}
+                  <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+                </button>
                 <button
                   onClick={() => signOut({ callbackUrl: "/" })}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-xs text-[#888] transition hover:bg-[rgba(255,255,255,0.04)] hover:text-red-400"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-secondary transition hover:bg-hover hover:text-red-400"
                 >
                   <LogOut size={13} />
                   <span>Sign out</span>
@@ -332,7 +343,7 @@ export default function Sidenav({
             <div className="group relative">
               <button
                 onClick={() => setUserMenuOpen((v) => !v)}
-                className="rounded-md p-1 transition hover:bg-[rgba(255,255,255,0.04)]"
+                className="rounded-md p-1 transition hover:bg-hover"
               >
                 {userImage ? (
                   <img src={userImage} alt={userName} className="h-6 w-6 rounded-full" />
@@ -343,17 +354,24 @@ export default function Sidenav({
                 )}
               </button>
               {userMenuOpen && (
-                <div className="absolute bottom-full left-full ml-2 mb-1 rounded-md border border-[#1e1e1e] bg-[#161616] py-1 shadow-2xl whitespace-nowrap">
+                <div className="absolute bottom-full left-full ml-2 mb-1 rounded-md border border-border-default bg-surface-elevated py-1 shadow-2xl whitespace-nowrap">
+                  <button
+                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-secondary transition hover:bg-hover hover:text-fg-primary"
+                  >
+                    {theme === "dark" ? <Sun size={13} /> : <Moon size={13} />}
+                    <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+                  </button>
                   <button
                     onClick={() => signOut({ callbackUrl: "/" })}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-xs text-[#888] transition hover:bg-[rgba(255,255,255,0.04)] hover:text-red-400"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-secondary transition hover:bg-hover hover:text-red-400"
                   >
                     <LogOut size={13} />
                     <span>Sign out</span>
                   </button>
                 </div>
               )}
-              <div className="pointer-events-none absolute left-full top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap rounded bg-[#1e1e1e] px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="pointer-events-none absolute left-full top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap rounded bg-surface-elevated px-2 py-1 text-xs text-fg-primary opacity-0 transition-opacity group-hover:opacity-100">
                 {userName}
               </div>
             </div>

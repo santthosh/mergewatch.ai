@@ -192,10 +192,10 @@ export default function RepositoriesClient({
   return (
     <div>
       {/* Header */}
-      <div className="px-4 pt-6 pb-5 border-b border-[#1e1e1e] flex items-start justify-between sm:px-8 sm:pt-8 sm:pb-6">
+      <div className="px-4 pt-6 pb-5 border-b border-border-default flex items-start justify-between sm:px-8 sm:pt-8 sm:pb-6">
         <div>
-          <h1 className="text-white text-xl font-semibold">Repositories</h1>
-          <p className="text-[#555] text-sm mt-1">
+          <h1 className="text-fg-primary text-xl font-semibold">Repositories</h1>
+          <p className="text-fg-tertiary text-sm mt-1">
             Manage which repos MergeWatch actively reviews.
           </p>
         </div>
@@ -204,7 +204,7 @@ export default function RepositoriesClient({
             href={githubConfigUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#111] border border-[#2a2a2a] rounded-md text-sm text-[#888] hover:text-white hover:border-[#333] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-card-hover border border-[#2a2a2a] rounded-md text-sm text-fg-secondary hover:text-fg-primary hover:border-fg-faint transition-colors"
           >
             Configure on GitHub
             <ExternalLink size={12} />
@@ -213,41 +213,41 @@ export default function RepositoriesClient({
       </div>
 
       {/* Summary strip */}
-      <div className="flex items-center gap-6 px-4 py-4 border-b border-[#1e1e1e] sm:px-8">
+      <div className="flex items-center gap-6 px-4 py-4 border-b border-border-default sm:px-8">
         {[
           { value: totalCount, label: "connected" },
           { value: activeCount, label: "active" },
           { value: pausedCount, label: "paused" },
         ].map((stat) => (
           <div key={stat.label} className="flex items-baseline gap-1.5">
-            <span className="text-white text-lg font-semibold tabular-nums">
+            <span className="text-fg-primary text-lg font-semibold tabular-nums">
               {initialLoad ? "–" : stat.value}
             </span>
-            <span className="text-[#444] text-sm">{stat.label}</span>
+            <span className="text-fg-muted text-sm">{stat.label}</span>
           </div>
         ))}
       </div>
 
       {/* Filter bar */}
-      <div className="flex flex-col gap-3 px-4 py-4 border-b border-[#1e1e1e] sm:flex-row sm:items-center sm:px-8">
+      <div className="flex flex-col gap-3 px-4 py-4 border-b border-border-default sm:flex-row sm:items-center sm:px-8">
         <div className="relative">
           <Search
             size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-[#444]"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted"
           />
           <input
             type="text"
             placeholder="Search repos..."
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
-            className="pl-8 pr-3 py-1.5 bg-[#111] border border-[#2a2a2a] rounded-md text-sm text-white placeholder-[#444] w-52 focus:outline-none focus:border-[#00ff88]/40"
+            className="pl-8 pr-3 py-1.5 bg-surface-card-hover border border-[#2a2a2a] rounded-md text-sm text-fg-primary placeholder-fg-muted w-52 focus:outline-none focus:border-accent-green/40"
           />
         </div>
 
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-1.5 bg-[#111] border border-[#2a2a2a] rounded-md text-sm text-[#888] focus:outline-none focus:border-[#00ff88]/40"
+          className="px-3 py-1.5 bg-surface-card-hover border border-[#2a2a2a] rounded-md text-sm text-fg-secondary focus:outline-none focus:border-accent-green/40"
         >
           <option value="all">All statuses</option>
           <option value="active">Active</option>
@@ -259,7 +259,7 @@ export default function RepositoriesClient({
           <select
             value={languageFilter}
             onChange={(e) => setLanguageFilter(e.target.value)}
-            className="px-3 py-1.5 bg-[#111] border border-[#2a2a2a] rounded-md text-sm text-[#888] focus:outline-none focus:border-[#00ff88]/40"
+            className="px-3 py-1.5 bg-surface-card-hover border border-[#2a2a2a] rounded-md text-sm text-fg-secondary focus:outline-none focus:border-accent-green/40"
           >
             <option value="all">All languages</option>
             {languages.map((lang) => (
@@ -274,15 +274,15 @@ export default function RepositoriesClient({
       {/* Content */}
       {initialLoad ? (
         <div className="flex items-center justify-center py-24">
-          <Loader2 size={24} className="animate-spin text-[#333]" />
+          <Loader2 size={24} className="animate-spin text-fg-faint" />
         </div>
       ) : repos.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <GitBranch size={32} className="text-[#2a2a2a] mb-4" />
-          <div className="text-white text-sm font-medium">
+          <div className="text-fg-primary text-sm font-medium">
             No repositories connected
           </div>
-          <div className="text-[#444] text-xs mt-1 max-w-xs leading-relaxed">
+          <div className="text-fg-muted text-xs mt-1 max-w-xs leading-relaxed">
             MergeWatch doesn&apos;t have access to any repositories yet.
             Configure the GitHub App installation to select repos.
           </div>
@@ -291,7 +291,7 @@ export default function RepositoriesClient({
               href={githubConfigUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-4 flex items-center gap-1.5 px-3 py-1.5 bg-[#111] border border-[#2a2a2a] rounded-md text-sm text-[#888] hover:text-white transition-colors"
+              className="mt-4 flex items-center gap-1.5 px-3 py-1.5 bg-surface-card-hover border border-[#2a2a2a] rounded-md text-sm text-fg-secondary hover:text-fg-primary transition-colors"
             >
               Configure on GitHub <ExternalLink size={12} />
             </a>
@@ -300,12 +300,12 @@ export default function RepositoriesClient({
       ) : filtered.length === 0 && hasFilters ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <Search size={28} className="text-[#2a2a2a] mb-4" />
-          <div className="text-white text-sm font-medium">
+          <div className="text-fg-primary text-sm font-medium">
             No repos match your filters
           </div>
           <button
             onClick={clearFilters}
-            className="mt-3 text-xs text-[#00ff88] hover:underline"
+            className="mt-3 text-xs text-accent-green hover:underline"
           >
             Clear filters
           </button>
@@ -329,14 +329,14 @@ export default function RepositoriesClient({
           {/* Loading indicator */}
           {loading && !initialLoad && (
             <div className="flex items-center justify-center py-6">
-              <Loader2 size={20} className="animate-spin text-[#333]" />
-              <span className="ml-2 text-xs text-[#444]">Loading more repos...</span>
+              <Loader2 size={20} className="animate-spin text-fg-faint" />
+              <span className="ml-2 text-xs text-fg-muted">Loading more repos...</span>
             </div>
           )}
 
           {/* End of list */}
           {!hasMore && repos.length > PER_PAGE && (
-            <div className="text-center py-6 text-xs text-[#333]">
+            <div className="text-center py-6 text-xs text-fg-faint">
               All {totalCount} repositories loaded
             </div>
           )}
@@ -360,7 +360,7 @@ function RepoCard({
   onToggle: (fullName: string, enabled: boolean) => void;
 }) {
   return (
-    <div className="bg-[#111] border border-[#1e1e1e] rounded-lg p-5 hover:border-[#2a2a2a] transition-colors">
+    <div className="bg-surface-card-hover border border-border-default rounded-lg p-5 hover:border-[#2a2a2a] transition-colors">
       {/* Header row */}
       <div className="flex items-start justify-between mb-3">
         <div className="min-w-0">
@@ -368,22 +368,22 @@ function RepoCard({
             href={repo.githubUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-white text-sm font-medium hover:text-[#00ff88] transition-colors flex items-center gap-1.5 group"
+            className="text-fg-primary text-sm font-medium hover:text-accent-green transition-colors flex items-center gap-1.5 group"
           >
             {repo.fullName}
             <ExternalLink
               size={11}
-              className="text-[#333] group-hover:text-[#00ff88] transition-colors"
+              className="text-fg-faint group-hover:text-accent-green transition-colors"
             />
           </a>
           <div className="flex items-center gap-2 mt-1">
             {repo.language && (
-              <span className="text-[#444] text-xs">{repo.language}</span>
+              <span className="text-fg-muted text-xs">{repo.language}</span>
             )}
             {repo.language && (
               <span className="text-[#222] text-xs">&middot;</span>
             )}
-            <span className="text-[#444] text-xs">
+            <span className="text-fg-muted text-xs">
               {repo.isPrivate ? "Private" : "Public"}
             </span>
           </div>
@@ -397,7 +397,7 @@ function RepoCard({
       </div>
 
       {/* Divider */}
-      <div className="border-t border-[#1a1a1a] mb-3" />
+      <div className="border-t border-border-subtle mb-3" />
 
       {/* Status */}
       <RepoStatus repo={repo} />
@@ -405,8 +405,8 @@ function RepoCard({
       {/* Config badge */}
       {repo.hasConfig && (
         <div className="flex items-center gap-1.5 mt-3">
-          <SettingsIcon size={11} className="text-[#444]" />
-          <span className="text-[#444] text-xs font-mono">.mergewatch.yml</span>
+          <SettingsIcon size={11} className="text-fg-muted" />
+          <span className="text-fg-muted text-xs font-mono">.mergewatch.yml</span>
         </div>
       )}
     </div>
@@ -421,8 +421,8 @@ function RepoStatus({ repo }: { repo: RepositoryView }) {
   if (!repo.enabled) {
     return (
       <div className="flex items-center gap-2 py-1">
-        <PauseCircle size={13} className="text-[#444]" />
-        <span className="text-[#555] text-xs">
+        <PauseCircle size={13} className="text-fg-muted" />
+        <span className="text-fg-tertiary text-xs">
           Paused
           {repo.lastReviewedAt && (
             <>
@@ -439,8 +439,8 @@ function RepoStatus({ repo }: { repo: RepositoryView }) {
   if (repo.reviewCount === 0) {
     return (
       <div className="flex items-center gap-2 py-1">
-        <Clock size={13} className="text-[#333]" />
-        <span className="text-[#444] text-xs">
+        <Clock size={13} className="text-fg-faint" />
+        <span className="text-fg-muted text-xs">
           No reviews yet — open a PR to trigger the first one.
         </span>
       </div>
@@ -450,30 +450,30 @@ function RepoStatus({ repo }: { repo: RepositoryView }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-[#555] text-xs">Reviews</span>
-        <span className="text-[#888] text-xs tabular-nums">
+        <span className="text-fg-tertiary text-xs">Reviews</span>
+        <span className="text-fg-secondary text-xs tabular-nums">
           {repo.reviewCount}
         </span>
       </div>
       {repo.issueCount > 0 && (
         <div className="flex items-center justify-between">
-          <span className="text-[#555] text-xs">Issues caught</span>
-          <span className="text-[#888] text-xs tabular-nums">
+          <span className="text-fg-tertiary text-xs">Issues caught</span>
+          <span className="text-fg-secondary text-xs tabular-nums">
             {repo.issueCount}
           </span>
         </div>
       )}
       {repo.lastReviewedAt && (
         <div className="flex items-center justify-between">
-          <span className="text-[#555] text-xs">Last review</span>
-          <span className="text-[#888] text-xs">
+          <span className="text-fg-tertiary text-xs">Last review</span>
+          <span className="text-fg-secondary text-xs">
             <RelativeTime date={repo.lastReviewedAt} />
           </span>
         </div>
       )}
       <div className="flex items-center gap-1.5 mt-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-[#00ff88]" />
-        <span className="text-[#00ff88] text-xs">Active</span>
+        <span className="w-1.5 h-1.5 rounded-full bg-accent-green" />
+        <span className="text-accent-green text-xs">Active</span>
       </div>
     </div>
   );

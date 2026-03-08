@@ -133,7 +133,7 @@ export default function Onboarding() {
           </div>
 
           {/* Accounts list */}
-          <div className="mt-8 rounded-lg border border-zinc-800">
+          <div className="mt-8 rounded-lg border border-border-default">
             {loadingAccounts ? (
               <div className="flex items-center justify-center py-8">
                 <Spinner size="md" />
@@ -154,7 +154,7 @@ export default function Onboarding() {
               accounts.map((account) => (
                 <div
                   key={account.login}
-                  className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3 last:border-0"
+                  className="flex items-center justify-between border-b border-border-default/50 px-4 py-3 last:border-0"
                 >
                   <div className="flex items-center gap-3">
                     <img
@@ -163,7 +163,7 @@ export default function Onboarding() {
                       className="h-8 w-8 rounded-full"
                     />
                     <div>
-                      <span className="text-sm font-medium text-white">{account.login}</span>
+                      <span className="text-sm font-medium text-fg-primary">{account.login}</span>
                       <span className="ml-2 text-xs text-primer-muted">
                         {account.type === "Organization" ? "Org" : "Personal"}
                       </span>
@@ -182,7 +182,7 @@ export default function Onboarding() {
                       href={appUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-white transition hover:border-primer-green hover:text-primer-green"
+                      className="inline-flex items-center rounded-lg border border-border-default bg-surface-card px-3 py-1.5 text-xs font-medium text-fg-primary transition hover:border-primer-green hover:text-primer-green"
                     >
                       Install
                     </a>
@@ -206,7 +206,7 @@ export default function Onboarding() {
               <button
                 onClick={handleContinue}
                 disabled={loading}
-                className="inline-flex items-center rounded-lg border border-zinc-700 bg-zinc-800 px-5 py-2.5 text-sm font-medium text-white transition hover:border-primer-green hover:text-primer-green disabled:opacity-50"
+                className="inline-flex items-center rounded-lg border border-border-default bg-surface-card px-5 py-2.5 text-sm font-medium text-fg-primary transition hover:border-primer-green hover:text-primer-green disabled:opacity-50"
               >
                 {loading ? "Checking..." : "I've installed the app — Continue"}
               </button>

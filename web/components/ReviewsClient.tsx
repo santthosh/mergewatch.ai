@@ -45,7 +45,7 @@ const statusStyles: Record<string, { bg: string; text: string; label: string }> 
   in_progress: { bg: "bg-primer-blue/15", text: "text-primer-blue", label: "In Progress" },
   completed: { bg: "bg-primer-green/15", text: "text-primer-green", label: "Completed" },
   failed: { bg: "bg-primer-red/15", text: "text-primer-red", label: "Failed" },
-  skipped: { bg: "bg-[#555]/15", text: "text-[#888]", label: "Skipped" },
+  skipped: { bg: "bg-[#555]/15", text: "text-fg-secondary", label: "Skipped" },
 };
 
 const severityStyles: Record<string, { dot: string; label: string }> = {
@@ -86,7 +86,7 @@ const mergeScoreColors: Record<number, string> = {
 
 function MergeScoreCompact({ score }: { score?: number }) {
   if (score == null) return null;
-  const color = mergeScoreColors[score] ?? "text-[#888]";
+  const color = mergeScoreColors[score] ?? "text-fg-secondary";
   return (
     <span className={`inline-flex items-center gap-0.5 font-semibold ${color}`} title={`Merge readiness: ${score}/5`}>
       <span className="text-xs">{score}/5</span>
@@ -115,13 +115,13 @@ function FilterBar({
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
       {/* Search */}
       <div className="relative flex-1 max-w-xs">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#555]" />
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-tertiary" />
         <input
           type="text"
           placeholder="Search PRs..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full rounded-lg border border-[#1e1e1e] bg-[#0a0a0a] py-2 pl-9 pr-3 text-sm text-white placeholder:text-[#444] focus:border-[#333] focus:outline-none"
+          className="w-full rounded-lg border border-border-default bg-surface-card py-2 pl-9 pr-3 text-sm text-fg-primary placeholder:text-fg-muted focus:border-fg-faint focus:outline-none"
         />
       </div>
 
@@ -130,7 +130,7 @@ function FilterBar({
         <select
           value={statusFilter}
           onChange={(e) => onStatusChange(e.target.value)}
-          className="appearance-none rounded-lg border border-[#1e1e1e] bg-[#0a0a0a] py-2 pl-3 pr-8 text-sm text-[#888] focus:border-[#333] focus:outline-none"
+          className="appearance-none rounded-lg border border-border-default bg-surface-card py-2 pl-3 pr-8 text-sm text-fg-secondary focus:border-fg-faint focus:outline-none"
         >
           <option value="">All statuses</option>
           <option value="completed">Completed</option>
@@ -138,7 +138,7 @@ function FilterBar({
           <option value="pending">Pending</option>
           <option value="failed">Failed</option>
         </select>
-        <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#555]" />
+        <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-fg-tertiary" />
       </div>
 
       {/* Repo filter */}
@@ -147,7 +147,7 @@ function FilterBar({
           <select
             value={repoFilter}
             onChange={(e) => onRepoChange(e.target.value)}
-            className="appearance-none rounded-lg border border-[#1e1e1e] bg-[#0a0a0a] py-2 pl-3 pr-8 text-sm text-[#888] focus:border-[#333] focus:outline-none max-w-[200px]"
+            className="appearance-none rounded-lg border border-border-default bg-surface-card py-2 pl-3 pr-8 text-sm text-fg-secondary focus:border-fg-faint focus:outline-none max-w-[200px]"
           >
             <option value="">All repos</option>
             {repos.map((r) => (
@@ -156,7 +156,7 @@ function FilterBar({
               </option>
             ))}
           </select>
-          <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#555]" />
+          <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-fg-tertiary" />
         </div>
       )}
     </div>
@@ -223,21 +223,21 @@ function PRCardGroup({
         )}
         <button
           onClick={() => onSelect(latest)}
-          className="min-w-0 flex-1 rounded-lg border border-[#1e1e1e] bg-[#0a0a0a] px-4 py-3 text-left transition hover:border-[#333] hover:bg-[#111]"
+          className="min-w-0 flex-1 rounded-lg border border-border-default bg-surface-card px-4 py-3 text-left transition hover:border-fg-faint hover:bg-surface-card-hover"
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <span className="text-sm font-medium text-white">
+              <span className="text-sm font-medium text-fg-primary">
                 #{latest.prNumber} {latest.prTitle || latest.repoFullName}
               </span>
-              <p className="mt-0.5 truncate text-xs text-[#555]">{latest.repoFullName}</p>
+              <p className="mt-0.5 truncate text-xs text-fg-tertiary">{latest.repoFullName}</p>
             </div>
             <div className="flex items-center gap-2">
               <MergeScoreCompact score={latest.mergeScore} />
               <StatusBadge status={latest.status} />
             </div>
           </div>
-          <div className="mt-2 flex items-center gap-3 text-xs text-[#555]">
+          <div className="mt-2 flex items-center gap-3 text-xs text-fg-tertiary">
             <span className="inline-flex items-center gap-1">
               <GitCommit size={11} />
               <code>{sha}</code>
@@ -259,9 +259,9 @@ function PRCardGroup({
           <button
             key={r.id}
             onClick={() => onSelect(r)}
-            className="ml-6 w-[calc(100%-1.5rem)] rounded-lg border border-[#1a1a1a] bg-[#060606] px-4 py-2.5 text-left transition hover:border-[#333] hover:bg-[#111]"
+            className="ml-6 w-[calc(100%-1.5rem)] rounded-lg border border-border-subtle bg-surface-inset px-4 py-2.5 text-left transition hover:border-fg-faint hover:bg-surface-card-hover"
           >
-            <div className="flex items-center gap-3 text-xs text-[#555]">
+            <div className="flex items-center gap-3 text-xs text-fg-tertiary">
               <span className="inline-flex items-center gap-1">
                 <GitCommit size={11} />
                 <code>{olderSha}</code>
@@ -293,40 +293,40 @@ function PRTableGroup({
     <>
       <tr
         onClick={() => onSelect(latest)}
-        className="cursor-pointer transition hover:bg-[#111]"
+        className="cursor-pointer transition hover:bg-surface-card-hover"
       >
         <td className="w-10 px-2 py-3 text-center">
           {hasOlder ? (
             <button
               onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-              className="inline-flex items-center justify-center rounded p-1 text-primer-blue hover:bg-[#1a1a1a]"
+              className="inline-flex items-center justify-center rounded p-1 text-primer-blue hover:bg-surface-subtle"
             >
               {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             </button>
           ) : null}
         </td>
         <td className="px-4 py-3">
-          <div className="font-medium text-white">
+          <div className="font-medium text-fg-primary">
             #{latest.prNumber} {latest.prTitle}
           </div>
-          <div className="mt-0.5 text-xs text-[#555]">{latest.repoFullName}</div>
+          <div className="mt-0.5 text-xs text-fg-tertiary">{latest.repoFullName}</div>
         </td>
         <td className="whitespace-nowrap px-4 py-3">
-          <span className="inline-flex items-center gap-1 text-[#888]">
+          <span className="inline-flex items-center gap-1 text-fg-secondary">
             <GitCommit size={12} />
             <code className="text-xs">{sha}</code>
           </span>
         </td>
         <td className="px-4 py-3">
           {latest.prAuthor ? (
-            <span className="flex items-center gap-1.5 text-[#888]">
+            <span className="flex items-center gap-1.5 text-fg-secondary">
               {latest.prAuthorAvatar && (
                 <img src={latest.prAuthorAvatar} alt="" className="h-4 w-4 rounded-full" />
               )}
               <span className="text-xs">{latest.prAuthor}</span>
             </span>
           ) : (
-            <span className="text-[#333]">—</span>
+            <span className="text-fg-faint">—</span>
           )}
         </td>
         <td className="px-4 py-3">
@@ -337,15 +337,15 @@ function PRTableGroup({
         </td>
         <td className="px-4 py-3">
           {latest.findingCount !== undefined ? (
-            <span className="flex items-center gap-1.5 text-[#888]">
+            <span className="flex items-center gap-1.5 text-fg-secondary">
               <SeverityDot severity={latest.topSeverity} />
               {latest.findingCount}
             </span>
           ) : (
-            <span className="text-[#333]">—</span>
+            <span className="text-fg-faint">—</span>
           )}
         </td>
-        <td className="whitespace-nowrap px-4 py-3 text-[#555]">
+        <td className="whitespace-nowrap px-4 py-3 text-fg-tertiary">
           <RelativeTime date={latest.createdAt} />
         </td>
       </tr>
@@ -355,14 +355,14 @@ function PRTableGroup({
           <tr
             key={r.id}
             onClick={() => onSelect(r)}
-            className="cursor-pointer bg-[#060606] transition hover:bg-[#111]"
+            className="cursor-pointer bg-surface-inset transition hover:bg-surface-card-hover"
           >
             <td className="w-10" />
-            <td className="px-4 py-2 pl-8 text-xs text-[#666]">
+            <td className="px-4 py-2 pl-8 text-xs text-fg-secondary">
               #{r.prNumber} {r.prTitle}
             </td>
             <td className="whitespace-nowrap px-4 py-2">
-              <span className="inline-flex items-center gap-1 text-[#666]">
+              <span className="inline-flex items-center gap-1 text-fg-secondary">
                 <GitCommit size={11} />
                 <code className="text-xs">{olderSha}</code>
               </span>
@@ -376,15 +376,15 @@ function PRTableGroup({
             </td>
             <td className="px-4 py-2">
               {r.findingCount !== undefined ? (
-                <span className="flex items-center gap-1.5 text-[#666]">
+                <span className="flex items-center gap-1.5 text-fg-secondary">
                   <SeverityDot severity={r.topSeverity} />
                   {r.findingCount}
                 </span>
               ) : (
-                <span className="text-[#333]">—</span>
+                <span className="text-fg-faint">—</span>
               )}
             </td>
-            <td className="whitespace-nowrap px-4 py-2 text-[#555]">
+            <td className="whitespace-nowrap px-4 py-2 text-fg-tertiary">
               <RelativeTime date={r.createdAt} />
             </td>
           </tr>
@@ -472,15 +472,15 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
   return (
     <div>
       {/* Header */}
-      <div className="px-4 pt-6 pb-5 border-b border-[#1e1e1e] sm:px-8 sm:pt-8 sm:pb-6">
-        <h1 className="text-white text-xl font-semibold">Reviews</h1>
-        <p className="text-[#555] text-sm mt-1">
+      <div className="px-4 pt-6 pb-5 border-b border-border-default sm:px-8 sm:pt-8 sm:pb-6">
+        <h1 className="text-fg-primary text-xl font-semibold">Reviews</h1>
+        <p className="text-fg-tertiary text-sm mt-1">
           All PR reviews across your monitored repositories.
         </p>
       </div>
 
       {/* Stats strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 px-4 py-4 border-b border-[#1e1e1e] sm:px-8">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 px-4 py-4 border-b border-border-default sm:px-8">
         {[
           { label: "Total Reviews", value: totalReviews },
           { label: "Completed", value: completedReviews },
@@ -489,16 +489,16 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
         ].map((stat) => (
           <div
             key={stat.label}
-            className="rounded-lg border border-[#1e1e1e] bg-[#0a0a0a] px-4 py-3"
+            className="rounded-lg border border-border-default bg-surface-card px-4 py-3"
           >
-            <div className="text-xs text-[#555]">{stat.label}</div>
-            <div className="mt-1 text-lg font-semibold text-white">{stat.value}</div>
+            <div className="text-xs text-fg-tertiary">{stat.label}</div>
+            <div className="mt-1 text-lg font-semibold text-fg-primary">{stat.value}</div>
           </div>
         ))}
       </div>
 
       {/* Filters */}
-      <div className="px-4 py-4 border-b border-[#1e1e1e] sm:px-8">
+      <div className="px-4 py-4 border-b border-border-default sm:px-8">
         <FilterBar
           repos={repos}
           statusFilter={statusFilter}
@@ -514,12 +514,12 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
       {loading ? (
         <div className="space-y-2 p-4 sm:p-8">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-14 animate-pulse rounded-lg bg-[#111]" />
+            <div key={i} className="h-14 animate-pulse rounded-lg bg-surface-card-hover" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
         <div className="py-16 text-center px-4 sm:px-8">
-          <p className="text-sm text-[#555]">
+          <p className="text-sm text-fg-tertiary">
             {searchQuery || statusFilter || repoFilter
               ? "No reviews match your filters."
               : "No reviews yet. Open a pull request to get started."}
@@ -542,9 +542,9 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
             </div>
 
             {/* Desktop table */}
-            <div className="hidden overflow-x-auto rounded-lg border border-[#1e1e1e] md:block mx-4 mt-4 sm:mx-8 sm:mt-6">
+            <div className="hidden overflow-x-auto rounded-lg border border-border-default md:block mx-4 mt-4 sm:mx-8 sm:mt-6">
               <table className="w-full text-left text-sm">
-                <thead className="border-b border-[#1e1e1e] bg-[#0a0a0a] text-xs uppercase tracking-wider text-[#444]">
+                <thead className="border-b border-border-default bg-surface-card text-xs uppercase tracking-wider text-fg-muted">
                   <tr>
                     <th className="w-10 px-2 py-3" />
                     <th className="px-4 py-3">Pull Request</th>
@@ -556,7 +556,7 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
                     <th className="px-4 py-3">Time</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#1a1a1a]">
+                <tbody className="divide-y divide-border-subtle">
                   {groups.map((g) => (
                     <PRTableGroup
                       key={g.key}
@@ -578,7 +578,7 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
           <button
             onClick={() => fetchReviews(nextCursor)}
             disabled={loadingMore}
-            className="rounded-lg border border-[#1e1e1e] bg-[#0a0a0a] px-6 py-2.5 text-sm text-[#888] transition hover:border-[#333] hover:text-white disabled:opacity-50"
+            className="rounded-lg border border-border-default bg-surface-card px-6 py-2.5 text-sm text-fg-secondary transition hover:border-fg-faint hover:text-fg-primary disabled:opacity-50"
           >
             {loadingMore ? "Loading..." : "Load More"}
           </button>

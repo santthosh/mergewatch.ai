@@ -17,7 +17,7 @@ export default function ConnectRepo() {
       href={appUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-white transition hover:border-primer-green hover:text-primer-green"
+      className="inline-flex items-center rounded-lg border border-border-default bg-surface-card px-4 py-2 text-sm font-medium text-fg-primary transition hover:border-primer-green hover:text-primer-green"
     >
       {/* GitHub-style "+" icon */}
       <svg

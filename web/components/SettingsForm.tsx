@@ -65,18 +65,18 @@ function Toggle({
       onClick={() => onChange(!value)}
       className={cn(
         "flex w-full items-center justify-between px-4 py-3.5 text-left transition-colors",
-        !disabled && "hover:bg-[rgba(255,255,255,0.03)] active:bg-[rgba(255,255,255,0.05)]",
+        !disabled && "hover:bg-hover active:bg-[rgba(255,255,255,0.05)]",
         "disabled:opacity-40 disabled:cursor-not-allowed"
       )}
     >
       <div className="mr-4">
-        <div className="text-sm text-white">{label}</div>
-        <div className="text-xs text-[#555] mt-0.5">{description}</div>
+        <div className="text-sm text-fg-primary">{label}</div>
+        <div className="text-xs text-fg-tertiary mt-0.5">{description}</div>
       </div>
       <div
         className={cn(
           "relative w-11 h-6 shrink-0 rounded-full transition-colors duration-200",
-          value ? "bg-[#00ff88]" : "bg-[#2a2a2a]"
+          value ? "bg-[#00ff88]" : "bg-surface-subtle"
         )}
       >
         <span
@@ -156,11 +156,11 @@ export default function SettingsForm({
   return (
     <div>
       {/* Header */}
-      <div className="px-4 pt-6 pb-5 border-b border-[#1e1e1e] sm:px-8 sm:pt-8 sm:pb-6">
-        <h1 className="text-white text-xl font-semibold">Settings</h1>
-        <p className="text-[#555] text-sm mt-1">
+      <div className="px-4 pt-6 pb-5 border-b border-border-default sm:px-8 sm:pt-8 sm:pb-6">
+        <h1 className="text-fg-primary text-xl font-semibold">Settings</h1>
+        <p className="text-fg-tertiary text-sm mt-1">
           Default behavior for all connected repos. Per-repo overrides via{" "}
-          <code className="text-xs text-[#888] bg-[#1a1a1a] px-1 py-0.5 rounded">
+          <code className="text-xs text-fg-secondary bg-surface-subtle px-1 py-0.5 rounded">
             .mergewatch.yml
           </code>
         </p>
@@ -169,7 +169,7 @@ export default function SettingsForm({
       <div className="px-4 sm:px-8 pb-6">
       {/* Read-only banner */}
       {!isAdmin && (
-        <div className="flex items-center gap-2 px-4 py-2.5 mt-6 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg text-[#666] text-sm">
+        <div className="flex items-center gap-2 px-4 py-2.5 mt-6 bg-surface-subtle border border-surface-subtle rounded-lg text-fg-secondary text-sm">
           <Lock size={13} className="shrink-0" />
           <span>
             Settings can only be changed by{" "}
@@ -181,7 +181,7 @@ export default function SettingsForm({
                 <a
                   href={`https://github.com/orgs/${accountLogin}/people`}
                   target="_blank"
-                  className="text-[#00ff88] hover:underline"
+                  className="text-accent-green hover:underline"
                 >
                   GitHub
                 </a>
@@ -194,20 +194,20 @@ export default function SettingsForm({
 
       {/* Section 1: Comments */}
       <section className="mt-8">
-        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-[#444] pb-2 border-b border-[#1e1e1e]">
+        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-fg-muted pb-2 border-b border-border-default">
           Comments
         </h2>
 
-        <div className="mt-3 rounded-lg border border-[#1e1e1e] divide-y divide-[#1a1a1a] overflow-hidden">
+        <div className="mt-3 rounded-lg border border-border-default divide-y divide-border-subtle overflow-hidden">
           {/* Severity Threshold */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3.5 gap-2">
             <div>
-              <div className="text-sm text-white">Severity threshold</div>
-              <div className="text-xs text-[#555] mt-0.5">
+              <div className="text-sm text-fg-primary">Severity threshold</div>
+              <div className="text-xs text-fg-tertiary mt-0.5">
                 Minimum severity level to include in reviews
               </div>
             </div>
-            <div className="flex rounded-md border border-[#2a2a2a] overflow-hidden w-fit">
+            <div className="flex rounded-md border border-surface-subtle overflow-hidden w-fit">
               {(["Low", "Med", "High"] as const).map((level) => (
                 <button
                   key={level}
@@ -219,7 +219,7 @@ export default function SettingsForm({
                     "px-4 py-1.5 text-sm transition-colors",
                     settings.severityThreshold === level
                       ? "bg-[#00ff88] text-black font-medium"
-                      : "text-[#666] hover:text-[#aaa]",
+                      : "text-fg-secondary hover:text-fg-primary",
                     "disabled:opacity-40 disabled:cursor-not-allowed"
                   )}
                 >
@@ -232,8 +232,8 @@ export default function SettingsForm({
           {/* Comment Types */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3.5 gap-2">
             <div>
-              <div className="text-sm text-white">Comment types</div>
-              <div className="text-xs text-[#555] mt-0.5">
+              <div className="text-sm text-fg-primary">Comment types</div>
+              <div className="text-xs text-fg-tertiary mt-0.5">
                 Categories of issues to flag
               </div>
             </div>
@@ -244,9 +244,9 @@ export default function SettingsForm({
                   className={cn(
                     "flex items-center gap-2 cursor-pointer select-none rounded-md px-3 py-1.5 transition-colors",
                     settings.commentTypes[type]
-                      ? "bg-[#00ff88]/10 text-[#00ff88]"
-                      : "text-[#555]",
-                    !disabled && "hover:bg-[rgba(255,255,255,0.04)]",
+                      ? "bg-[#00ff88]/10 text-accent-green"
+                      : "text-fg-tertiary",
+                    !disabled && "hover:bg-hover",
                     disabled && "opacity-40 cursor-not-allowed"
                   )}
                 >
@@ -274,8 +274,8 @@ export default function SettingsForm({
           {/* Max Comments */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3.5 gap-2">
             <div>
-              <div className="text-sm text-white">Max comments per review</div>
-              <div className="text-xs text-[#555] mt-0.5">
+              <div className="text-sm text-fg-primary">Max comments per review</div>
+              <div className="text-xs text-fg-tertiary mt-0.5">
                 Limit the number of findings posted (1–50)
               </div>
             </div>
@@ -291,7 +291,7 @@ export default function SettingsForm({
                   maxComments: Math.max(1, Math.min(50, Number(e.target.value))),
                 }))
               }
-              className="w-20 bg-[#111] border border-[#2a2a2a] rounded px-3 py-1.5 text-sm text-white text-center disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-20 bg-surface-card-hover border border-surface-subtle rounded px-3 py-1.5 text-sm text-fg-primary text-center disabled:opacity-40 disabled:cursor-not-allowed"
             />
           </div>
         </div>
@@ -299,10 +299,10 @@ export default function SettingsForm({
 
       {/* Section 2: PR Summary */}
       <section className="mt-8">
-        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-[#444] pb-2 border-b border-[#1e1e1e]">
+        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-fg-muted pb-2 border-b border-border-default">
           PR Summary
         </h2>
-        <div className="mt-3 divide-y divide-[#1a1a1a] rounded-lg border border-[#1e1e1e] overflow-hidden">
+        <div className="mt-3 divide-y divide-border-subtle rounded-lg border border-border-default overflow-hidden">
           <Toggle
             label="PR Summary"
             description="Plain-language description of what changed"
@@ -356,7 +356,7 @@ export default function SettingsForm({
 
       {/* Section 3: Custom Instructions */}
       <section className="mt-8">
-        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-[#444] pb-2 border-b border-[#1e1e1e]">
+        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-fg-muted pb-2 border-b border-border-default">
           Custom Instructions
         </h2>
         <div className="mt-4">
@@ -371,9 +371,9 @@ export default function SettingsForm({
             }
             placeholder="e.g. This is a TypeScript codebase. Flag any use of 'any' type. We follow the Airbnb style guide."
             rows={4}
-            className="w-full bg-[#111] border border-[#2a2a2a] rounded-md px-3 py-2.5 text-sm text-white placeholder-[#444] resize-y focus:outline-none focus:border-[#00ff88]/40 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full bg-surface-card-hover border border-surface-subtle rounded-md px-3 py-2.5 text-sm text-fg-primary placeholder-fg-muted resize-y focus:outline-none focus:border-[#00ff88]/40 disabled:opacity-40 disabled:cursor-not-allowed"
           />
-          <div className="mt-1 text-right text-xs text-[#444]">
+          <div className="mt-1 text-right text-xs text-fg-muted">
             {settings.customInstructions.length}/1000
           </div>
         </div>
@@ -381,7 +381,7 @@ export default function SettingsForm({
 
       {/* Section 4: Comment Header */}
       <section className="mt-8">
-        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-[#444] pb-2 border-b border-[#1e1e1e]">
+        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-fg-muted pb-2 border-b border-border-default">
           Comment Header
         </h2>
         <div className="mt-4">
@@ -393,22 +393,22 @@ export default function SettingsForm({
               setSettings((s) => ({ ...s, commentHeader: e.target.value }))
             }
             placeholder="e.g. Review generated by MergeWatch"
-            className="w-full bg-[#111] border border-[#2a2a2a] rounded-md px-3 py-2 text-sm text-white placeholder-[#444] focus:outline-none focus:border-[#00ff88]/40 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full bg-surface-card-hover border border-surface-subtle rounded-md px-3 py-2 text-sm text-fg-primary placeholder-fg-muted focus:outline-none focus:border-[#00ff88]/40 disabled:opacity-40 disabled:cursor-not-allowed"
           />
           {/* Live preview */}
           {settings.commentHeader && (
-            <div className="mt-3 rounded-md border border-[#2a2a2a] bg-[#0d0d0d] px-4 py-3">
-              <div className="text-[10px] uppercase tracking-wider text-[#444] mb-1.5">
+            <div className="mt-3 rounded-md border border-surface-subtle bg-surface-inset px-4 py-3">
+              <div className="text-[10px] uppercase tracking-wider text-fg-muted mb-1.5">
                 Preview
               </div>
               <div
-                className="text-sm text-[#888] prose prose-invert prose-sm max-w-none"
+                className="text-sm text-fg-secondary prose prose-invert prose-sm max-w-none"
                 dangerouslySetInnerHTML={{
                   __html: settings.commentHeader
                     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
                     .replace(
                       /\[([^\]]+)\]\(([^)]+)\)/g,
-                      '<a href="$2" class="text-[#00ff88] hover:underline">$1</a>'
+                      '<a href="$2" class="text-accent-green hover:underline">$1</a>'
                     )
                     .replace(/^>\s*/, ""),
                 }}
@@ -420,9 +420,9 @@ export default function SettingsForm({
 
       {/* Save Button */}
       {isAdmin && (
-        <div className="flex items-center justify-end gap-3 pt-6 border-t border-[#1e1e1e] mt-8">
+        <div className="flex items-center justify-end gap-3 pt-6 border-t border-border-default mt-8">
           {saveSuccess && (
-            <span className="text-sm text-[#00ff88]">Settings saved</span>
+            <span className="text-sm text-accent-green">Settings saved</span>
           )}
           <button
             onClick={handleSave}
@@ -431,7 +431,7 @@ export default function SettingsForm({
               "px-4 py-2 rounded-md text-sm font-medium transition-colors",
               isDirty
                 ? "bg-[#00ff88] text-black hover:bg-[#00e67a]"
-                : "bg-[#1a1a1a] text-[#444] cursor-not-allowed"
+                : "bg-surface-subtle text-fg-muted cursor-not-allowed"
             )}
           >
             {saving ? "Saving..." : "Save Changes"}

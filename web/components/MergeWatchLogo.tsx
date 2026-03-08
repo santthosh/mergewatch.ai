@@ -52,9 +52,9 @@ export function Wordmark({ iconSize = 20, className }: { iconSize?: number; clas
     <span className={`inline-flex items-center gap-1.5 ${className ?? ""}`}>
       <LogoIcon size={iconSize} />
       <span className="text-lg font-bold tracking-tight">
-        <span className="text-white">merge</span>
-        <span className="text-[#00ff88]">watch</span>
-        <span className="text-[#555]">.ai</span>
+        <span className="text-fg-primary">merge</span>
+        <span className="text-accent-green">watch</span>
+        <span className="text-fg-tertiary">.ai</span>
       </span>
     </span>
   );

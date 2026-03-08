@@ -29,14 +29,14 @@ export default async function SignInPage() {
           </div>
 
           <h1 className="text-center text-2xl font-bold tracking-tight">
-            Sign in to <span className="text-white">merge</span><span className="text-[#00ff88]">watch</span><span className="text-[#555]">.ai</span>
+            Sign in to <span className="text-fg-primary">merge</span><span className="text-accent-green">watch</span><span className="text-fg-tertiary">.ai</span>
           </h1>
           <p className="mt-2 text-center text-sm text-primer-muted">
             AI-powered PR reviews — your models, your cloud.
           </p>
 
           {/* Card */}
-          <div className="mt-8 rounded-xl border border-zinc-800 bg-zinc-900/60 p-6">
+          <div className="mt-8 rounded-xl border border-border-default bg-surface-card/60 p-6">
             <SignInButton />
 
             <p className="mt-6 text-center text-xs leading-relaxed text-primer-muted">
@@ -46,7 +46,7 @@ export default async function SignInPage() {
           </div>
 
           <p className="mt-6 text-center text-xs text-primer-muted">
-            <Link href="/" className="transition hover:text-white">
+            <Link href="/" className="transition hover:text-fg-primary">
               &larr; Back to home
             </Link>
           </p>
@@ -54,7 +54,7 @@ export default async function SignInPage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-zinc-800 px-6 py-6 text-center text-xs text-primer-muted">
+      <footer className="border-t border-border-default px-6 py-6 text-center text-xs text-primer-muted">
         &copy; {new Date().getFullYear()} mergewatch.ai &mdash; open source
         under MIT
       </footer>

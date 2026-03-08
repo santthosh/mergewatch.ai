@@ -212,7 +212,7 @@ export default function RepoPicker({
           placeholder="Search repositories..."
           value={query}
           onChange={(e) => handleSearch(e.target.value)}
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-900 py-2.5 pl-10 pr-4 text-sm text-white placeholder-zinc-500 focus:border-primer-green focus:outline-none"
+          className="w-full rounded-lg border border-border-default bg-surface-card py-2.5 pl-10 pr-4 text-sm text-fg-primary placeholder-zinc-500 focus:border-primer-green focus:outline-none"
         />
         {loading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -236,7 +236,7 @@ export default function RepoPicker({
       </div>
 
       {/* Repo list */}
-      <div className="max-h-72 overflow-y-auto rounded-lg border border-zinc-800">
+      <div className="max-h-72 overflow-y-auto rounded-lg border border-border-default">
         {displayed.length === 0 && !loading ? (
           <p className="px-4 py-8 text-center text-sm text-primer-muted">
             {query
@@ -246,7 +246,7 @@ export default function RepoPicker({
         ) : (
           Array.from(grouped.entries()).map(([owner, repos]) => (
             <div key={owner}>
-              <div className="sticky top-0 border-b border-zinc-800/50 bg-zinc-900 px-4 py-1.5 text-xs font-semibold text-primer-muted">
+              <div className="sticky top-0 border-b border-border-default/50 bg-surface-card px-4 py-1.5 text-xs font-semibold text-primer-muted">
                 {owner}
               </div>
               {repos.map((repo: AvailableRepo) => {
@@ -257,16 +257,16 @@ export default function RepoPicker({
                     className={`flex cursor-pointer items-center gap-3 px-4 py-2 transition ${
                       isSelected
                         ? "bg-primer-green/5"
-                        : "hover:bg-zinc-800/50"
+                        : "hover:bg-surface-card/50"
                     }`}
                   >
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggle(repo)}
-                      className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 text-primer-green focus:ring-primer-green"
+                      className="h-4 w-4 rounded border-zinc-600 bg-surface-card text-primer-green focus:ring-primer-green"
                     />
-                    <span className="text-sm text-white">
+                    <span className="text-sm text-fg-primary">
                       {repo.repoFullName.split("/")[1]}
                     </span>
                   </label>
@@ -303,7 +303,7 @@ export default function RepoPicker({
           {onCancel && (
             <button
               onClick={onCancel}
-              className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-white hover:bg-zinc-800"
+              className="rounded-lg border border-border-default px-4 py-2 text-sm text-fg-primary hover:bg-surface-card"
             >
               Cancel
             </button>

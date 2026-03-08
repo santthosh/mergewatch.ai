@@ -18,7 +18,7 @@ export default function LandingPage() {
         <Wordmark iconSize={20} />
         <Link
           href="/signin"
-          className="text-sm text-primer-muted transition hover:text-white"
+          className="text-sm text-primer-muted transition hover:text-fg-primary"
         >
           Sign in
         </Link>
@@ -68,7 +68,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── Footer ─────────────────────────────────────────────────────── */}
-      <footer className="border-t border-zinc-800 px-6 py-6 text-center text-xs text-primer-muted">
+      <footer className="border-t border-border-default px-6 py-6 text-center text-xs text-primer-muted">
         &copy; {new Date().getFullYear()} mergewatch.ai &mdash; open source
         under MIT
       </footer>
@@ -89,7 +89,7 @@ function FeatureCard({
   accent: string;
 }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-6">
+    <div className="rounded-xl border border-border-default bg-surface-card/60 p-6">
       <h3 className={`text-base font-semibold ${accent}`}>{title}</h3>
       <p className="mt-2 text-sm leading-relaxed text-primer-muted">
         {description}

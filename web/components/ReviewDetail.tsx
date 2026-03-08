@@ -61,10 +61,10 @@ function InfoRow({
 }) {
   return (
     <div className="flex items-start gap-3 py-3">
-      <Icon size={15} className="mt-0.5 shrink-0 text-[#555]" />
+      <Icon size={15} className="mt-0.5 shrink-0 text-fg-tertiary" />
       <div className="min-w-0 flex-1">
-        <div className="text-xs text-[#555] mb-0.5">{label}</div>
-        <div className="text-sm text-white">{children}</div>
+        <div className="text-xs text-fg-tertiary mb-0.5">{label}</div>
+        <div className="text-sm text-fg-primary">{children}</div>
       </div>
     </div>
   );
@@ -78,21 +78,21 @@ function SettingsCard({ settings }: { settings: SettingsUsed }) {
   };
 
   return (
-    <div className="rounded-lg border border-[#1e1e1e] overflow-hidden">
-      <div className="bg-[#111] px-4 py-2.5 border-b border-[#1e1e1e]">
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-[#444]">
+    <div className="rounded-lg border border-border-default overflow-hidden">
+      <div className="bg-surface-card-hover px-4 py-2.5 border-b border-border-default">
+        <h3 className="text-xs font-semibold uppercase tracking-widest text-fg-muted">
           Settings Used
         </h3>
       </div>
-      <div className="divide-y divide-[#1a1a1a]">
+      <div className="divide-y divide-border-subtle">
         {/* Severity */}
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <BarChart3 size={14} className="text-[#555]" />
-            <span className="text-sm text-[#888]">Severity threshold</span>
+            <BarChart3 size={14} className="text-fg-tertiary" />
+            <span className="text-sm text-fg-secondary">Severity threshold</span>
           </div>
           <span
-            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${severityColors[settings.severityThreshold] ?? "bg-[#2a2a2a] text-[#888]"}`}
+            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${severityColors[settings.severityThreshold] ?? "bg-surface-subtle text-fg-secondary"}`}
           >
             {settings.severityThreshold}
           </span>
@@ -101,8 +101,8 @@ function SettingsCard({ settings }: { settings: SettingsUsed }) {
         {/* Agents */}
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <Shield size={14} className="text-[#555]" />
-            <span className="text-sm text-[#888]">Agents enabled</span>
+            <Shield size={14} className="text-fg-tertiary" />
+            <span className="text-sm text-fg-secondary">Agents enabled</span>
           </div>
           <div className="flex gap-1.5">
             {(
@@ -116,8 +116,8 @@ function SettingsCard({ settings }: { settings: SettingsUsed }) {
                 key={key}
                 className={`rounded-md px-2 py-0.5 text-xs font-medium ${
                   settings.commentTypes[key]
-                    ? "bg-[#00ff88]/10 text-[#00ff88]"
-                    : "bg-[#1a1a1a] text-[#333] line-through"
+                    ? "bg-[#00ff88]/10 text-accent-green"
+                    : "bg-surface-subtle text-fg-faint line-through"
                 }`}
               >
                 {label}
@@ -129,20 +129,20 @@ function SettingsCard({ settings }: { settings: SettingsUsed }) {
         {/* Max comments */}
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <MessageSquare size={14} className="text-[#555]" />
-            <span className="text-sm text-[#888]">Max comments</span>
+            <MessageSquare size={14} className="text-fg-tertiary" />
+            <span className="text-sm text-fg-secondary">Max comments</span>
           </div>
-          <span className="text-sm text-white">{settings.maxComments}</span>
+          <span className="text-sm text-fg-primary">{settings.maxComments}</span>
         </div>
 
         {/* Summary */}
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <FileText size={14} className="text-[#555]" />
-            <span className="text-sm text-[#888]">PR summary</span>
+            <FileText size={14} className="text-fg-tertiary" />
+            <span className="text-sm text-fg-secondary">PR summary</span>
           </div>
           <span
-            className={`text-xs font-medium ${settings.summaryEnabled ? "text-[#00ff88]" : "text-[#555]"}`}
+            className={`text-xs font-medium ${settings.summaryEnabled ? "text-accent-green" : "text-fg-tertiary"}`}
           >
             {settings.summaryEnabled ? "Enabled" : "Disabled"}
           </span>
@@ -151,11 +151,11 @@ function SettingsCard({ settings }: { settings: SettingsUsed }) {
         {/* Custom instructions */}
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <Table2 size={14} className="text-[#555]" />
-            <span className="text-sm text-[#888]">Custom instructions</span>
+            <Table2 size={14} className="text-fg-tertiary" />
+            <span className="text-sm text-fg-secondary">Custom instructions</span>
           </div>
           <span
-            className={`text-xs font-medium ${settings.customInstructions ? "text-[#00ff88]" : "text-[#555]"}`}
+            className={`text-xs font-medium ${settings.customInstructions ? "text-accent-green" : "text-fg-tertiary"}`}
           >
             {settings.customInstructions ? "Active" : "None"}
           </span>
@@ -187,7 +187,7 @@ export default function ReviewDetail({ review }: { review: ReviewData }) {
       {/* Back link */}
       <Link
         href="/dashboard"
-        className="inline-flex items-center gap-1.5 text-sm text-[#555] hover:text-white transition-colors mb-6"
+        className="inline-flex items-center gap-1.5 text-sm text-fg-tertiary hover:text-fg-primary transition-colors mb-6"
       >
         <ArrowLeft size={14} />
         Back to dashboard
@@ -196,7 +196,7 @@ export default function ReviewDetail({ review }: { review: ReviewData }) {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl text-white">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl text-fg-primary">
             <a
               href={prUrl}
               target="_blank"
@@ -206,7 +206,7 @@ export default function ReviewDetail({ review }: { review: ReviewData }) {
               #{review.prNumber} {review.prTitle || "Untitled PR"}
             </a>
           </h1>
-          <p className="mt-1 text-sm text-[#555]">{review.repoFullName}</p>
+          <p className="mt-1 text-sm text-fg-tertiary">{review.repoFullName}</p>
         </div>
         <span className={`${status.bg} ${status.color} rounded-full px-3 py-1 text-xs font-medium shrink-0`}>
           {status.label}
@@ -216,15 +216,15 @@ export default function ReviewDetail({ review }: { review: ReviewData }) {
       {/* Two-column layout on larger screens */}
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         {/* Left column: Review info */}
-        <div className="rounded-lg border border-[#1e1e1e] overflow-hidden">
-          <div className="bg-[#111] px-4 py-2.5 border-b border-[#1e1e1e]">
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-[#444]">
+        <div className="rounded-lg border border-border-default overflow-hidden">
+          <div className="bg-surface-card-hover px-4 py-2.5 border-b border-border-default">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-fg-muted">
               Review Details
             </h3>
           </div>
-          <div className="divide-y divide-[#1a1a1a] px-4">
+          <div className="divide-y divide-border-subtle px-4">
             <InfoRow icon={Cpu} label="Model">
-              <code className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-xs">
+              <code className="rounded bg-surface-subtle px-1.5 py-0.5 text-xs">
                 {review.model || "—"}
               </code>
             </InfoRow>
@@ -277,7 +277,7 @@ export default function ReviewDetail({ review }: { review: ReviewData }) {
               <InfoRow icon={Clock} label="Completed">
                 <RelativeTime date={review.completedAt} />
                 {duration !== null && (
-                  <span className="ml-2 text-xs text-[#555]">
+                  <span className="ml-2 text-xs text-fg-tertiary">
                     ({duration}s)
                   </span>
                 )}
@@ -290,16 +290,16 @@ export default function ReviewDetail({ review }: { review: ReviewData }) {
         {review.settingsUsed ? (
           <SettingsCard settings={review.settingsUsed} />
         ) : (
-          <div className="rounded-lg border border-[#1e1e1e] overflow-hidden">
-            <div className="bg-[#111] px-4 py-2.5 border-b border-[#1e1e1e]">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-[#444]">
+          <div className="rounded-lg border border-border-default overflow-hidden">
+            <div className="bg-surface-card-hover px-4 py-2.5 border-b border-border-default">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-fg-muted">
                 Settings Used
               </h3>
             </div>
-            <div className="px-4 py-8 text-center text-sm text-[#555]">
+            <div className="px-4 py-8 text-center text-sm text-fg-tertiary">
               Settings snapshot not available for this review.
               <br />
-              <span className="text-xs text-[#333]">
+              <span className="text-xs text-fg-faint">
                 Reviews created before settings tracking will not have this data.
               </span>
             </div>
