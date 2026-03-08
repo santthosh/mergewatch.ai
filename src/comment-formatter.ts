@@ -67,9 +67,7 @@ const MERGE_SCORE_META: Record<number, { emoji: string; label: string }> = {
 function renderMergeScore(score: number): string {
   const clamped = Math.max(1, Math.min(5, score));
   const { emoji, label } = MERGE_SCORE_META[clamped];
-  const filled = '\u2B24'.repeat(clamped);
-  const empty = '\u25CB'.repeat(5 - clamped);
-  return `${emoji} **${filled}${empty} ${clamped}/5 — ${label}**`;
+  return `${emoji} **${clamped}/5 — ${label}**`;
 }
 
 /** Group findings by severity, preserving intra-group order. */
