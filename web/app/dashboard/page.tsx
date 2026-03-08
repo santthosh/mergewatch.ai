@@ -104,6 +104,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   if (reviewsTable && monitoredRepos.length > 0) {
     try {
+      const repoNames = monitoredRepos.slice(0, 10).map((r) => r.repoFullName);
+      console.log("[dashboard] Fetching reviews for repos:", repoNames, "table:", reviewsTable);
+
       for (const repo of monitoredRepos.slice(0, 10)) {
         const result = await ddb.send(
           new QueryCommand({
@@ -114,6 +117,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             Limit: 10,
           }),
         );
+
+        console.log(`[dashboard] ${repo.repoFullName}: ${result.Items?.length ?? 0} reviews`);
 
         for (const item of result.Items ?? []) {
           reviews.push({
@@ -130,9 +135,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
       reviews.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       reviews = reviews.slice(0, 20);
-    } catch {
-      // DynamoDB error — show empty state
+      console.log("[dashboard] Total reviews:", reviews.length);
+    } catch (err) {
+      console.error("[dashboard] Error fetching reviews:", err);
     }
+  } else {
+    console.log("[dashboard] Skipping reviews fetch — table:", reviewsTable, "monitoredRepos:", monitoredRepos.length);
   }
 
   // Build repos list with review counts
