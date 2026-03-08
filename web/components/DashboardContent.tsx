@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import RepoCard from "./RepoCard";
 import ReviewTable, { type Review } from "./ReviewTable";
 import ReviewDrawer from "./ReviewDrawer";
@@ -9,7 +9,7 @@ import { LoadingOverlay } from "./Spinner";
 
 interface DashboardContentProps {
   repos: { repoFullName: string; installedAt: string; reviewCount: number }[];
-  reviews: Review[];
+  reviews?: Review[];
   isAdmin?: boolean;
   installationId?: string;
   monitoredNames?: string[];
@@ -17,7 +17,7 @@ interface DashboardContentProps {
 
 export default function DashboardContent({
   repos,
-  reviews,
+  reviews: serverReviews,
   isAdmin = false,
   installationId,
   monitoredNames: monitoredNamesArray,
@@ -25,8 +25,45 @@ export default function DashboardContent({
   const [showManage, setShowManage] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<Review[]>(serverReviews ?? []);
+  const [loadingReviews, setLoadingReviews] = useState(!serverReviews?.length);
 
   const monitoredSet = new Set(monitoredNamesArray ?? repos.map((r) => r.repoFullName));
+
+  // Fetch reviews client-side from /api/reviews (works reliably on Amplify)
+  useEffect(() => {
+    if (serverReviews && serverReviews.length > 0) return;
+    if (!installationId) return;
+
+    let cancelled = false;
+    async function fetchReviews() {
+      try {
+        const res = await fetch(`/api/reviews?installation_id=${installationId}&limit=20`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setReviews(
+            (data.reviews ?? []).map((r: any) => ({
+              id: r.id,
+              repoFullName: r.repoFullName,
+              prNumber: r.prNumber,
+              prTitle: r.prTitle ?? "",
+              status: r.status,
+              model: r.model ?? "",
+              createdAt: r.createdAt ?? "",
+            })),
+          );
+        }
+      } catch {
+        // Silently ignore — reviews section will show empty state
+      } finally {
+        if (!cancelled) setLoadingReviews(false);
+      }
+    }
+
+    fetchReviews();
+    return () => { cancelled = true; };
+  }, [installationId, serverReviews]);
 
   async function handleSave(selected: AvailableRepo[]) {
     if (!installationId) return;
@@ -128,7 +165,11 @@ export default function DashboardContent({
         <h2 className="text-[11px] font-semibold uppercase tracking-widest text-fg-muted pb-3">
           Recent Reviews
         </h2>
-        <ReviewTable reviews={reviews} onSelect={handleReviewSelect} />
+        {loadingReviews ? (
+          <p className="py-12 text-center text-sm text-fg-tertiary">Loading reviews…</p>
+        ) : (
+          <ReviewTable reviews={reviews} onSelect={handleReviewSelect} />
+        )}
       </section>
 
       {/* Drawer */}

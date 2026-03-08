@@ -11,7 +11,6 @@ import {
   checkInstallationAdmin,
   TokenExpiredError,
 } from "@/lib/github-repos";
-import { type Review } from "@/components/ReviewTable";
 import DashboardContent from "@/components/DashboardContent";
 
 interface DashboardPageProps {
@@ -98,67 +97,16 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     monitoredNames.has(r.repoFullName),
   );
 
-  // Fetch recent reviews from DynamoDB for monitored repos
-  let reviews: Review[] = [];
-  const reviewsTable = process.env.DYNAMODB_TABLE_REVIEWS;
-
-  if (reviewsTable && monitoredRepos.length > 0) {
-    try {
-      const repoNames = monitoredRepos.slice(0, 10).map((r) => r.repoFullName);
-      console.log("[dashboard] Fetching reviews for repos:", repoNames, "table:", reviewsTable);
-
-      for (const repo of monitoredRepos.slice(0, 10)) {
-        const result = await ddb.send(
-          new QueryCommand({
-            TableName: reviewsTable,
-            KeyConditionExpression: "repoFullName = :repo",
-            ExpressionAttributeValues: { ":repo": repo.repoFullName },
-            ScanIndexForward: false,
-            Limit: 10,
-          }),
-        );
-
-        console.log(`[dashboard] ${repo.repoFullName}: ${result.Items?.length ?? 0} reviews`);
-
-        for (const item of result.Items ?? []) {
-          reviews.push({
-            id: item.prNumberCommitSha as string,
-            repoFullName: item.repoFullName as string,
-            prNumber: Number(String(item.prNumberCommitSha).split("#")[0]),
-            prTitle: (item.prTitle as string) ?? "",
-            status: (item.status === "complete" ? "completed" : item.status as Review["status"]) ?? "pending",
-            model: (item.model as string) ?? "",
-            createdAt: (item.createdAt as string) ?? "",
-          });
-        }
-      }
-
-      reviews.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      reviews = reviews.slice(0, 20);
-      console.log("[dashboard] Total reviews:", reviews.length);
-    } catch (err) {
-      console.error("[dashboard] Error fetching reviews:", err);
-    }
-  } else {
-    console.log("[dashboard] Skipping reviews fetch — table:", reviewsTable, "monitoredRepos:", monitoredRepos.length);
-  }
-
-  // Build repos list with review counts
-  const reviewCountMap = new Map<string, number>();
-  for (const r of reviews) {
-    reviewCountMap.set(r.repoFullName, (reviewCountMap.get(r.repoFullName) ?? 0) + 1);
-  }
-
+  // Build repos list (reviews are fetched client-side via /api/reviews)
   const repos = monitoredRepos.map((ir) => ({
     repoFullName: ir.repoFullName,
     installedAt: ir.installedAt,
-    reviewCount: reviewCountMap.get(ir.repoFullName) ?? 0,
+    reviewCount: 0,
   }));
 
   return (
     <DashboardContent
       repos={repos}
-      reviews={reviews}
       isAdmin={isAdmin}
       installationId={installationId}
       monitoredNames={Array.from(monitoredNames)}
