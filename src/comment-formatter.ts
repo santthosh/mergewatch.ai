@@ -124,8 +124,8 @@ export function formatReviewComment(options: FormatOptions): string {
   // Note: the hidden marker (<!-- mergewatch-review -->) is prepended by
   // postReviewComment / updateReviewComment in github/client.ts — not here.
 
-  // Header — clean, minimal
-  lines.push('## MergeWatch Review');
+  // Header — logo wordmark
+  lines.push('<img src="https://raw.githubusercontent.com/santthosh/mergewatch.ai/main/assets/wordmark-fit.png" alt="mergewatch" height="32" />');
   lines.push('');
 
   // Merge readiness score — highly visible
