@@ -35,36 +35,26 @@ MergeWatch is an open-source GitHub App that reviews pull requests using a multi
 
 ## How it works
 
-```
- GitHub                          Your AWS Account
- ──────                          ────────────────
-                  webhook
-  PR opened  ──────────────►  API Gateway
-                                   │
-                                   ▼
-                             ┌───────────┐
-                             │  Webhook   │  Validates signature,
-                             │  Handler   │  checks smart-skip rules
-                             └─────┬─────┘
-                                   │ async invoke
-                                   ▼
-                             ┌───────────┐     ┌──────────────┐
-                             │  Review    │────►│ Amazon       │
-                             │  Agent     │◄────│ Bedrock      │
-                             └─────┬─────┘     └──────────────┘
-                                   │
-                          ┌────────┼────────┐
-                          ▼        ▼        ▼
-                      Security   Bug    Style     ← parallel agents
-                          └────────┼────────┘
-                                   ▼
-                             Orchestrator  → deduplicate, rank, score
-                                   │
-                                   ▼
-                             GitHub API  → PR comment + check run
+```mermaid
+flowchart TD
+    A["🔀 PR opened / pushed"] -->|webhook| B["API Gateway"]
+    B --> C["Webhook Handler<br/><i>validate signature, smart-skip</i>"]
+    C -->|"SQS FIFO"| D["Review Agent Lambda"]
+    D <-->|"InvokeModel"| E["Amazon Bedrock"]
+    D --> F["🔒 Security"]
+    D --> G["🐛 Bug"]
+    D --> H["🎨 Style"]
+    F & G & H --> I["Orchestrator<br/><i>deduplicate, rank, score</i>"]
+    I --> J["GitHub API<br/><i>PR comment + check run</i>"]
+    D <--> K[("DynamoDB<br/>reviews + config")]
+
+    style A fill:#238636,color:#fff,stroke:none
+    style E fill:#ff9900,color:#fff,stroke:none
+    style J fill:#238636,color:#fff,stroke:none
+    style K fill:#3572A5,color:#fff,stroke:none
 ```
 
-**Data stores:** DynamoDB &nbsp;·&nbsp; **Secrets:** SSM Parameter Store &nbsp;·&nbsp; **Auth:** IAM roles
+**Secrets:** SSM Parameter Store &nbsp;·&nbsp; **Auth:** IAM roles (zero API keys)
 
 ## Quick start
 

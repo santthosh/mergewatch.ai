@@ -4,53 +4,21 @@ This document describes how MergeWatch works end-to-end.
 
 ## System Diagram
 
-```
- GitHub                              Your AWS Account
- ──────                              ────────────────
+```mermaid
+flowchart TD
+    GH["GitHub<br/><i>PR open / synchronize / comment</i>"]
+    GH -->|"HTTPS webhook"| APIGW["API Gateway<br/><i>POST /webhook</i>"]
+    APIGW -->|"Lambda proxy"| WH["Webhook Lambda<br/><i>verify sig · parse event · enqueue</i>"]
+    WH -->|"SQS SendMessage"| Q["SQS FIFO Queue<br/><i>DLQ after 3 retries</i>"]
+    Q -->|"event source mapping"| RA["Review Agent Lambda<br/><i>fetch diff · load config · run agents · post review</i>"]
+    RA <--> DB[("DynamoDB<br/>reviews + configs")]
+    RA <-->|"InvokeModel"| BR["Amazon Bedrock"]
+    RA -->|"POST comments"| GHAPI["GitHub REST API"]
 
-                    HTTPS (webhook)
-  PR event  ───────────────────────►  API Gateway (REST)
-  (open /                                 │
-   synchronize /                          │ Lambda proxy integration
-   comment)                               ▼
-                                    ┌──────────────┐
-                                    │   Webhook     │
-                                    │   Lambda      │
-                                    │              │
-                                    │ - Verify sig │
-                                    │ - Parse event│
-                                    │ - Enqueue    │
-                                    └──────┬───────┘
-                                           │
-                                           │  SQS SendMessage
-                                           ▼
-                                    ┌──────────────┐
-                                    │  Review Queue │  (SQS FIFO)
-                                    │              │
-                                    │  DLQ after 3 │
-                                    │  retries     │
-                                    └──────┬───────┘
-                                           │
-                                           │  Lambda event source mapping
-                                           ▼
-                                    ┌──────────────┐
-                                    │  Review Agent │
-                                    │  Lambda       │
-                                    │              │         ┌──────────────┐
-                                    │ - Fetch diff │────────►│   DynamoDB   │
-                                    │ - Load config│◄────────│  (reviews,   │
-                                    │ - Run agents │         │   configs)   │
-                                    │ - Post review│         └──────────────┘
-                                    └──────┬───────┘
-                                           │
-                                    ┌──────┴──────┐
-                                    │             │
-                                    ▼             ▼
-                              ┌──────────┐  ┌───────────┐
-                              │ Bedrock  │  │ GitHub    │
-                              │ Invoke   │  │ REST API  │
-                              │ Model    │  │ (comments)│
-                              └──────────┘  └───────────┘
+    style GH fill:#238636,color:#fff,stroke:none
+    style BR fill:#ff9900,color:#fff,stroke:none
+    style DB fill:#3572A5,color:#fff,stroke:none
+    style GHAPI fill:#238636,color:#fff,stroke:none
 ```
 
 ## Components
@@ -106,31 +74,34 @@ Stores review history and cached configuration.
 
 ## Data Flows
 
-### Flow 1 — New PR opened
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant GH as GitHub
+    participant WH as Webhook Lambda
+    participant SQS as SQS FIFO
+    participant RA as Review Agent
 
-```
-Developer opens PR
-  → GitHub sends `pull_request` / `opened` webhook
-  → Webhook Lambda validates, enqueues job
-  → Review Agent fetches diff, runs agents, posts review
-```
+    Note over Dev,RA: Flow 1 — New PR opened
+    Dev->>GH: Open pull request
+    GH->>WH: pull_request / opened
+    WH->>SQS: Enqueue review job
+    SQS->>RA: Process message
+    RA->>GH: Post review comment + check run
 
-### Flow 2 — `@mergewatch` mention in a comment
+    Note over Dev,RA: Flow 2 — @mergewatch mention
+    Dev->>GH: Comment "@mergewatch please review"
+    GH->>WH: issue_comment / created
+    WH->>SQS: Enqueue review job
+    SQS->>RA: Process message
+    RA->>GH: Post review comment + check run
 
-```
-Developer comments "@mergewatch please review"
-  → GitHub sends `issue_comment` / `created` webhook
-  → Webhook Lambda detects mention, enqueues job
-  → Review Agent fetches latest diff, runs agents, posts review
-```
-
-### Flow 3 — New commits pushed to PR (synchronize)
-
-```
-Developer pushes commits
-  → GitHub sends `pull_request` / `synchronize` webhook
-  → Webhook Lambda enqueues job
-  → Review Agent fetches updated diff, runs agents, posts new review
+    Note over Dev,RA: Flow 3 — New commits pushed
+    Dev->>GH: Push commits to PR branch
+    GH->>WH: pull_request / synchronize
+    WH->>SQS: Enqueue review job
+    SQS->>RA: Process message
+    RA->>GH: Update review comment + check run
 ```
 
 ## Why IAM Instance Profiles (No API Keys)
@@ -157,19 +128,17 @@ No keys to store, rotate, or leak. Access is governed by your existing IAM polic
 
 Instead of one monolithic prompt, MergeWatch splits the review across specialized agents:
 
-```
-                    ┌────────────┐
-          ┌────────►│  Security  │────────┐
-          │         └────────────┘        │
-          │         ┌────────────┐        │
-  Diff ───┼────────►│   Logic    │────────┼───► Merge & Dedupe ───► PR Review
-          │         └────────────┘        │
-          │         ┌────────────┐        │
-          ├────────►│   Style    │────────┤
-          │         └────────────┘        │
-          │         ┌────────────┐        │
-          └────────►│   Tests    │────────┘
-                    └────────────┘
+```mermaid
+flowchart LR
+    D["PR Diff"] --> S["🔒 Security"]
+    D --> L["🐛 Logic"]
+    D --> ST["🎨 Style"]
+    D --> T["🧪 Tests"]
+    S & L & ST & T --> M["Orchestrator<br/><i>merge · dedupe · rank · score</i>"]
+    M --> R["PR Review"]
+
+    style D fill:#3572A5,color:#fff,stroke:none
+    style R fill:#238636,color:#fff,stroke:none
 ```
 
 **Why multi-agent?**
