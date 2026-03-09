@@ -24,7 +24,7 @@ import type { InstallationInfo } from "./DashboardShell";
 
 type NavEntry =
   | { type: "section"; label: string }
-  | { type: "item"; label: string; href: string; icon: LucideIcon };
+  | { type: "item"; label: string; href: string; icon: LucideIcon; external?: boolean };
 
 const navItems: NavEntry[] = [
   { type: "section", label: "MAIN" },
@@ -33,6 +33,9 @@ const navItems: NavEntry[] = [
   { type: "section", label: "CONFIGURE" },
   { type: "item", label: "Repositories", href: "/dashboard/repositories", icon: GitBranch },
   { type: "item", label: "Settings", href: "/dashboard/settings", icon: Settings },
+  { type: "section", label: "RESOURCES" },
+  { type: "item", label: "Documentation", href: "https://docs.mergewatch.ai", icon: BookOpen, external: true },
+  { type: "item", label: "GitHub", href: "https://github.com/santthosh/mergewatch.ai", icon: Github, external: true },
 ];
 
 interface SidenavProps {
@@ -257,30 +260,50 @@ export default function Sidenav({
               );
             }
 
-            const { label, href, icon: Icon } = entry;
-            const active = isActive(href);
+            const { label, href, icon: Icon, external } = entry;
+            const active = !external && isActive(href);
+
+            const linkClasses = [
+              "flex items-center gap-3 rounded-md text-sm transition-colors duration-150",
+              "px-3 py-2 mx-1 lg:mx-2",
+              "justify-center lg:justify-start",
+              active
+                ? "bg-active text-fg-primary"
+                : "text-fg-secondary hover:bg-hover hover:text-fg-secondary",
+            ].join(" ");
+
+            const linkContent = (
+              <>
+                <Icon
+                  size={15}
+                  className={active ? "text-accent-green" : "text-fg-tertiary"}
+                />
+                <span className="hidden lg:inline">{label}</span>
+                {mobileOpen && <span className="inline lg:hidden">{label}</span>}
+              </>
+            );
 
             return (
               <div key={href} className="relative group">
-                <Link
-                  href={navHref(href)}
-                  onClick={onMobileClose}
-                  className={[
-                    "flex items-center gap-3 rounded-md text-sm transition-colors duration-150",
-                    "px-3 py-2 mx-1 lg:mx-2",
-                    "justify-center lg:justify-start",
-                    active
-                      ? "bg-active text-fg-primary"
-                      : "text-fg-secondary hover:bg-hover hover:text-fg-secondary",
-                  ].join(" ")}
-                >
-                  <Icon
-                    size={15}
-                    className={active ? "text-accent-green" : "text-fg-tertiary"}
-                  />
-                  <span className="hidden lg:inline">{label}</span>
-                  {mobileOpen && <span className="inline lg:hidden">{label}</span>}
-                </Link>
+                {external ? (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={onMobileClose}
+                    className={linkClasses}
+                  >
+                    {linkContent}
+                  </a>
+                ) : (
+                  <Link
+                    href={navHref(href)}
+                    onClick={onMobileClose}
+                    className={linkClasses}
+                  >
+                    {linkContent}
+                  </Link>
+                )}
 
                 <div className="pointer-events-none absolute left-full top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap rounded bg-surface-elevated px-2 py-1 text-xs text-fg-primary opacity-0 transition-opacity group-hover:opacity-100 hidden md:block lg:hidden">
                   {label}
@@ -322,24 +345,6 @@ export default function Sidenav({
 
             {userMenuOpen && (
               <div className="absolute bottom-full left-2 right-2 mb-1 rounded-md border border-border-default bg-surface-elevated py-1 shadow-2xl">
-                <a
-                  href="https://docs.mergewatch.ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-secondary transition hover:bg-hover hover:text-fg-primary"
-                >
-                  <BookOpen size={13} />
-                  <span>Documentation</span>
-                </a>
-                <a
-                  href="https://github.com/santthosh/mergewatch.ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-secondary transition hover:bg-hover hover:text-fg-primary"
-                >
-                  <Github size={13} />
-                  <span>GitHub</span>
-                </a>
                 <button
                   onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                   className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-secondary transition hover:bg-hover hover:text-fg-primary"
@@ -375,24 +380,6 @@ export default function Sidenav({
               </button>
               {userMenuOpen && (
                 <div className="absolute bottom-full left-full ml-2 mb-1 rounded-md border border-border-default bg-surface-elevated py-1 shadow-2xl whitespace-nowrap">
-                  <a
-                    href="https://docs.mergewatch.ai"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-secondary transition hover:bg-hover hover:text-fg-primary"
-                  >
-                    <BookOpen size={13} />
-                    <span>Documentation</span>
-                  </a>
-                  <a
-                    href="https://github.com/santthosh/mergewatch.ai"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-secondary transition hover:bg-hover hover:text-fg-primary"
-                  >
-                    <Github size={13} />
-                    <span>GitHub</span>
-                  </a>
                   <button
                     onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                     className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-secondary transition hover:bg-hover hover:text-fg-primary"
