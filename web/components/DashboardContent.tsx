@@ -30,6 +30,9 @@ export default function DashboardContent({
 
   const monitoredSet = new Set(monitoredNamesArray ?? repos.map((r) => r.repoFullName));
 
+  // Per-repo review counts derived from fetched reviews
+  const [reviewCounts, setReviewCounts] = useState<Record<string, number>>({});
+
   // Fetch reviews client-side from /api/reviews (works reliably on Amplify)
   useEffect(() => {
     if (serverReviews && serverReviews.length > 0) return;
@@ -38,21 +41,27 @@ export default function DashboardContent({
     let cancelled = false;
     async function fetchReviews() {
       try {
-        const res = await fetch(`/api/reviews?installation_id=${installationId}&limit=20`);
+        const res = await fetch(`/api/reviews?installation_id=${installationId}&limit=100`);
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) {
-          setReviews(
-            (data.reviews ?? []).map((r: any) => ({
-              id: r.id,
-              repoFullName: r.repoFullName,
-              prNumber: r.prNumber,
-              prTitle: r.prTitle ?? "",
-              status: r.status,
-              model: r.model ?? "",
-              createdAt: r.createdAt ?? "",
-            })),
-          );
+          const mapped = (data.reviews ?? []).map((r: any) => ({
+            id: r.id,
+            repoFullName: r.repoFullName,
+            prNumber: r.prNumber,
+            prTitle: r.prTitle ?? "",
+            status: r.status,
+            model: r.model ?? "",
+            createdAt: r.createdAt ?? "",
+          }));
+          setReviews(mapped);
+
+          // Compute per-repo review counts
+          const counts: Record<string, number> = {};
+          for (const r of mapped) {
+            counts[r.repoFullName] = (counts[r.repoFullName] ?? 0) + 1;
+          }
+          setReviewCounts(counts);
         }
       } catch {
         // Silently ignore — reviews section will show empty state
@@ -153,7 +162,9 @@ export default function DashboardContent({
             {repos.map((repo) => (
               <RepoCard
                 key={repo.repoFullName}
-                {...repo}
+                repoFullName={repo.repoFullName}
+                installedAt={repo.installedAt}
+                reviewCount={reviewCounts[repo.repoFullName] ?? repo.reviewCount}
               />
             ))}
           </div>

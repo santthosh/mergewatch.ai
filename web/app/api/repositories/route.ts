@@ -143,11 +143,20 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    // Compute active/paused counts from full DynamoDB data (covers all repos, not just this page)
+    let activeCount = 0;
+    monitoredMap.forEach((monitored) => {
+      if (monitored) activeCount++;
+    });
+    const pausedCount = totalCount - activeCount;
+
     return NextResponse.json({
       repos,
       totalCount,
       page,
       hasMore,
+      activeCount,
+      pausedCount,
     });
   } catch (err) {
     if (err instanceof TokenExpiredError) {

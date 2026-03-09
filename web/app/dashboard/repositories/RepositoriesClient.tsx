@@ -41,6 +41,8 @@ export default function RepositoriesClient({
 }: RepositoriesClientProps) {
   const [repos, setRepos] = useState<RepositoryView[]>([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [activeCount, setActiveCount] = useState(0);
+  const [pausedCount, setPausedCount] = useState(0);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -72,6 +74,8 @@ export default function RepositoriesClient({
 
         setRepos((prev) => (append ? [...prev, ...incoming] : incoming));
         setTotalCount(data.totalCount ?? 0);
+        if (data.activeCount != null) setActiveCount(data.activeCount);
+        if (data.pausedCount != null) setPausedCount(data.pausedCount);
         setHasMore(data.hasMore ?? false);
         setPage(pageNum);
       } finally {
@@ -147,9 +151,6 @@ export default function RepositoriesClient({
     return result;
   }, [repos, debouncedSearch, statusFilter, languageFilter]);
 
-  // Stats from all loaded repos
-  const activeCount = repos.filter((r) => r.enabled).length;
-  const pausedCount = repos.filter((r) => !r.enabled).length;
 
   // Optimistic toggle
   const handleToggle = useCallback(
@@ -157,6 +158,14 @@ export default function RepositoriesClient({
       setRepos((prev) =>
         prev.map((r) => (r.fullName === fullName ? { ...r, enabled } : r)),
       );
+      // Optimistically update counts
+      if (enabled) {
+        setActiveCount((c) => c + 1);
+        setPausedCount((c) => c - 1);
+      } else {
+        setActiveCount((c) => c - 1);
+        setPausedCount((c) => c + 1);
+      }
 
       try {
         const res = await fetch("/api/repositories", {
@@ -171,6 +180,14 @@ export default function RepositoriesClient({
             r.fullName === fullName ? { ...r, enabled: !enabled } : r,
           ),
         );
+        // Revert counts
+        if (enabled) {
+          setActiveCount((c) => c - 1);
+          setPausedCount((c) => c + 1);
+        } else {
+          setActiveCount((c) => c + 1);
+          setPausedCount((c) => c - 1);
+        }
       }
     },
     [installationId],
