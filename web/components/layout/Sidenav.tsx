@@ -15,6 +15,7 @@ import {
   Menu,
   Sun,
   Moon,
+  Github,
   type LucideIcon,
 } from "lucide-react";
 import { Wordmark, LogoIcon } from "../MergeWatchLogo";
@@ -320,6 +321,15 @@ export default function Sidenav({
 
             {userMenuOpen && (
               <div className="absolute bottom-full left-2 right-2 mb-1 rounded-md border border-border-default bg-surface-elevated py-1 shadow-2xl">
+                <a
+                  href="https://github.com/santthosh/mergewatch.ai"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-secondary transition hover:bg-hover hover:text-fg-primary"
+                >
+                  <Github size={13} />
+                  <span>GitHub</span>
+                </a>
                 <button
                   onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                   className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-secondary transition hover:bg-hover hover:text-fg-primary"
@@ -355,6 +365,15 @@ export default function Sidenav({
               </button>
               {userMenuOpen && (
                 <div className="absolute bottom-full left-full ml-2 mb-1 rounded-md border border-border-default bg-surface-elevated py-1 shadow-2xl whitespace-nowrap">
+                  <a
+                    href="https://github.com/santthosh/mergewatch.ai"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-secondary transition hover:bg-hover hover:text-fg-primary"
+                  >
+                    <Github size={13} />
+                    <span>GitHub</span>
+                  </a>
                   <button
                     onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                     className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-secondary transition hover:bg-hover hover:text-fg-primary"

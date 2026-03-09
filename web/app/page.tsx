@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Wordmark } from "@/components/MergeWatchLogo";
+import { Github } from "lucide-react";
 
 /**
  * Landing page for mergewatch.ai.
@@ -16,12 +17,23 @@ export default function LandingPage() {
       {/* ─── Navbar ─────────────────────────────────────────────────────── */}
       <nav className="flex items-center justify-between px-6 py-4 md:px-12">
         <Wordmark iconSize={20} />
-        <Link
-          href="/signin"
-          className="text-sm text-primer-muted transition hover:text-fg-primary"
-        >
-          Sign in
-        </Link>
+        <div className="flex items-center gap-4">
+          <a
+            href="https://github.com/santthosh/mergewatch.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primer-muted transition hover:text-fg-primary"
+            aria-label="GitHub repository"
+          >
+            <Github size={20} />
+          </a>
+          <Link
+            href="/signin"
+            className="text-sm text-primer-muted transition hover:text-fg-primary"
+          >
+            Sign in
+          </Link>
+        </div>
       </nav>
 
       {/* ─── Hero ───────────────────────────────────────────────────────── */}
@@ -70,7 +82,7 @@ export default function LandingPage() {
       {/* ─── Footer ─────────────────────────────────────────────────────── */}
       <footer className="border-t border-border-default px-6 py-6 text-center text-xs text-primer-muted">
         &copy; {new Date().getFullYear()} mergewatch.ai &mdash; open source
-        under MIT
+        under AGPL-3.0
       </footer>
     </div>
   );
