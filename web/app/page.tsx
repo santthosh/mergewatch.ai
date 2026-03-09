@@ -19,6 +19,14 @@ export default function LandingPage() {
         <Wordmark iconSize={20} />
         <div className="flex items-center gap-4">
           <a
+            href="https://docs.mergewatch.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-primer-muted transition hover:text-fg-primary"
+          >
+            Docs
+          </a>
+          <a
             href="https://github.com/santthosh/mergewatch.ai"
             target="_blank"
             rel="noopener noreferrer"
