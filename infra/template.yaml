@@ -466,8 +466,17 @@ Resources:
   # To set up the dashboard:
   #   1. Create an Amplify app in the AWS Console
   #   2. Connect the GitHub repo, set app root to "web"
-  #   3. Set environment variables: DYNAMODB_TABLE_INSTALLATIONS,
-  #      DYNAMODB_TABLE_REVIEWS, APP_REGION, STAGE
+  #   3. Set environment variables:
+  #        NEXTAUTH_URL, NEXTAUTH_SECRET, GITHUB_CLIENT_ID,
+  #        GITHUB_CLIENT_SECRET, DYNAMODB_TABLE_INSTALLATIONS,
+  #        DYNAMODB_TABLE_REVIEWS, GITHUB_APP_SLUG
+  #   4. Add a DynamoDB inline policy to the Amplify SSR role:
+  #      The Amplify-created role (AmplifySSRLoggingRole-*) needs an inline
+  #      policy named "MergeWatchDynamoDBAccess" granting dynamodb:GetItem,
+  #      PutItem, UpdateItem, DeleteItem, Query, Scan, BatchGetItem, and
+  #      BatchWriteItem on arn:aws:dynamodb:<region>:<account>:table/mergewatch-*
+  #      and .../index/*. Without this, the dashboard API routes will get
+  #      AccessDeniedException when querying DynamoDB.
   # ===========================================================================
 
 # =============================================================================
