@@ -11,6 +11,7 @@
   <a href="https://github.com/santthosh/mergewatch.ai"><img src="https://img.shields.io/github/stars/santthosh/mergewatch.ai?style=flat-square" alt="Stars"></a>
   <a href="https://github.com/santthosh/mergewatch.ai/issues"><img src="https://img.shields.io/github/issues/santthosh/mergewatch.ai?style=flat-square" alt="Issues"></a>
   <img src="https://img.shields.io/badge/AWS-SAM-orange?style=flat-square&logo=amazonaws" alt="AWS SAM">
+  <img src="https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=fff" alt="Docker">
   <img src="https://img.shields.io/badge/monorepo-pnpm-F69220?style=flat-square&logo=pnpm&logoColor=fff" alt="pnpm">
   <img src="https://img.shields.io/badge/runtime-Node.js_20-339933?style=flat-square&logo=nodedotjs&logoColor=fff" alt="Node.js 20">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="License"></a>
@@ -19,35 +20,35 @@
 
 ---
 
-MergeWatch is an open-source GitHub App that reviews pull requests using a multi-agent AI pipeline. It runs entirely in **your** AWS account via Amazon Bedrock — your code never leaves your infrastructure.
+MergeWatch is an open-source GitHub App that reviews pull requests using a multi-agent AI pipeline. Deploy it your way: **SaaS** on AWS Lambda + Bedrock, or **self-hosted** with Docker + Postgres + any LLM provider.
 
 ## Highlights
 
 - **Multi-agent pipeline** — parallel security, bug, and style agents with an orchestrator that deduplicates and ranks findings
-- **Merge readiness score** — every PR gets a clear 1–5 rating so you know at a glance if it's safe to merge
-- **Bring your own model** — Claude, Llama, Mistral — any model available in your Bedrock region
+- **Merge readiness score** — every PR gets a clear 1-5 rating so you know at a glance if it's safe to merge
+- **Any LLM provider** — Anthropic, Bedrock, LiteLLM (100+ providers), or Ollama for air-gapped
+- **Two deployment modes** — SaaS (Lambda + DynamoDB + Bedrock) or self-hosted (Docker + Postgres)
 - **Smart skip** — auto-skips trivial PRs (lock files, docs, config) to save cost
 - **GitHub Checks** — pass/fail status in the PR merge box with a link to the dashboard
 - **Mermaid diagrams** — auto-generated architecture diagrams of changes
 - **Confidence scores** — per-finding confidence so you can triage effectively
 - **Dashboard** — full-featured Next.js dashboard with light/dark themes
-- **Zero API keys** — authenticates via AWS IAM instance profiles
 - **Per-repo config** — `.mergewatch.yml` for fine-grained control
 
 ## How it works
 
 ```mermaid
 flowchart TD
-    A["🔀 PR opened / pushed"] -->|webhook| B["API Gateway"]
-    B --> C["Webhook Handler<br/><i>validate signature, smart-skip</i>"]
-    C -->|"SQS FIFO"| D["Review Agent Lambda"]
-    D <-->|"InvokeModel"| E["Amazon Bedrock"]
-    D --> F["🔒 Security"]
-    D --> G["🐛 Bug"]
-    D --> H["🎨 Style"]
+    A["PR opened / pushed"] -->|webhook| B["Webhook Handler"]
+    B --> C["Validate signature"]
+    C --> D["Review Agent"]
+    D <-->|"invoke"| E["LLM Provider"]
+    D --> F["Security"]
+    D --> G["Bug"]
+    D --> H["Style"]
     F & G & H --> I["Orchestrator<br/><i>deduplicate, rank, score</i>"]
     I --> J["GitHub API<br/><i>PR comment + check run</i>"]
-    D <--> K[("DynamoDB<br/>reviews + config")]
+    D <--> K[("Storage<br/>reviews + config")]
 
     style A fill:#238636,color:#fff,stroke:none
     style E fill:#ff9900,color:#fff,stroke:none
@@ -55,30 +56,44 @@ flowchart TD
     style K fill:#3572A5,color:#fff,stroke:none
 ```
 
-**Secrets:** SSM Parameter Store &nbsp;·&nbsp; **Auth:** IAM roles (zero API keys)
-
 ## Quick start
 
+### Self-hosted (Docker)
+
 ```bash
-# 1. Clone & install (requires pnpm)
+git clone https://github.com/santthosh/mergewatch.ai.git && cd mergewatch.ai
+cp .env.example .env
+# Fill in: GITHUB_APP_ID, GITHUB_PRIVATE_KEY, GITHUB_WEBHOOK_SECRET, ANTHROPIC_API_KEY
+docker-compose up -d
+```
+
+No AWS. No IAM. No SAM. Just Docker.
+
+### AWS SaaS (Lambda + Bedrock)
+
+```bash
 git clone https://github.com/santthosh/mergewatch.ai.git && cd mergewatch.ai
 pnpm install
 
-# 2. Create a GitHub App (https://github.com/settings/apps/new)
-#    Permissions: pull_requests (rw), contents (r), checks (rw)
-#    Events: pull_request, issue_comment
-#    Generate a private key and note the App ID
+# Create a GitHub App (https://github.com/settings/apps/new)
+#   Permissions: pull_requests (rw), contents (r), checks (rw)
+#   Events: pull_request, issue_comment
 
-# 3. Store credentials in AWS SSM
-./scripts/setup-ssm.sh
-
-# 4. Deploy
-./scripts/deploy.sh
-
-# 5. Set the webhook URL printed by deploy in your GitHub App settings
+./scripts/setup-ssm.sh    # Store GitHub credentials in SSM
+./scripts/deploy.sh       # Deploy via SAM
+# Set the webhook URL printed by deploy in your GitHub App settings
 ```
 
 See [docs/aws-setup.md](docs/aws-setup.md) for the full guide.
+
+## LLM providers
+
+| Provider | `LLM_PROVIDER` | Needs AWS? | Notes |
+|----------|----------------|------------|-------|
+| **Anthropic** | `anthropic` | No | Recommended default. Just an API key. |
+| **LiteLLM** | `litellm` | No | OpenAI-compatible proxy — unlocks 100+ providers (OpenAI, Azure, Gemini, Mistral...) |
+| **Amazon Bedrock** | `bedrock` | Yes | SaaS default. IAM-native, zero API keys. |
+| **Ollama** | `ollama` | No | Local/air-gapped. Experimental. |
 
 ## Configuration
 
@@ -107,57 +122,42 @@ rules:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `model` | Claude Sonnet | Bedrock model ID |
+| `model` | Claude Sonnet | LLM model ID |
 | `agents[].enabled` | `true` | Toggle individual agents |
 | `rules.max_files` | `50` | Skip review above this file count |
 | `rules.ignore_patterns` | `[]` | Glob patterns to exclude |
 | `rules.auto_review` | `true` | Review on every PR open/push |
 
-## Supported models
-
-| Model | Bedrock ID | Best for |
-|-------|-----------|----------|
-| Claude Opus 4.6 | `anthropic.claude-opus-4-6` | Deep security & logic analysis |
-| Claude Sonnet 4.6 | `anthropic.claude-sonnet-4-6` | Balanced cost/quality (recommended) |
-| Claude Haiku 4.5 | `anthropic.claude-haiku-4-5-20251001` | Fast style checks, summaries |
-| Llama 3.1 70B | `meta.llama3-1-70b-instruct-v1:0` | Open-weight alternative |
-| Mistral Large | `mistral.mistral-large-2407-v1:0` | EU data residency |
-
-> Any model in your Bedrock region works — just set the ID.
-
 ## Why MergeWatch?
 
 | | MergeWatch | SaaS alternatives |
 |---|---|---|
-| **Model choice** | Any Bedrock model | Vendor-locked |
-| **Data residency** | Your VPC / region | Vendor cloud |
-| **Auth** | IAM — no API keys | API key per org |
+| **Deployment** | Self-hosted or SaaS | SaaS only |
+| **Model choice** | Any provider | Vendor-locked |
+| **Data residency** | Your infra / region | Vendor cloud |
+| **Auth** | IAM or env vars | API key per org |
 | **Review pipeline** | Multi-agent + orchestrator | Single-pass |
 | **Config** | `.mergewatch.yml` per repo | Limited |
 | **Source** | AGPL-3.0 open source | Proprietary |
 
 ## Project structure
 
-This is a pnpm monorepo managed by Turborepo with provider interfaces for extensibility.
+pnpm monorepo with Turborepo. Provider interfaces in `core/` enable pluggable storage and LLM backends.
 
 ```
 packages/
-  core/              # @mergewatch/core — interfaces, review pipeline, agents,
-                     #   prompts, GitHub client, types. No AWS dependencies.
-  storage-dynamo/    # @mergewatch/storage-dynamo — DynamoDB storage implementations
-  llm-bedrock/       # @mergewatch/llm-bedrock — Amazon Bedrock LLM provider
-  lambda/            # @mergewatch/lambda — Lambda handlers, SSM auth provider
-  dashboard/         # @mergewatch/dashboard — Next.js 14 dashboard (Amplify)
-infra/               # AWS SAM CloudFormation template
+  core/              # Interfaces, review pipeline, agents, types. No cloud deps.
+  storage-dynamo/    # DynamoDB storage (SaaS)
+  storage-postgres/  # Postgres/Drizzle storage (self-hosted)
+  llm-bedrock/       # Amazon Bedrock LLM
+  llm-anthropic/     # Anthropic direct API
+  llm-litellm/       # LiteLLM proxy (100+ providers)
+  llm-ollama/        # Ollama (local, experimental)
+  lambda/            # AWS Lambda handlers (SaaS)
+  server/            # Express server (self-hosted)
+  dashboard/         # Next.js 14 dashboard
+infra/               # AWS SAM template
 scripts/             # Setup & deploy scripts
-```
-
-### Dependency graph
-
-```
-core  ←  storage-dynamo  ←  lambda
-core  ←  llm-bedrock     ←  lambda
-core  ←  dashboard
 ```
 
 ## Development

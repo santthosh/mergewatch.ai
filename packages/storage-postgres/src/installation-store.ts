@@ -1,0 +1,67 @@
+import { eq, and } from 'drizzle-orm';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { IInstallationStore, InstallationItem, InstallationSettings } from '@mergewatch/core';
+import { DEFAULT_INSTALLATION_SETTINGS } from '@mergewatch/core';
+import { installations, installationSettings } from './schema.js';
+
+export class PostgresInstallationStore implements IInstallationStore {
+  constructor(private db: PostgresJsDatabase) {}
+
+  async get(installationId: string, repoFullName: string): Promise<InstallationItem | null> {
+    const rows = await this.db
+      .select()
+      .from(installations)
+      .where(and(
+        eq(installations.installationId, installationId),
+        eq(installations.repoFullName, repoFullName),
+      ))
+      .limit(1);
+    if (rows.length === 0) return null;
+    const row = rows[0];
+    return {
+      installationId: row.installationId,
+      repoFullName: row.repoFullName,
+      installedAt: row.installedAt,
+      config: row.config as any,
+      ...(row.modelId ? { modelId: row.modelId } : {}),
+    };
+  }
+
+  async getSettings(installationId: string): Promise<InstallationSettings> {
+    const rows = await this.db
+      .select()
+      .from(installationSettings)
+      .where(eq(installationSettings.installationId, installationId))
+      .limit(1);
+    if (rows.length === 0) return { ...DEFAULT_INSTALLATION_SETTINGS };
+    const row = rows[0];
+    return {
+      severityThreshold: row.severityThreshold as InstallationSettings['severityThreshold'],
+      commentTypes: row.commentTypes as InstallationSettings['commentTypes'],
+      maxComments: row.maxComments,
+      summary: row.summary as InstallationSettings['summary'],
+      customInstructions: row.customInstructions,
+      commentHeader: row.commentHeader,
+    };
+  }
+
+  async upsert(item: InstallationItem): Promise<void> {
+    await this.db
+      .insert(installations)
+      .values({
+        installationId: item.installationId,
+        repoFullName: item.repoFullName,
+        installedAt: item.installedAt,
+        config: item.config as any,
+        modelId: item.modelId ?? null,
+      })
+      .onConflictDoUpdate({
+        target: [installations.installationId, installations.repoFullName],
+        set: {
+          installedAt: item.installedAt,
+          config: item.config as any,
+          modelId: item.modelId ?? null,
+        },
+      });
+  }
+}
