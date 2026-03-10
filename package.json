@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "AI-powered GitHub PR review tool — runs in your AWS account via Amazon Bedrock",
-  "license": "MIT",
+  "license": "AGPL-3.0",
   "engines": {
     "node": ">=20.0.0"
   },

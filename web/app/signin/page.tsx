@@ -56,7 +56,7 @@ export default async function SignInPage() {
       {/* Footer */}
       <footer className="border-t border-border-default px-6 py-6 text-center text-xs text-primer-muted">
         &copy; {new Date().getFullYear()} mergewatch.ai &mdash; open source
-        under MIT
+        under AGPL-3.0
       </footer>
     </div>
   );
