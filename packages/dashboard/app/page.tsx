@@ -46,7 +46,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ─── Hero ───────────────────────────────────────────────────────── */}
-      <main className="flex flex-1 flex-col items-center justify-center px-6 pt-16 md:pt-24 text-center">
+      <main className="flex flex-col items-center px-6 pt-16 pb-16 md:pt-24 md:pb-24 text-center">
         <h1 className="max-w-3xl text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">
           AI-powered PR reviews.{" "}
           <span className="text-primer-green">Any cloud,</span>{" "}
@@ -64,10 +64,10 @@ export default function LandingPage() {
           Or use our managed SaaS. No per-seat pricing. Ever.
         </p>
 
-        <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row">
+        <div className="mt-10 flex w-full max-w-sm flex-col items-center gap-3 sm:w-auto sm:max-w-none sm:flex-row">
           <Link
             href="/signin"
-            className="inline-flex items-center rounded-lg bg-primer-green px-6 py-3 text-sm font-semibold text-black transition hover:brightness-110"
+            className="inline-flex w-full items-center justify-center rounded-lg bg-primer-green px-6 py-3 text-sm font-semibold text-black transition hover:brightness-110 sm:w-auto"
           >
             Get Started
             <ArrowIcon />
@@ -76,7 +76,7 @@ export default function LandingPage() {
             href="https://github.com/santthosh/mergewatch.ai"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center rounded-lg border border-border-default px-6 py-3 text-sm font-semibold text-fg-primary transition hover:bg-surface-card"
+            className="inline-flex w-full items-center justify-center rounded-lg border border-border-default px-6 py-3 text-sm font-semibold text-fg-primary transition hover:bg-surface-card sm:w-auto"
           >
             Self-Host Free
             <Github className="ml-2 h-4 w-4" />
@@ -95,7 +95,7 @@ export default function LandingPage() {
         <FeatureCard
           icon={<Bot className="h-5 w-5" />}
           title="Multi-Agent Pipeline"
-          description="Five specialized agents — security, bugs, style, summary, and diagram — run in parallel on every PR diff. An orchestrator deduplicates and ranks findings before posting a unified review to GitHub."
+          description="Specialized agents — security, bugs, style, summary, and diagram — run in parallel on every PR diff. An orchestrator deduplicates and ranks findings before posting a unified review to GitHub."
           accent="text-primer-blue"
         />
         <FeatureCard
@@ -123,7 +123,7 @@ export default function LandingPage() {
               price="Free forever"
               accent="text-primer-green"
               features={[
-                ["Setup", "docker-compose up"],
+                ["Setup", "GitHub App + docker-compose up"],
                 ["LLM", "Anthropic, LiteLLM, Ollama, Bedrock"],
                 ["Data residency", "Your infra, your rules"],
                 ["After free tier", "You pay your cloud/LLM provider directly"],
@@ -147,7 +147,6 @@ export default function LandingPage() {
               features={[
                 ["Setup", "2-minute GitHub App install"],
                 ["LLM", "Bedrock (Claude Haiku)"],
-                ["Data residency", "AWS us-east-1"],
                 ["After free tier", "$0.35/PR \u00b7 no seats, no contracts"],
               ]}
               cta={
