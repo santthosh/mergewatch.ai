@@ -152,7 +152,7 @@ Resources:
       Description: Receives and validates GitHub webhook events, dispatches review jobs
 
       # Path to the handler code (relative to the SAM build root)
-      CodeUri: ../src/
+      CodeUri: ../packages/lambda/src/
       Handler: handlers/webhook.handler
 
       # 512MB is sufficient for webhook validation and DynamoDB writes
@@ -208,7 +208,7 @@ Resources:
       FunctionName: !Sub 'mergewatch-review-agent-${Stage}'
       Description: AI-powered PR review agent using Amazon Bedrock
 
-      CodeUri: ../src/
+      CodeUri: ../packages/lambda/src/
       Handler: handlers/review-agent.handler
 
       # 1024MB — Bedrock responses can be large, and we may need to process

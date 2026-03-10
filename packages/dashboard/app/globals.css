@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ── Light theme (default) ────────────────────────────────── */
+  :root {
+    --bg-page:       #ffffff;
+    --bg-card:       #f6f8fa;
+    --bg-card-hover: #f0f2f5;
+    --bg-elevated:   #ffffff;
+    --bg-subtle:     #f0f2f5;
+    --bg-inset:      #e8ebef;
+    --bg-overlay:    rgba(0, 0, 0, 0.40);
+    --bg-hover:      rgba(0, 0, 0, 0.04);
+    --bg-active:     rgba(0, 128, 68, 0.08);
+
+    --border-default: #d0d7de;
+    --border-subtle:  #e1e4e8;
+
+    --text-primary:   #1f2328;
+    --text-secondary: #656d76;
+    --text-tertiary:  #8b949e;
+    --text-muted:     #adb5bd;
+    --text-faint:     #d0d7de;
+
+    --accent-green:   #00ff88;
+  }
+
+  /* ── Dark theme ───────────────────────────────────────────── */
+  .dark {
+    --bg-page:       #0f0f0f;
+    --bg-card:       #0a0a0a;
+    --bg-card-hover: #111111;
+    --bg-elevated:   #161616;
+    --bg-subtle:     #1a1a1a;
+    --bg-inset:      #060606;
+    --bg-overlay:    rgba(0, 0, 0, 0.60);
+    --bg-hover:      rgba(255, 255, 255, 0.04);
+    --bg-active:     rgba(0, 255, 136, 0.08);
+
+    --border-default: #1e1e1e;
+    --border-subtle:  #1a1a1a;
+
+    --text-primary:   #e6edf3;
+    --text-secondary: #888888;
+    --text-tertiary:  #555555;
+    --text-muted:     #444444;
+    --text-faint:     #333333;
+
+    --accent-green:   #00ff88;
+  }
+}
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+}

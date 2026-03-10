@@ -1,0 +1,20 @@
+{
+  "name": "@mergewatch/storage-dynamo",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mergewatch/core": "workspace:*",
+    "@aws-sdk/client-dynamodb": "^3.721.0",
+    "@aws-sdk/lib-dynamodb": "^3.721.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.12",
+    "typescript": "^5.7.3"
+  }
+}

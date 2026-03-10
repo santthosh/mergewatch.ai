@@ -4,40 +4,28 @@
   "private": true,
   "description": "AI-powered GitHub PR review tool — runs in your AWS account via Amazon Bedrock",
   "license": "AGPL-3.0",
+  "packageManager": "pnpm@10.23.0",
   "engines": {
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "cd infra && sam build --parallel --cached",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "dev": "turbo run dev",
     "deploy": "./scripts/deploy.sh",
     "deploy:dev": "./scripts/deploy.sh dev",
     "deploy:staging": "./scripts/deploy.sh staging",
     "deploy:guided": "./scripts/deploy.sh --guided",
     "setup-ssm": "./scripts/setup-ssm.sh",
     "setup-web": "./scripts/setup-web-ssm.sh",
-    "web:dev": "cd web && npm run dev",
-    "web:build": "cd web && npm run build",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint src/",
+    "web:dev": "cd packages/dashboard && npm run dev",
+    "web:build": "cd packages/dashboard && npm run build",
     "logs:webhook": "sam logs --name mergewatch-webhook-prod --tail --stack-name mergewatch",
     "logs:agent": "sam logs --name mergewatch-review-agent-prod --tail --stack-name mergewatch"
   },
-  "dependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.721.0",
-    "@aws-sdk/client-dynamodb": "^3.721.0",
-    "@aws-sdk/client-lambda": "^3.721.0",
-    "@aws-sdk/client-ssm": "^3.721.0",
-    "@aws-sdk/lib-dynamodb": "^3.721.0",
-    "@aws-sdk/util-dynamodb": "^3.721.0",
-    "@octokit/auth-app": "^7.1.0",
-    "@octokit/rest": "^21.0.0",
-    "minimatch": "^10.2.4"
-  },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.145",
-    "@types/minimatch": "^5.1.2",
-    "@types/node": "^20.17.12",
-    "esbuild": "^0.24.0",
+    "turbo": "^2.3.0",
     "typescript": "^5.7.3"
   }
 }

@@ -85,7 +85,14 @@ check_prerequisites() {
 
 # --- Build ---
 build() {
-  info "Building Lambda functions..."
+  info "Installing workspace dependencies..."
+  cd "$PROJECT_ROOT"
+  pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+
+  info "Building workspace packages..."
+  pnpm run build
+
+  info "Building SAM Lambda functions..."
   cd "$INFRA_DIR"
 
   sam build \

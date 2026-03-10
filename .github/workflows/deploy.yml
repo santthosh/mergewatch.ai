@@ -50,17 +50,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm run build
 
       - name: TypeScript type check
-        run: npx tsc --noEmit
+        run: pnpm run typecheck
 
       - name: Setup AWS SAM CLI
         uses: aws-actions/setup-sam@v2
@@ -69,9 +75,7 @@ jobs:
 
       - name: SAM build (validate)
         working-directory: infra
-        run: |
-          export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH"
-          sam build --parallel
+        run: sam build --parallel
 
   # =========================================================================
   # Stage 2: Deploy to Development
@@ -86,14 +90,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm run build
 
       - name: Setup AWS SAM CLI
         uses: aws-actions/setup-sam@v2
@@ -108,9 +118,7 @@ jobs:
 
       - name: SAM build
         working-directory: infra
-        run: |
-          export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH"
-          sam build --parallel
+        run: sam build --parallel
 
       - name: SAM deploy to dev
         working-directory: infra
@@ -156,14 +164,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm run build
 
       - name: Setup AWS SAM CLI
         uses: aws-actions/setup-sam@v2
@@ -178,9 +192,7 @@ jobs:
 
       - name: SAM build
         working-directory: infra
-        run: |
-          export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH"
-          sam build --parallel
+        run: sam build --parallel
 
       - name: SAM deploy to prod
         working-directory: infra

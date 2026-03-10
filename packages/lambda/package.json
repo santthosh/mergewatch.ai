@@ -1,0 +1,25 @@
+{
+  "name": "@mergewatch/lambda",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mergewatch/core": "workspace:*",
+    "@mergewatch/storage-dynamo": "workspace:*",
+    "@mergewatch/llm-bedrock": "workspace:*",
+    "@aws-sdk/client-dynamodb": "^3.721.0",
+    "@aws-sdk/client-lambda": "^3.721.0",
+    "@aws-sdk/client-ssm": "^3.721.0",
+    "@aws-sdk/lib-dynamodb": "^3.721.0",
+    "@octokit/auth-app": "^7.1.0",
+    "@octokit/rest": "^21.0.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^20.17.12",
+    "typescript": "^5.7.3"
+  }
+}

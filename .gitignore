@@ -6,5 +6,10 @@ dist/
 .env
 .env.*
 !.env.example
-web/node_modules/
-web/.next/
+
+# Turborepo
+.turbo/
+
+# Dashboard (Next.js)
+packages/dashboard/.next/
+packages/dashboard/out/
