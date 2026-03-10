@@ -46,7 +46,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ─── Hero ───────────────────────────────────────────────────────── */}
-      <main className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+      <main className="flex flex-1 flex-col items-center justify-center px-6 pt-16 md:pt-24 text-center">
         <h1 className="max-w-3xl text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">
           AI-powered PR reviews.{" "}
           <span className="text-primer-green">Any cloud,</span>{" "}
