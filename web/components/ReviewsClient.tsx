@@ -405,6 +405,11 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
   const [repoFilter, setRepoFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
+  const [stats, setStats] = useState<{ total: number; completed: number; findings: number }>({
+    total: 0,
+    completed: 0,
+    findings: 0,
+  });
 
   const PAGE_SIZE = 25;
 
@@ -429,6 +434,7 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
       const newReviews = data.reviews ?? [];
       setReviews((prev) => isLoadMore ? [...prev, ...newReviews] : newReviews);
       setNextCursor(data.nextCursor ?? null);
+      if (data.stats) setStats(data.stats);
     } catch {
       if (!isLoadMore) setReviews([]);
       setNextCursor(null);
@@ -453,15 +459,16 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
       )
     : reviews;
 
-  // Stats
-  const totalReviews = reviews.length;
-  const completedReviews = reviews.filter((r) => r.status === "completed").length;
-  const totalFindings = reviews.reduce((sum, r) => sum + (r.findingCount ?? 0), 0);
+  // Stats — use server-provided totals; avg duration from loaded reviews only
+  const totalReviews = stats.total;
+  const completedReviews = stats.completed;
+  const totalFindings = stats.findings;
+  const reviewsWithDuration = reviews.filter((r) => r.durationMs);
   const avgDuration =
-    reviews.filter((r) => r.durationMs).length > 0
+    reviewsWithDuration.length > 0
       ? Math.round(
-          reviews.filter((r) => r.durationMs).reduce((sum, r) => sum + (r.durationMs ?? 0), 0) /
-            reviews.filter((r) => r.durationMs).length,
+          reviewsWithDuration.reduce((sum, r) => sum + (r.durationMs ?? 0), 0) /
+            reviewsWithDuration.length,
         )
       : 0;
 

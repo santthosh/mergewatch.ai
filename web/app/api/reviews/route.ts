@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (accessibleRepos.size === 0) {
-      return NextResponse.json({ reviews: [], nextCursor: null });
+      return NextResponse.json({ reviews: [], nextCursor: null, stats: { total: 0, completed: 0, findings: 0 } });
     }
 
     if (repoFilter && !accessibleRepos.has(repoFilter)) {
@@ -93,6 +93,37 @@ export async function GET(req: NextRequest) {
     }
 
     const targetRepos = repoFilter ? [repoFilter] : Array.from(accessibleRepos);
+
+    // Compute aggregate stats across all target repos (parallel count queries)
+    let statsTotal = 0;
+    let statsCompleted = 0;
+    let statsFindings = 0;
+
+    const statsPromises = targetRepos.map(async (repoFullName) => {
+      try {
+        const result = await ddb.send(
+          new QueryCommand({
+            TableName: REVIEWS_TABLE!,
+            KeyConditionExpression: "repoFullName = :repo",
+            ExpressionAttributeValues: { ":repo": repoFullName },
+            ProjectionExpression: "#s, findingCount",
+            ExpressionAttributeNames: { "#s": "status" },
+          }),
+        );
+        for (const item of result.Items ?? []) {
+          statsTotal++;
+          if (item.status === "complete") {
+            statsCompleted++;
+          }
+          if (typeof item.findingCount === "number") {
+            statsFindings += item.findingCount;
+          }
+        }
+      } catch {
+        // skip
+      }
+    });
+    await Promise.all(statsPromises);
 
     // Query each non-exhausted repo, fetching enough rows to fill the page
     const allReviews: Record<string, unknown>[] = [];
@@ -184,7 +215,11 @@ export async function GET(req: NextRequest) {
       ? Buffer.from(JSON.stringify(nextCursorState)).toString("base64url")
       : null;
 
-    return NextResponse.json({ reviews, nextCursor });
+    return NextResponse.json({
+      reviews,
+      nextCursor,
+      stats: { total: statsTotal, completed: statsCompleted, findings: statsFindings },
+    });
   } catch (err) {
     if (err instanceof TokenExpiredError) {
       return NextResponse.json({ error: "Token expired" }, { status: 401 });
