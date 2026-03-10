@@ -11,6 +11,7 @@
   <a href="https://github.com/santthosh/mergewatch.ai"><img src="https://img.shields.io/github/stars/santthosh/mergewatch.ai?style=flat-square" alt="Stars"></a>
   <a href="https://github.com/santthosh/mergewatch.ai/issues"><img src="https://img.shields.io/github/issues/santthosh/mergewatch.ai?style=flat-square" alt="Issues"></a>
   <img src="https://img.shields.io/badge/AWS-SAM-orange?style=flat-square&logo=amazonaws" alt="AWS SAM">
+  <img src="https://img.shields.io/badge/monorepo-pnpm-F69220?style=flat-square&logo=pnpm&logoColor=fff" alt="pnpm">
   <img src="https://img.shields.io/badge/runtime-Node.js_20-339933?style=flat-square&logo=nodedotjs&logoColor=fff" alt="Node.js 20">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square" alt="PRs Welcome">
@@ -59,9 +60,9 @@ flowchart TD
 ## Quick start
 
 ```bash
-# 1. Clone & install
+# 1. Clone & install (requires pnpm)
 git clone https://github.com/santthosh/mergewatch.ai.git && cd mergewatch.ai
-npm install
+pnpm install
 
 # 2. Create a GitHub App (https://github.com/settings/apps/new)
 #    Permissions: pull_requests (rw), contents (r), checks (rw)
@@ -137,18 +138,38 @@ rules:
 
 ## Project structure
 
+This is a pnpm monorepo managed by Turborepo with provider interfaces for extensibility.
+
 ```
-├── src/
-│   ├── agents/          # Review agents + orchestrator
-│   ├── bedrock/         # Bedrock client
-│   ├── github/          # GitHub API client
-│   ├── handlers/        # Lambda handlers
-│   └── types/           # TypeScript types
-├── web/                 # Next.js dashboard
-│   ├── app/             # App router pages
-│   └── components/      # UI components
-├── infra/               # SAM template
-└── scripts/             # Setup & deploy scripts
+packages/
+  core/              # @mergewatch/core — interfaces, review pipeline, agents,
+                     #   prompts, GitHub client, types. No AWS dependencies.
+  storage-dynamo/    # @mergewatch/storage-dynamo — DynamoDB storage implementations
+  llm-bedrock/       # @mergewatch/llm-bedrock — Amazon Bedrock LLM provider
+  lambda/            # @mergewatch/lambda — Lambda handlers, SSM auth provider
+  dashboard/         # @mergewatch/dashboard — Next.js 14 dashboard (Amplify)
+infra/               # AWS SAM CloudFormation template
+scripts/             # Setup & deploy scripts
+```
+
+### Dependency graph
+
+```
+core  ←  storage-dynamo  ←  lambda
+core  ←  llm-bedrock     ←  lambda
+core  ←  dashboard
+```
+
+## Development
+
+```bash
+pnpm install                   # Install all workspace dependencies
+pnpm run build                 # Build all packages (respects dependency order)
+pnpm run typecheck             # Type-check all packages
+pnpm run deploy:dev            # Deploy backend to dev stage
+
+cd packages/dashboard
+pnpm run dev                   # Dashboard local dev server (localhost:3000)
 ```
 
 ## Contributing
