@@ -85,7 +85,7 @@ export default function LandingPage() {
       </main>
 
       {/* ─── Feature callouts ───────────────────────────────────────────── */}
-      <section className="mx-auto grid max-w-5xl gap-6 px-6 pb-16 md:grid-cols-3">
+      <section className="mx-auto grid max-w-5xl gap-6 px-6 pt-8 pb-16 md:grid-cols-3">
         <FeatureCard
           icon={<Terminal className="h-5 w-5" />}
           title="Any Cloud. Any LLM."
@@ -114,7 +114,7 @@ export default function LandingPage() {
           </h2>
           <p className="mx-auto mt-3 max-w-lg text-center text-sm text-primer-muted">
             No per-seat fees. A 20-person team reviewing 50 PRs/month pays
-            $10.50. CodeRabbit would charge $480.
+            $10.50 on the managed plan. Self-host for free.
           </p>
 
           <div className="mt-10 grid gap-6 md:grid-cols-2">
