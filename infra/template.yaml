@@ -152,6 +152,8 @@ Resources:
       Description: Receives and validates GitHub webhook events, dispatches review jobs
 
       # Path to the handler code (relative to the SAM build root)
+      # Points to src/ (not package root) so SAM skips npm install —
+      # workspace deps are resolved via pnpm symlinks during esbuild bundling.
       CodeUri: ../packages/lambda/src/
       Handler: handlers/webhook.handler
 

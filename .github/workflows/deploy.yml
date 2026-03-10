@@ -75,7 +75,9 @@ jobs:
 
       - name: SAM build (validate)
         working-directory: infra
-        run: sam build --parallel
+        run: |
+          export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH"
+          sam build --parallel
 
   # =========================================================================
   # Stage 2: Deploy to Development
@@ -118,7 +120,9 @@ jobs:
 
       - name: SAM build
         working-directory: infra
-        run: sam build --parallel
+        run: |
+          export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH"
+          sam build --parallel
 
       - name: SAM deploy to dev
         working-directory: infra
@@ -192,7 +196,9 @@ jobs:
 
       - name: SAM build
         working-directory: infra
-        run: sam build --parallel
+        run: |
+          export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$PATH"
+          sam build --parallel
 
       - name: SAM deploy to prod
         working-directory: infra
