@@ -6,9 +6,10 @@ applications:
         preBuild:
           commands:
             - npm install -g pnpm@10.23.0
-            # Install and build workspace packages from monorepo root
-            - cd ../.. && pnpm install --frozen-lockfile
-            - cd ../.. && pnpm run build
+            # Resolve monorepo root (two levels up from packages/dashboard)
+            - export MONO_ROOT="$(cd ../.. && pwd)" && echo "Monorepo root:" $MONO_ROOT
+            - cd "$(cd ../.. && pwd)" && pnpm install --frozen-lockfile
+            - cd "$(cd ../.. && pwd)" && pnpm run build
         build:
           commands:
             - pnpm run build
