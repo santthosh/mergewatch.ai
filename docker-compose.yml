@@ -4,7 +4,8 @@ services:
     restart: unless-stopped
     environment:
       GITHUB_APP_ID: ${GITHUB_APP_ID}
-      GITHUB_PRIVATE_KEY: ${GITHUB_PRIVATE_KEY}
+      GITHUB_PRIVATE_KEY: ${GITHUB_PRIVATE_KEY:-}
+      GITHUB_PRIVATE_KEY_FILE: ${GITHUB_PRIVATE_KEY_FILE:-}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}
       DATABASE_URL: postgres://postgres:postgres@db:5432/mergewatch
       LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
@@ -16,11 +17,21 @@ services:
       AWS_REGION: ${AWS_REGION:-us-east-1}
       DASHBOARD_BASE_URL: ${DASHBOARD_BASE_URL:-}
       PORT: "3000"
+    # To use GITHUB_PRIVATE_KEY_FILE instead of inline GITHUB_PRIVATE_KEY,
+    # uncomment the volumes section and set GITHUB_PRIVATE_KEY_FILE=/app/github-app.pem
+    # volumes:
+    #   - ./github-app.pem:/app/github-app.pem:ro
     ports:
       - "3000:3000"
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   db:
     image: postgres:16-alpine
