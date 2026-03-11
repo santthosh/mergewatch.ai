@@ -1,5 +1,6 @@
 services:
   mergewatch:
+    image: ghcr.io/santthosh/mergewatch:latest
     build: .
     restart: unless-stopped
     environment:
@@ -34,6 +35,7 @@ services:
       start_period: 30s
 
   dashboard:
+    image: ghcr.io/santthosh/mergewatch-dashboard:latest
     build:
       context: .
       dockerfile: Dockerfile.dashboard
