@@ -8,10 +8,11 @@
 
 <p align="center">
   <a href="https://github.com/santthosh/mergewatch.ai/actions"><img src="https://img.shields.io/github/actions/workflow/status/santthosh/mergewatch.ai/deploy.yml?style=flat-square&label=deploy" alt="Deploy"></a>
+  <a href="https://github.com/santthosh/mergewatch.ai/actions/workflows/docker-publish.yml"><img src="https://img.shields.io/github/actions/workflow/status/santthosh/mergewatch.ai/docker-publish.yml?style=flat-square&label=docker" alt="Docker"></a>
   <a href="https://github.com/santthosh/mergewatch.ai"><img src="https://img.shields.io/github/stars/santthosh/mergewatch.ai?style=flat-square" alt="Stars"></a>
   <a href="https://github.com/santthosh/mergewatch.ai/issues"><img src="https://img.shields.io/github/issues/santthosh/mergewatch.ai?style=flat-square" alt="Issues"></a>
-  <img src="https://img.shields.io/badge/AWS-SAM-orange?style=flat-square&logo=amazonaws" alt="AWS SAM">
   <img src="https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=fff" alt="Docker">
+  <img src="https://img.shields.io/badge/AWS-SAM-orange?style=flat-square&logo=amazonaws" alt="AWS SAM">
   <img src="https://img.shields.io/badge/monorepo-pnpm-F69220?style=flat-square&logo=pnpm&logoColor=fff" alt="pnpm">
   <img src="https://img.shields.io/badge/runtime-Node.js_20-339933?style=flat-square&logo=nodedotjs&logoColor=fff" alt="Node.js 20">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="License"></a>
@@ -60,14 +61,66 @@ flowchart TD
 
 ### Self-hosted (Docker)
 
+Three services — server, dashboard, Postgres. One command.
+
 ```bash
 git clone https://github.com/santthosh/mergewatch.ai.git && cd mergewatch.ai
 cp .env.example .env
-# Fill in: GITHUB_APP_ID, GITHUB_PRIVATE_KEY, GITHUB_WEBHOOK_SECRET, ANTHROPIC_API_KEY
+```
+
+Fill in your `.env` (see [Environment variables](#environment-variables) below):
+
+```bash
 docker-compose up -d
 ```
 
-No AWS. No IAM. No SAM. Just Docker.
+Verify everything is running:
+
+```bash
+curl http://localhost:3000/health
+# → { "status": "ok", "version": "0.2.0", "db": "connected", "llmProvider": "anthropic" }
+```
+
+Open the dashboard at **http://localhost:3001**, sign in with GitHub, and install the app on your repos.
+
+> **No AWS. No IAM. No SAM.** Just Docker.
+
+#### What `docker-compose up` starts
+
+| Service | Port | Image |
+|---------|------|-------|
+| **mergewatch** (server) | 3000 | `ghcr.io/santthosh/mergewatch:latest` |
+| **dashboard** (Next.js) | 3001 | `ghcr.io/santthosh/mergewatch-dashboard:latest` |
+| **db** (PostgreSQL 16) | 5432 | `postgres:16-alpine` |
+
+Pre-built images are published to GHCR on every push to `main`. Upgrade with:
+
+```bash
+docker-compose pull && docker-compose up -d
+```
+
+#### Environment variables
+
+Create a [GitHub App](https://github.com/settings/apps/new) first (permissions: `pull_requests` rw, `contents` r, `checks` rw, `issues` rw; events: `pull_request`, `issue_comment`, `installation`).
+
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `GITHUB_APP_ID` | Yes | From GitHub App settings |
+| `GITHUB_WEBHOOK_SECRET` | Yes | Set when creating the app |
+| `GITHUB_PRIVATE_KEY` | Yes* | Inline PEM with `\n` escaping |
+| `GITHUB_PRIVATE_KEY_FILE` | Yes* | Path to `.pem` file (alternative) |
+| `GITHUB_CLIENT_ID` | Yes | GitHub App → OAuth Credentials |
+| `GITHUB_CLIENT_SECRET` | Yes | GitHub App → OAuth Credentials |
+| `NEXTAUTH_SECRET` | Yes | `openssl rand -base64 32` |
+| `LLM_PROVIDER` | Yes | `anthropic` (default) / `litellm` / `ollama` / `bedrock` |
+| `ANTHROPIC_API_KEY` | If anthropic | |
+| `DASHBOARD_URL` | No | Default: `http://localhost:3001` |
+
+\*Exactly one of `GITHUB_PRIVATE_KEY` or `GITHUB_PRIVATE_KEY_FILE` is required.
+
+`GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` come from the **same GitHub App** — every GitHub App has built-in OAuth credentials under **Settings → OAuth Credentials**.
+
+See `.env.example` for the full list including LiteLLM, Ollama, and Bedrock options.
 
 ### AWS SaaS (Lambda + Bedrock)
 
