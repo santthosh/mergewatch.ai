@@ -2,9 +2,8 @@ export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { authOptions } from "@/lib/auth";
-import { ddb } from "@/lib/dynamo";
+import { getDashboardStore } from "@/lib/store";
 import { fetchUserInstallations, TokenExpiredError } from "@/lib/github-repos";
 import ReviewsClient from "@/components/ReviewsClient";
 
@@ -41,26 +40,18 @@ export default async function ReviewsPage({ searchParams }: ReviewsPageProps) {
   const installationId = String(activeInstallation.id);
 
   // Get monitored repo names for the filter dropdown
-  const installationsTable = process.env.DYNAMODB_TABLE_INSTALLATIONS;
+  const store = await getDashboardStore();
   const repos: string[] = [];
 
-  if (installationsTable) {
-    try {
-      const result = await ddb.send(
-        new QueryCommand({
-          TableName: installationsTable,
-          KeyConditionExpression: "installationId = :iid",
-          ExpressionAttributeValues: { ":iid": installationId },
-        }),
-      );
-      for (const item of result.Items ?? []) {
-        if (item.monitored === true) {
-          repos.push(item.repoFullName as string);
-        }
+  try {
+    const items = await store.installations.listByInstallation(installationId);
+    for (const item of items) {
+      if (item.monitored === true) {
+        repos.push(item.repoFullName);
       }
-    } catch {
-      // ignore
     }
+  } catch {
+    // ignore
   }
 
   repos.sort();

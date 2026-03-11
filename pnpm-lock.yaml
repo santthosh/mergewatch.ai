@@ -36,15 +36,15 @@ importers:
 
   packages/dashboard:
     dependencies:
-      '@aws-sdk/client-dynamodb':
-        specifier: ^3.721.0
-        version: 3.1006.0
-      '@aws-sdk/lib-dynamodb':
-        specifier: ^3.721.0
-        version: 3.1006.0(@aws-sdk/client-dynamodb@3.1006.0)
       '@mergewatch/core':
         specifier: workspace:*
         version: link:../core
+      '@mergewatch/storage-dynamo':
+        specifier: workspace:*
+        version: link:../storage-dynamo
+      '@mergewatch/storage-postgres':
+        specifier: workspace:*
+        version: link:../storage-postgres
       lucide-react:
         specifier: ^0.577.0
         version: 0.577.0(react@18.3.1)

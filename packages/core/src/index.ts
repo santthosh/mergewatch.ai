@@ -2,6 +2,14 @@
 export type { ILLMProvider } from './llm/types.js';
 export type { IInstallationStore, IReviewStore } from './storage/types.js';
 export type { IGitHubAuthProvider } from './github/auth.js';
+export type {
+  IDashboardStore,
+  IDashboardInstallationStore,
+  IDashboardReviewStore,
+  PaginatedResult,
+  ReviewStats,
+  RepoStats,
+} from './storage/dashboard-types.js';
 
 // ─── Agents ─────────────────────────────────────────────────────────────────
 export {

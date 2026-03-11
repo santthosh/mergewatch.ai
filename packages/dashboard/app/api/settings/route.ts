@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { authOptions } from "@/lib/auth";
-import { ddb } from "@/lib/dynamo";
+import { getDashboardStore } from "@/lib/store";
 import { fetchUserInstallations, checkInstallationAdmin, TokenExpiredError } from "@/lib/github-repos";
 import { DEFAULT_INSTALLATION_SETTINGS } from "@mergewatch/core";
 import type { InstallationSettings } from "@mergewatch/core";
-
-const TABLE = process.env.DYNAMODB_TABLE_INSTALLATIONS;
 
 async function getAuthenticatedAdmin(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -40,24 +37,9 @@ export async function GET(req: NextRequest) {
   const installationId = url.searchParams.get("installation_id");
   if (!installationId) return NextResponse.json({ error: "Missing installation_id" }, { status: 400 });
 
-  if (!TABLE) return NextResponse.json({ settings: DEFAULT_INSTALLATION_SETTINGS });
-
   try {
-    const result = await ddb.send(
-      new GetCommand({
-        TableName: TABLE,
-        Key: { installationId, repoFullName: "#SETTINGS" },
-      }),
-    );
-
-    const saved = (result.Item?.settings ?? {}) as Partial<InstallationSettings>;
-    const settings: InstallationSettings = {
-      ...DEFAULT_INSTALLATION_SETTINGS,
-      ...saved,
-      commentTypes: { ...DEFAULT_INSTALLATION_SETTINGS.commentTypes, ...(saved.commentTypes ?? {}) },
-      summary: { ...DEFAULT_INSTALLATION_SETTINGS.summary, ...(saved.summary ?? {}) },
-    };
-
+    const store = await getDashboardStore();
+    const settings = await store.installations.getSettings(installationId);
     return NextResponse.json({ settings });
   } catch {
     return NextResponse.json({ settings: DEFAULT_INSTALLATION_SETTINGS });
@@ -76,7 +58,6 @@ export async function PUT(req: NextRequest) {
   }
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!auth.isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  if (!TABLE) return NextResponse.json({ error: "Table not configured" }, { status: 500 });
 
   const body = await req.json();
   const settings = body.settings as InstallationSettings;
@@ -94,18 +75,8 @@ export async function PUT(req: NextRequest) {
   }
 
   try {
-    await ddb.send(
-      new UpdateCommand({
-        TableName: TABLE,
-        Key: { installationId: auth.installationId, repoFullName: "#SETTINGS" },
-        UpdateExpression: "SET settings = :settings, updatedAt = :now",
-        ExpressionAttributeValues: {
-          ":settings": settings,
-          ":now": new Date().toISOString(),
-        },
-      }),
-    );
-
+    const store = await getDashboardStore();
+    await store.installations.updateSettings(auth.installationId, settings);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Failed to save settings:", err);

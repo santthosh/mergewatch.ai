@@ -2,9 +2,8 @@ export const dynamic = "force-dynamic";
 
 import { redirect, notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import { authOptions } from "@/lib/auth";
-import { ddb } from "@/lib/dynamo";
+import { getDashboardStore } from "@/lib/store";
 import ReviewDetail from "@/components/ReviewDetail";
 
 interface ReviewDetailPageProps {
@@ -33,19 +32,11 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
 
   if (!repoFullName || !prNumberCommitSha) notFound();
 
-  const reviewsTable = process.env.DYNAMODB_TABLE_REVIEWS;
-  if (!reviewsTable) notFound();
+  const store = await getDashboardStore();
+  const item = await store.reviews.getReview(repoFullName, prNumberCommitSha);
 
-  const result = await ddb.send(
-    new GetCommand({
-      TableName: reviewsTable,
-      Key: { repoFullName, prNumberCommitSha },
-    }),
-  );
+  if (!item) notFound();
 
-  if (!result.Item) notFound();
-
-  const item = result.Item;
   const prNumber = Number(String(prNumberCommitSha).split("#")[0]);
   const commitSha = String(prNumberCommitSha).split("#")[1] ?? "";
 
@@ -56,11 +47,11 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
         prNumber,
         prNumberCommitSha: item.prNumberCommitSha as string,
         commitSha,
-        prTitle: (item.prTitle as string) ?? "",
-        status: (item.status === "complete" ? "completed" : (item.status as string)) as any,
-        model: (item.model as string) ?? "",
-        createdAt: (item.createdAt as string) ?? "",
-        completedAt: (item.completedAt as string) ?? undefined,
+        prTitle: item.prTitle ?? "",
+        status: (item.status === "complete" ? "completed" : item.status) as any,
+        model: item.model ?? "",
+        createdAt: item.createdAt ?? "",
+        completedAt: item.completedAt ?? undefined,
         commentId: item.commentId as number | undefined,
         settingsUsed: item.settingsUsed as any,
       }}

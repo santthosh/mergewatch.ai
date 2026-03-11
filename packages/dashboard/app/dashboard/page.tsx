@@ -2,9 +2,8 @@ export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { authOptions } from "@/lib/auth";
-import { ddb } from "@/lib/dynamo";
+import { getDashboardStore } from "@/lib/store";
 import {
   fetchUserInstallations,
   fetchInstallationRepos,
@@ -20,7 +19,7 @@ interface DashboardPageProps {
 /**
  * Dashboard page — shows monitored repos from the selected installation and recent reviews.
  *
- * "Monitored" means the repo has a record in the mergewatch-installations DynamoDB table.
+ * "Monitored" means the repo has a record in the store with monitored=true.
  * Admins can manage which repos are monitored via the RepoPicker.
  */
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
@@ -68,28 +67,19 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     activeInstallation.id,
   );
 
-  // Fetch monitored repos from mergewatch-installations DynamoDB table
-  const installationsTable = process.env.DYNAMODB_TABLE_INSTALLATIONS;
+  // Fetch monitored repos from store
+  const store = await getDashboardStore();
   let monitoredNames = new Set<string>();
 
-  if (installationsTable) {
-    try {
-      const result = await ddb.send(
-        new QueryCommand({
-          TableName: installationsTable,
-          KeyConditionExpression: "installationId = :iid",
-          ExpressionAttributeValues: { ":iid": installationId },
-        }),
-      );
-
-      monitoredNames = new Set(
-        (result.Items ?? [])
-          .filter((item) => item.monitored === true)
-          .map((item) => item.repoFullName as string),
-      );
-    } catch {
-      // DynamoDB error — show empty state
-    }
+  try {
+    const items = await store.installations.listByInstallation(installationId);
+    monitoredNames = new Set(
+      items
+        .filter((item) => item.monitored === true)
+        .map((item) => item.repoFullName),
+    );
+  } catch {
+    // Store error — show empty state
   }
 
   // Filter to only monitored repos — show nothing until admin selects repos

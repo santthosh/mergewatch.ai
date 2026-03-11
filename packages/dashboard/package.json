@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@mergewatch/core": "workspace:*",
-    "@aws-sdk/client-dynamodb": "^3.721.0",
-    "@aws-sdk/lib-dynamodb": "^3.721.0",
+    "@mergewatch/storage-dynamo": "workspace:*",
+    "@mergewatch/storage-postgres": "workspace:*",
     "lucide-react": "^0.577.0",
     "next": "14.2.21",
     "next-auth": "^4.24.11",

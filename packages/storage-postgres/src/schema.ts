@@ -1,4 +1,4 @@
-import { pgTable, text, integer, jsonb, primaryKey, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, jsonb, boolean, primaryKey, index } from 'drizzle-orm/pg-core';
 
 export const installations = pgTable('installations', {
   installationId: text('installation_id').notNull(),
@@ -6,6 +6,7 @@ export const installations = pgTable('installations', {
   installedAt: text('installed_at').notNull(),
   config: jsonb('config').notNull().default({}),
   modelId: text('model_id'),
+  monitored: boolean('monitored').notNull().default(true),
 }, (t) => ({
   pk: primaryKey({ columns: [t.installationId, t.repoFullName] }),
 }));

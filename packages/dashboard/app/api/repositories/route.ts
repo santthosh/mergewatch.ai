@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { authOptions } from "@/lib/auth";
-import { ddb } from "@/lib/dynamo";
+import { getDashboardStore } from "@/lib/store";
 import {
   fetchUserInstallations,
   fetchInstallationReposPage,
   checkInstallationAdmin,
   TokenExpiredError,
 } from "@/lib/github-repos";
-
-const INSTALLATIONS_TABLE = process.env.DYNAMODB_TABLE_INSTALLATIONS;
-const REVIEWS_TABLE = process.env.DYNAMODB_TABLE_REVIEWS;
 
 /**
  * GET /api/repositories?installation_id=<id>&page=<n>&per_page=<n>
@@ -38,8 +34,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const installations = await fetchUserInstallations(accessToken);
-    const installation = installations.find((i) => String(i.id) === installationIdParam);
+    const userInstallations = await fetchUserInstallations(accessToken);
+    const installation = userInstallations.find((i) => String(i.id) === installationIdParam);
     if (!installation) {
       return NextResponse.json({ error: "Installation not found" }, { status: 404 });
     }
@@ -52,79 +48,29 @@ export async function GET(req: NextRequest) {
       perPage,
     );
 
-    // Fetch monitored flags + config from DynamoDB (single partition query, cached for all pages)
+    const store = await getDashboardStore();
+
+    // Fetch monitored flags + config from store
     const monitoredMap = new Map<string, boolean>();
     const configMap = new Map<string, boolean>();
 
-    if (INSTALLATIONS_TABLE) {
-      try {
-        const result = await ddb.send(
-          new QueryCommand({
-            TableName: INSTALLATIONS_TABLE,
-            KeyConditionExpression: "installationId = :iid",
-            ExpressionAttributeValues: { ":iid": installationIdParam },
-          }),
+    try {
+      const items = await store.installations.listByInstallation(installationIdParam);
+      for (const item of items) {
+        monitoredMap.set(item.repoFullName, item.monitored === true);
+        const cfg = item.config;
+        configMap.set(
+          item.repoFullName,
+          cfg != null && typeof cfg === "object" && Object.keys(cfg).length > 0,
         );
-        for (const item of result.Items ?? []) {
-          const name = item.repoFullName as string;
-          monitoredMap.set(name, item.monitored === true);
-          const cfg = item.config;
-          configMap.set(
-            name,
-            cfg != null && typeof cfg === "object" && Object.keys(cfg).length > 0,
-          );
-        }
-      } catch {
-        // DynamoDB error — defaults apply
       }
+    } catch {
+      // Store error — defaults apply
     }
 
     // Fetch review stats for this page's repos
-    const statsMap = new Map<
-      string,
-      { reviewCount: number; issueCount: number; lastReviewedAt: string | null }
-    >();
-
-    if (REVIEWS_TABLE) {
-      // Query in parallel for all repos on this page
-      const statsPromises = ghRepos.map(async (r) => {
-        try {
-          const result = await ddb.send(
-            new QueryCommand({
-              TableName: REVIEWS_TABLE,
-              KeyConditionExpression: "repoFullName = :repo",
-              ExpressionAttributeValues: { ":repo": r.repoFullName },
-              ScanIndexForward: false,
-              Limit: 100,
-            }),
-          );
-
-          let reviewCount = 0;
-          let issueCount = 0;
-          let lastReviewedAt: string | null = null;
-
-          for (const item of result.Items ?? []) {
-            if (item.status === "complete") {
-              reviewCount++;
-              if (!lastReviewedAt) {
-                lastReviewedAt =
-                  (item.completedAt as string) ?? (item.createdAt as string) ?? null;
-              }
-              const fc = item.findingCount;
-              if (typeof fc === "number") issueCount += fc;
-            }
-          }
-
-          if (reviewCount > 0) {
-            statsMap.set(r.repoFullName, { reviewCount, issueCount, lastReviewedAt });
-          }
-        } catch {
-          // Skip stats for this repo
-        }
-      });
-
-      await Promise.all(statsPromises);
-    }
+    const repoNames = ghRepos.map((r) => r.repoFullName);
+    const statsMap = await store.reviews.getRepoStats(repoNames);
 
     // Build enriched response
     const repos = ghRepos.map((r) => {
@@ -143,7 +89,7 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // Compute active/paused counts from full DynamoDB data (covers all repos, not just this page)
+    // Compute active/paused counts from full store data (covers all repos, not just this page)
     let activeCount = 0;
     monitoredMap.forEach((monitored) => {
       if (monitored) activeCount++;
@@ -184,13 +130,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "No access token" }, { status: 401 });
   }
 
-  if (!INSTALLATIONS_TABLE) {
-    return NextResponse.json(
-      { error: "DYNAMODB_TABLE_INSTALLATIONS not configured" },
-      { status: 500 },
-    );
-  }
-
   const body = await req.json();
   const installationId: string = String(body.installationId);
   const repoFullName: string = body.repoFullName;
@@ -204,9 +143,9 @@ export async function PATCH(req: NextRequest) {
   }
 
   // Verify admin access
-  let installations;
+  let userInstallations;
   try {
-    installations = await fetchUserInstallations(accessToken);
+    userInstallations = await fetchUserInstallations(accessToken);
   } catch (err) {
     if (err instanceof TokenExpiredError) {
       return NextResponse.json({ error: "Token expired" }, { status: 401 });
@@ -214,7 +153,7 @@ export async function PATCH(req: NextRequest) {
     throw err;
   }
 
-  const installation = installations.find((i) => String(i.id) === installationId);
+  const installation = userInstallations.find((i) => String(i.id) === installationId);
   if (!installation) {
     return NextResponse.json({ error: "Installation not found" }, { status: 404 });
   }
@@ -224,14 +163,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 });
   }
 
-  await ddb.send(
-    new UpdateCommand({
-      TableName: INSTALLATIONS_TABLE,
-      Key: { installationId, repoFullName },
-      UpdateExpression: "SET monitored = :m",
-      ExpressionAttributeValues: { ":m": enabled },
-    }),
-  );
+  const store = await getDashboardStore();
+  await store.installations.updateMonitored(installationId, repoFullName, enabled);
 
   return NextResponse.json({ ok: true });
 }

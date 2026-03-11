@@ -15,7 +15,7 @@ services:
       LITELLM_API_KEY: ${LITELLM_API_KEY:-}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      DASHBOARD_BASE_URL: ${DASHBOARD_BASE_URL:-}
+      DASHBOARD_BASE_URL: ${DASHBOARD_BASE_URL:-http://localhost:3001}
       PORT: "3000"
     # To use GITHUB_PRIVATE_KEY_FILE instead of inline GITHUB_PRIVATE_KEY,
     # uncomment the volumes section and set GITHUB_PRIVATE_KEY_FILE=/app/github-app.pem
@@ -32,6 +32,27 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    restart: unless-stopped
+    environment:
+      DEPLOYMENT_MODE: self-hosted
+      DATABASE_URL: postgres://postgres:postgres@db:5432/mergewatch
+      NEXTAUTH_URL: ${DASHBOARD_URL:-http://localhost:3001}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      GITHUB_APP_SLUG: ${GITHUB_APP_SLUG:-}
+      PORT: "3001"
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "3001:3001"
+    depends_on:
+      mergewatch:
+        condition: service_healthy
 
   db:
     image: postgres:16-alpine

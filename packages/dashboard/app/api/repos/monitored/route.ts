@@ -1,18 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import {
-  QueryCommand,
-  UpdateCommand,
-} from "@aws-sdk/lib-dynamodb";
 import { authOptions } from "@/lib/auth";
-import { ddb } from "@/lib/dynamo";
+import { getDashboardStore } from "@/lib/store";
 import {
   fetchUserInstallations,
   checkInstallationAdmin,
   TokenExpiredError,
 } from "@/lib/github-repos";
-
-const TABLE = process.env.DYNAMODB_TABLE_INSTALLATIONS;
 
 /**
  * PUT /api/repos/monitored
@@ -32,13 +26,6 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "No access token" }, { status: 401 });
   }
 
-  if (!TABLE) {
-    return NextResponse.json(
-      { error: "DYNAMODB_TABLE_INSTALLATIONS not configured" },
-      { status: 500 },
-    );
-  }
-
   const body = await req.json();
   const installationId: string = String(body.installationId);
   const incoming: { repoFullName: string }[] = body.repos ?? [];
@@ -51,16 +38,16 @@ export async function PUT(req: NextRequest) {
   }
 
   // Verify the user is an admin for this installation
-  let installations;
+  let userInstallations;
   try {
-    installations = await fetchUserInstallations(accessToken);
+    userInstallations = await fetchUserInstallations(accessToken);
   } catch (err) {
     if (err instanceof TokenExpiredError) {
       return NextResponse.json({ error: "Token expired" }, { status: 401 });
     }
     throw err;
   }
-  const installation = installations.find((i) => String(i.id) === installationId);
+  const installation = userInstallations.find((i) => String(i.id) === installationId);
 
   if (!installation) {
     return NextResponse.json(
@@ -77,30 +64,16 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  // Fetch all existing repos for this installation
-  const existing = await ddb.send(
-    new QueryCommand({
-      TableName: TABLE,
-      KeyConditionExpression: "installationId = :iid",
-      ExpressionAttributeValues: { ":iid": installationId },
-    }),
-  );
+  const store = await getDashboardStore();
 
+  // Fetch all existing repos for this installation
+  const existing = await store.installations.listByInstallation(installationId);
   const incomingNames = new Set(incoming.map((r) => r.repoFullName));
 
   // Update each existing repo: monitored=true if selected, monitored=false otherwise
-  for (const item of existing.Items ?? []) {
-    const repoFullName = item.repoFullName as string;
-    const shouldMonitor = incomingNames.has(repoFullName);
-
-    await ddb.send(
-      new UpdateCommand({
-        TableName: TABLE,
-        Key: { installationId, repoFullName },
-        UpdateExpression: "SET monitored = :m",
-        ExpressionAttributeValues: { ":m": shouldMonitor },
-      }),
-    );
+  for (const item of existing) {
+    const shouldMonitor = incomingNames.has(item.repoFullName);
+    await store.installations.updateMonitored(installationId, item.repoFullName, shouldMonitor);
   }
 
   return NextResponse.json({ ok: true });

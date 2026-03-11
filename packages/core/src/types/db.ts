@@ -124,6 +124,13 @@ export interface InstallationItem {
    * Example: "us.anthropic.claude-sonnet-4-20250514-v1:0"
    */
   modelId?: string;
+
+  /**
+   * Whether this repo is monitored (reviewed) by MergeWatch.
+   * Set via the dashboard's repository management UI.
+   * Repos with monitored=true have PRs reviewed; others are paused.
+   */
+  monitored?: boolean;
 }
 
 // =============================================================================

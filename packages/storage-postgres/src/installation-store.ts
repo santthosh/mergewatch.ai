@@ -24,6 +24,7 @@ export class PostgresInstallationStore implements IInstallationStore {
       installedAt: row.installedAt,
       config: row.config as any,
       ...(row.modelId ? { modelId: row.modelId } : {}),
+      monitored: row.monitored,
     };
   }
 
@@ -54,6 +55,7 @@ export class PostgresInstallationStore implements IInstallationStore {
         installedAt: item.installedAt,
         config: item.config as any,
         modelId: item.modelId ?? null,
+        monitored: item.monitored ?? true,
       })
       .onConflictDoUpdate({
         target: [installations.installationId, installations.repoFullName],
@@ -61,6 +63,7 @@ export class PostgresInstallationStore implements IInstallationStore {
           installedAt: item.installedAt,
           config: item.config as any,
           modelId: item.modelId ?? null,
+          monitored: item.monitored ?? true,
         },
       });
   }

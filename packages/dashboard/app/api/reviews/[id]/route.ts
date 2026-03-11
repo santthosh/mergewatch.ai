@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { authOptions } from "@/lib/auth";
-import { ddb } from "@/lib/dynamo";
-
-const REVIEWS_TABLE = process.env.DYNAMODB_TABLE_REVIEWS;
+import { getDashboardStore } from "@/lib/store";
 
 /**
  * GET /api/reviews/[id]
@@ -20,10 +17,6 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!REVIEWS_TABLE) {
-    return NextResponse.json({ error: "Not configured" }, { status: 500 });
-  }
-
   const { id } = await params;
   const decoded = decodeURIComponent(id);
   const colonIdx = decoded.lastIndexOf(":");
@@ -34,18 +27,13 @@ export async function GET(
   const repoFullName = decoded.slice(0, colonIdx);
   const prNumberCommitSha = decoded.slice(colonIdx + 1);
 
-  const result = await ddb.send(
-    new GetCommand({
-      TableName: REVIEWS_TABLE,
-      Key: { repoFullName, prNumberCommitSha },
-    }),
-  );
+  const store = await getDashboardStore();
+  const item = await store.reviews.getReview(repoFullName, prNumberCommitSha);
 
-  if (!result.Item) {
+  if (!item) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const item = result.Item;
   return NextResponse.json({
     review: {
       repoFullName: item.repoFullName,
@@ -91,10 +79,6 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!REVIEWS_TABLE) {
-    return NextResponse.json({ error: "Not configured" }, { status: 500 });
-  }
-
   const { id } = await params;
   const decoded = decodeURIComponent(id);
   const colonIdx = decoded.lastIndexOf(":");
@@ -111,24 +95,8 @@ export async function POST(
     return NextResponse.json({ error: "Invalid feedback" }, { status: 400 });
   }
 
-  if (feedback === null) {
-    await ddb.send(
-      new UpdateCommand({
-        TableName: REVIEWS_TABLE,
-        Key: { repoFullName, prNumberCommitSha },
-        UpdateExpression: "REMOVE feedback",
-      }),
-    );
-  } else {
-    await ddb.send(
-      new UpdateCommand({
-        TableName: REVIEWS_TABLE,
-        Key: { repoFullName, prNumberCommitSha },
-        UpdateExpression: "SET feedback = :fb",
-        ExpressionAttributeValues: { ":fb": feedback },
-      }),
-    );
-  }
+  const store = await getDashboardStore();
+  await store.reviews.updateFeedback(repoFullName, prNumberCommitSha, feedback);
 
   return NextResponse.json({ ok: true });
 }
