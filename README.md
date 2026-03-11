@@ -84,6 +84,8 @@ curl http://localhost:3000/health
 Open the dashboard at **http://localhost:3001**, sign in with GitHub, and install the app on your repos.
 
 > **No AWS. No IAM. No SAM.** Just Docker.
+>
+> For production with HTTPS, see [docs/reverse-proxy.md](docs/reverse-proxy.md) — Caddy (recommended), nginx, or tunnel options.
 
 #### What `docker-compose up` starts
 
