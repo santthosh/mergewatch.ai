@@ -41,7 +41,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     installations = await fetchUserInstallations(accessToken);
   } catch (err) {
     if (err instanceof TokenExpiredError) {
-      redirect("/api/auth/signout");
+      redirect("/signout");
     }
     throw err;
   }

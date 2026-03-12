@@ -28,7 +28,7 @@ export default async function OnboardingPage() {
       }
     } catch (err) {
       if (err instanceof TokenExpiredError) {
-        redirect("/api/auth/signout");
+        redirect("/signout");
       }
       throw err;
     }
