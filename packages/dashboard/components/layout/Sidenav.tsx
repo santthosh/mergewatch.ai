@@ -17,6 +17,7 @@ import {
   Moon,
   Github,
   BookOpen,
+  Plus,
   type LucideIcon,
 } from "lucide-react";
 import { Wordmark, LogoIcon } from "../MergeWatchLogo";
@@ -101,6 +102,10 @@ export default function Sidenav({
   function navHref(base: string) {
     return orgParam ? `${base}?org=${orgParam}` : base;
   }
+
+  const installUrl =
+    process.env.NEXT_PUBLIC_GITHUB_APP_URL ??
+    "https://github.com/apps/mergewatch-ai/installations/new";
 
   const showOrgSwitcher =
     installations && installations.length > 0 && activeInstallation;
@@ -218,6 +223,21 @@ export default function Sidenav({
                       </span>
                     </button>
                   ))}
+                  <div className="border-t border-border-default mt-1 pt-1">
+                    <a
+                      href={installUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => {
+                        setOrgDropdownOpen(false);
+                        onMobileClose();
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-fg-secondary transition hover:bg-hover hover:text-fg-primary"
+                    >
+                      <Plus size={14} className="text-fg-tertiary" />
+                      <span>Add organization</span>
+                    </a>
+                  </div>
                 </div>
               )}
             </div>
