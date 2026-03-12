@@ -209,6 +209,9 @@ export async function checkInstallationAdmin(
       headers: GITHUB_HEADERS(accessToken),
       cache: "no-store",
     });
+    if (res.status === 401 || res.status === 403) {
+      throw new TokenExpiredError();
+    }
     if (!res.ok) return false;
     const user = await res.json();
     return user.login === installation.account.login;
@@ -220,6 +223,9 @@ export async function checkInstallationAdmin(
     { headers: GITHUB_HEADERS(accessToken), cache: "no-store" },
   );
 
+  if (res.status === 401 || res.status === 403) {
+    throw new TokenExpiredError();
+  }
   if (!res.ok) return false;
 
   const membership = await res.json();
