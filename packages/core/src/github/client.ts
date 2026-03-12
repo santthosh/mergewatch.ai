@@ -285,6 +285,79 @@ export async function createCheckRun(
 }
 
 // ---------------------------------------------------------------------------
+// PR Reviews API
+// ---------------------------------------------------------------------------
+
+/**
+ * Map a merge readiness score (1–5) to a GitHub review event type.
+ *
+ *  1-2 → REQUEST_CHANGES (critical issues)
+ *  3   → COMMENT (feedback without blocking)
+ *  4-5 → APPROVE (looks good)
+ */
+export function mergeScoreToReviewEvent(
+  mergeScore: number,
+): 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT' {
+  if (mergeScore >= 4) return 'APPROVE';
+  if (mergeScore <= 2) return 'REQUEST_CHANGES';
+  return 'COMMENT';
+}
+
+/**
+ * Submit a formal PR review using the Pull Request Reviews API.
+ *
+ * This makes MergeWatch appear as a proper reviewer in GitHub's
+ * "Reviewers" section, similar to how Greptile/CodeRabbit appear.
+ */
+export async function submitPRReview(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  body: string,
+  event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT',
+): Promise<void> {
+  await octokit.pulls.createReview({
+    owner,
+    repo,
+    pull_number: prNumber,
+    body,
+    event,
+  });
+}
+
+/**
+ * Dismiss any existing bot reviews on a PR so they don't conflict
+ * with a new review on a later commit.
+ *
+ * Called on `synchronize` events before submitting a fresh review.
+ */
+export async function dismissStaleReviews(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+): Promise<void> {
+  const reviews = await octokit.pulls.listReviews({
+    owner,
+    repo,
+    pull_number: prNumber,
+  });
+
+  for (const review of reviews.data) {
+    if (review.user?.type === 'Bot' && review.state !== 'DISMISSED') {
+      await octokit.pulls.dismissReview({
+        owner,
+        repo,
+        pull_number: prNumber,
+        review_id: review.id,
+        message: 'Superseded by new review on latest commit.',
+      }).catch(() => {});
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Reply comments (for conversational responses)
 // ---------------------------------------------------------------------------
 
