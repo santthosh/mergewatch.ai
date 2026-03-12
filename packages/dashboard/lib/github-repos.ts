@@ -157,6 +157,42 @@ export async function fetchInstallationReposPage(
 }
 
 /**
+ * Fetch the full set of repo names the user can access for a given installation.
+ * Uses GitHub's paginated API which only returns repos visible to the authenticated user.
+ */
+export async function fetchAccessibleRepoNames(
+  accessToken: string,
+  installationId: number,
+): Promise<Set<string>> {
+  const names = new Set<string>();
+  let nextUrl: string | null =
+    `${GITHUB_API}/user/installations/${installationId}/repositories?per_page=100`;
+
+  while (nextUrl) {
+    const res = await fetch(nextUrl, {
+      headers: GITHUB_HEADERS(accessToken),
+      cache: "no-store",
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      throw new TokenExpiredError();
+    }
+    if (!res.ok) break;
+
+    const page = await res.json();
+    for (const repo of page.repositories ?? []) {
+      names.add(repo.full_name);
+    }
+
+    const link: string = res.headers.get("link") ?? "";
+    const match = link.match(/<([^>]+)>;\s*rel="next"/);
+    nextUrl = match ? match[1] : null;
+  }
+
+  return names;
+}
+
+/**
  * Check if the authenticated user is an admin for the given installation.
  *
  * For v1, we check if the user owns the installation account (personal account)

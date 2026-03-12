@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getDashboardStore } from "@/lib/store";
-import { fetchUserInstallations, TokenExpiredError } from "@/lib/github-repos";
+import { fetchUserInstallations, fetchAccessibleRepoNames, TokenExpiredError } from "@/lib/github-repos";
 import ReviewsClient from "@/components/ReviewsClient";
 
 interface ReviewsPageProps {
@@ -39,14 +39,16 @@ export default async function ReviewsPage({ searchParams }: ReviewsPageProps) {
 
   const installationId = String(activeInstallation.id);
 
-  // Get monitored repo names for the filter dropdown
+  // Get monitored repo names for the filter dropdown, scoped to repos
+  // the user can actually access via GitHub (not all repos in the installation)
   const store = await getDashboardStore();
   const repos: string[] = [];
 
   try {
+    const userRepoNames = await fetchAccessibleRepoNames(accessToken, activeInstallation.id);
     const items = await store.installations.listByInstallation(installationId);
     for (const item of items) {
-      if (item.monitored === true) {
+      if (item.monitored === true && userRepoNames.has(item.repoFullName)) {
         repos.push(item.repoFullName);
       }
     }
