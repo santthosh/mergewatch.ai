@@ -4,7 +4,11 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getDashboardStore } from "@/lib/store";
-import { fetchUserInstallations, fetchAccessibleRepoNames, TokenExpiredError } from "@/lib/github-repos";
+import {
+  fetchUserInstallations,
+  fetchAccessibleRepoNames,
+  TokenExpiredError,
+} from "@/lib/github-repos";
 import ReviewsClient from "@/components/ReviewsClient";
 
 interface ReviewsPageProps {
@@ -52,8 +56,11 @@ export default async function ReviewsPage({ searchParams }: ReviewsPageProps) {
         repos.push(item.repoFullName);
       }
     }
-  } catch {
-    // ignore
+  } catch (err) {
+    if (err instanceof TokenExpiredError) {
+      redirect("/api/auth/signout");
+    }
+    // Other errors — show empty state
   }
 
   repos.sort();
