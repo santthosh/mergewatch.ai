@@ -195,16 +195,23 @@ export async function fetchAccessibleRepoNames(
 /**
  * Check if the authenticated user is an admin for the given installation.
  *
- * For v1, we check if the user owns the installation account (personal account)
- * or has admin permission on the org.
+ * - Personal account installations: only the account owner is admin.
+ * - Org installations: only org admins are considered installation admins.
  */
 export async function checkInstallationAdmin(
   accessToken: string,
   installation: Installation,
 ): Promise<boolean> {
-  // Personal account installations — user is always admin
   if (installation.account.type === "User") {
-    return true;
+    // Personal account — only the owner should be admin.
+    // Compare the authenticated user's login against the installation account.
+    const res = await fetch(`${GITHUB_API}/user`, {
+      headers: GITHUB_HEADERS(accessToken),
+      cache: "no-store",
+    });
+    if (!res.ok) return false;
+    const user = await res.json();
+    return user.login === installation.account.login;
   }
 
   // For org installations, check user's membership role
