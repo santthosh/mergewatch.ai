@@ -49,28 +49,44 @@ export default function RepoPicker({
   );
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [saving, setSaving] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Track whether we've done the initial seed of monitored repos
   const seededRef = useRef(false);
 
-  // Fetch repos (with optional search query)
-  const fetchRepos = useCallback(async (q: string = "") => {
-    setLoading(true);
+  // Fetch repos (paginated)
+  const fetchRepos = useCallback(async (page: number = 1, append: boolean = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
     try {
       const searchParams = new URLSearchParams();
-      if (q) searchParams.set("q", q);
+      searchParams.set("page", String(page));
       if (installationId) searchParams.set("installation_id", installationId);
-      const qs = searchParams.toString();
-      const res = await fetch(`/api/repos${qs ? `?${qs}` : ""}`);
+      const res = await fetch(`/api/repos?${searchParams.toString()}`);
       if (res.ok) {
         const data = await res.json();
         const repos: AvailableRepo[] = data.repos ?? [];
-        setAllRepos(repos);
+        if (append) {
+          setAllRepos((prev) => {
+            const existing = new Set(prev.map((r) => r.repoFullName));
+            const newRepos = repos.filter((r) => !existing.has(r.repoFullName));
+            return [...prev, ...newRepos];
+          });
+        } else {
+          setAllRepos(repos);
+        }
         setTotalCount(data.totalCount ?? 0);
+        setHasMore(data.hasMore ?? false);
+        setCurrentPage(page);
 
         // On first load, pre-select repos that are already monitored
         if (!seededRef.current && monitoredNames.size > 0) {
@@ -88,6 +104,7 @@ export default function RepoPicker({
       }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [monitoredNames, installationId]);
 
@@ -103,16 +120,12 @@ export default function RepoPicker({
     inputRef.current?.focus();
   }, []);
 
-  // Debounced search
+  // Client-side search filter (instant, no debounce needed since we paginate)
   function handleSearch(value: string) {
     setQuery(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      fetchRepos(value);
-    }, 300);
   }
 
-  // Filter results client-side for instant feedback while debounce fires
+  // Filter loaded repos client-side for instant feedback
   const displayed = useMemo(() => {
     if (!query) return allRepos;
     const q = query.toLowerCase();
@@ -244,36 +257,47 @@ export default function RepoPicker({
               : "No repositories found."}
           </p>
         ) : (
-          Array.from(grouped.entries()).map(([owner, repos]) => (
-            <div key={owner}>
-              <div className="sticky top-0 border-b border-border-default/50 bg-surface-card px-4 py-1.5 text-xs font-semibold text-primer-muted">
-                {owner}
+          <>
+            {Array.from(grouped.entries()).map(([owner, repos]) => (
+              <div key={owner}>
+                <div className="sticky top-0 border-b border-border-default/50 bg-surface-card px-4 py-1.5 text-xs font-semibold text-primer-muted">
+                  {owner}
+                </div>
+                {repos.map((repo: AvailableRepo) => {
+                  const isSelected = selected.has(repo.repoFullName);
+                  return (
+                    <label
+                      key={repo.repoFullName}
+                      className={`flex cursor-pointer items-center gap-3 px-4 py-2 transition ${
+                        isSelected
+                          ? "bg-primer-green/5"
+                          : "hover:bg-surface-card/50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggle(repo)}
+                        className="h-4 w-4 rounded border-zinc-600 bg-surface-card text-primer-green focus:ring-primer-green"
+                      />
+                      <span className="text-sm text-fg-primary">
+                        {repo.repoFullName.split("/")[1]}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
-              {repos.map((repo: AvailableRepo) => {
-                const isSelected = selected.has(repo.repoFullName);
-                return (
-                  <label
-                    key={repo.repoFullName}
-                    className={`flex cursor-pointer items-center gap-3 px-4 py-2 transition ${
-                      isSelected
-                        ? "bg-primer-green/5"
-                        : "hover:bg-surface-card/50"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggle(repo)}
-                      className="h-4 w-4 rounded border-zinc-600 bg-surface-card text-primer-green focus:ring-primer-green"
-                    />
-                    <span className="text-sm text-fg-primary">
-                      {repo.repoFullName.split("/")[1]}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          ))
+            ))}
+            {hasMore && !query && (
+              <button
+                onClick={() => fetchRepos(currentPage + 1, true)}
+                disabled={loadingMore}
+                className="w-full border-t border-border-default/50 px-4 py-2.5 text-center text-xs font-medium text-primer-blue hover:bg-surface-card/50 disabled:opacity-50"
+              >
+                {loadingMore ? "Loading..." : "Load more repositories"}
+              </button>
+            )}
+          </>
         )}
       </div>
 

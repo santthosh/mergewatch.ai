@@ -3,16 +3,19 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import {
   fetchUserInstallations,
-  fetchInstallationRepos,
+  fetchInstallationReposPage,
   TokenExpiredError,
 } from "@/lib/github-repos";
 
 export const dynamic = "force-dynamic";
 
+const PER_PAGE = 30;
+
 /**
- * GET /api/repos?q=<search>&installation_id=<id>
+ * GET /api/repos?page=1&per_page=30&installation_id=<id>
  *
  * Returns repositories the user has connected via the MergeWatch GitHub App.
+ * Paginated — returns one page at a time with hasMore flag.
  * Optionally filter by installation_id to scope to a single org/account.
  */
 export async function GET(req: NextRequest) {
@@ -26,7 +29,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "No access token" }, { status: 401 });
   }
 
-  const query = req.nextUrl.searchParams.get("q")?.toLowerCase() ?? "";
+  const page = Math.max(1, Number(req.nextUrl.searchParams.get("page") ?? "1"));
+  const perPage = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams.get("per_page") ?? String(PER_PAGE))));
   const installationIdParam = req.nextUrl.searchParams.get("installation_id");
 
   try {
@@ -41,23 +45,36 @@ export async function GET(req: NextRequest) {
       ? installations.filter((i) => String(i.id) === installationIdParam)
       : installations;
 
-    const allRepos: { repoFullName: string; installedAt: string; installationId: string }[] = [];
-
-    for (const installation of targetInstallations) {
-      const { repos } = await fetchInstallationRepos(
+    if (targetInstallations.length === 1) {
+      // Single installation — use GitHub pagination directly
+      const inst = targetInstallations[0];
+      const { repos, totalCount, hasMore } = await fetchInstallationReposPage(
         accessToken,
-        installation.id,
-        query,
+        inst.id,
+        page,
+        perPage,
       );
-      allRepos.push(...repos);
+      return NextResponse.json({ repos, totalCount, hasMore });
     }
 
+    // Multiple installations — fetch the requested page from each and merge
+    // We distribute the page across installations proportionally
+    const results = await Promise.all(
+      targetInstallations.map((inst) =>
+        fetchInstallationReposPage(accessToken, inst.id, page, perPage),
+      ),
+    );
+
+    const allRepos = results.flatMap((r) => r.repos);
     allRepos.sort((a, b) => a.repoFullName.localeCompare(b.repoFullName));
+
+    const totalCount = results.reduce((sum, r) => sum + r.totalCount, 0);
+    const hasMore = results.some((r) => r.hasMore);
 
     return NextResponse.json({
       repos: allRepos,
-      totalCount: allRepos.length,
-      hasMore: false,
+      totalCount,
+      hasMore,
     });
   } catch (err) {
     if (err instanceof TokenExpiredError) {
