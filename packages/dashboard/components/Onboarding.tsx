@@ -101,9 +101,44 @@ export default function Onboarding() {
     }
   }
 
-  async function handleSave(_selected: AvailableRepo[]) {
-    setStep(3);
-    setTimeout(() => router.push("/dashboard"), 1500);
+  async function handleSave(selected: AvailableRepo[]) {
+    setError("");
+    setLoading(true);
+
+    // Group selected repos by installationId
+    const byInstallation = new Map<string, { repoFullName: string }[]>();
+    for (const repo of selected) {
+      const list = byInstallation.get(repo.installationId) ?? [];
+      list.push({ repoFullName: repo.repoFullName });
+      byInstallation.set(repo.installationId, list);
+    }
+
+    try {
+      // Persist monitoring for each installation
+      const results = await Promise.all(
+        Array.from(byInstallation.entries()).map(([installationId, repos]) =>
+          fetch("/api/repos/monitored", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ installationId, repos }),
+          }),
+        ),
+      );
+
+      const failed = results.some((r) => !r.ok);
+      if (failed) {
+        setError("Failed to save some repositories. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      setStep(3);
+      setTimeout(() => router.push("/dashboard"), 1500);
+    } catch {
+      setError("Something went wrong saving your selections. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   const installedCount = accounts.filter((a) => a.installed).length;
