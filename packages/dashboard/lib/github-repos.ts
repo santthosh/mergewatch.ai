@@ -157,18 +157,64 @@ export async function fetchInstallationReposPage(
 }
 
 /**
+ * Fetch the full set of repo names the user can access for a given installation.
+ * Uses GitHub's paginated API which only returns repos visible to the authenticated user.
+ */
+export async function fetchAccessibleRepoNames(
+  accessToken: string,
+  installationId: number,
+): Promise<Set<string>> {
+  const names = new Set<string>();
+  let nextUrl: string | null =
+    `${GITHUB_API}/user/installations/${installationId}/repositories?per_page=100`;
+
+  while (nextUrl) {
+    const res = await fetch(nextUrl, {
+      headers: GITHUB_HEADERS(accessToken),
+      cache: "no-store",
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      throw new TokenExpiredError();
+    }
+    if (!res.ok) break;
+
+    const page = await res.json();
+    for (const repo of page.repositories ?? []) {
+      names.add(repo.full_name);
+    }
+
+    const link: string = res.headers.get("link") ?? "";
+    const match = link.match(/<([^>]+)>;\s*rel="next"/);
+    nextUrl = match ? match[1] : null;
+  }
+
+  return names;
+}
+
+/**
  * Check if the authenticated user is an admin for the given installation.
  *
- * For v1, we check if the user owns the installation account (personal account)
- * or has admin permission on the org.
+ * - Personal account installations: only the account owner is admin.
+ * - Org installations: only org admins are considered installation admins.
  */
 export async function checkInstallationAdmin(
   accessToken: string,
   installation: Installation,
 ): Promise<boolean> {
-  // Personal account installations — user is always admin
   if (installation.account.type === "User") {
-    return true;
+    // Personal account — only the owner should be admin.
+    // Compare the authenticated user's login against the installation account.
+    const res = await fetch(`${GITHUB_API}/user`, {
+      headers: GITHUB_HEADERS(accessToken),
+      cache: "no-store",
+    });
+    if (res.status === 401 || res.status === 403) {
+      throw new TokenExpiredError();
+    }
+    if (!res.ok) return false;
+    const user = await res.json();
+    return user.login === installation.account.login;
   }
 
   // For org installations, check user's membership role
@@ -177,6 +223,9 @@ export async function checkInstallationAdmin(
     { headers: GITHUB_HEADERS(accessToken), cache: "no-store" },
   );
 
+  if (res.status === 401 || res.status === 403) {
+    throw new TokenExpiredError();
+  }
   if (!res.ok) return false;
 
   const membership = await res.json();

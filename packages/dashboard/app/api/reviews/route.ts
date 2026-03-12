@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { getDashboardStore } from "@/lib/store";
 import {
   fetchUserInstallations,
+  fetchAccessibleRepoNames,
   TokenExpiredError,
 } from "@/lib/github-repos";
 
@@ -44,12 +45,22 @@ export async function GET(req: NextRequest) {
 
     const store = await getDashboardStore();
 
-    // Get monitored repos
+    // Get repos the user can actually access via GitHub API, then intersect
+    // with monitored repos from the store. The GitHub API only returns repos
+    // visible to the authenticated user, preventing cross-repo data leaks.
+    const githubAccessible = await Promise.all(
+      targetInstallations.map((inst) => fetchAccessibleRepoNames(accessToken, inst.id)),
+    );
+    const userRepoNames = new Set<string>();
+    for (const set of githubAccessible) {
+      set.forEach((name) => userRepoNames.add(name));
+    }
+
     const accessibleRepos = new Set<string>();
     for (const installation of targetInstallations) {
       const items = await store.installations.listByInstallation(String(installation.id));
       for (const item of items) {
-        if (item.monitored === true) {
+        if (item.monitored === true && userRepoNames.has(item.repoFullName)) {
           accessibleRepos.add(item.repoFullName);
         }
       }
