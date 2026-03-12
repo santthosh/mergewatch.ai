@@ -23,7 +23,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
     installations = await fetchUserInstallations(accessToken);
   } catch (err) {
     if (err instanceof TokenExpiredError) {
-      redirect("/api/auth/signout");
+      redirect("/signout");
     }
     throw err;
   }

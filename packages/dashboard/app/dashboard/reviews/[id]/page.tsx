@@ -41,7 +41,7 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
     const hasAccess = await canAccessRepo(accessToken, repoFullName);
     if (!hasAccess) notFound();
   } catch {
-    redirect("/api/auth/signout");
+    redirect("/signout");
   }
 
   const store = await getDashboardStore();

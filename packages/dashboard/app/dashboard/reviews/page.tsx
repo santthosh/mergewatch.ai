@@ -29,7 +29,7 @@ export default async function ReviewsPage({ searchParams }: ReviewsPageProps) {
     installations = await fetchUserInstallations(accessToken);
   } catch (err) {
     if (err instanceof TokenExpiredError) {
-      redirect("/api/auth/signout");
+      redirect("/signout");
     }
     throw err;
   }
@@ -58,7 +58,7 @@ export default async function ReviewsPage({ searchParams }: ReviewsPageProps) {
     }
   } catch (err) {
     if (err instanceof TokenExpiredError) {
-      redirect("/api/auth/signout");
+      redirect("/signout");
     }
     // Other errors — show empty state
   }
