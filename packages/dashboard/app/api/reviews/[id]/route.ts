@@ -2,6 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getDashboardStore } from "@/lib/store";
+import { canAccessRepo, TokenExpiredError } from "@/lib/access-control";
+
+/** Parse the [id] param into repoFullName + prNumberCommitSha. */
+function parseReviewId(id: string): { repoFullName: string; prNumberCommitSha: string } | null {
+  const decoded = decodeURIComponent(id);
+  const colonIdx = decoded.lastIndexOf(":");
+  if (colonIdx === -1) return null;
+  return {
+    repoFullName: decoded.slice(0, colonIdx),
+    prNumberCommitSha: decoded.slice(colonIdx + 1),
+  };
+}
 
 /**
  * GET /api/reviews/[id]
@@ -17,15 +29,31 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const accessToken = (session as any).accessToken as string | undefined;
+  if (!accessToken) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { id } = await params;
-  const decoded = decodeURIComponent(id);
-  const colonIdx = decoded.lastIndexOf(":");
-  if (colonIdx === -1) {
+  const parsed = parseReviewId(id);
+  if (!parsed) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const repoFullName = decoded.slice(0, colonIdx);
-  const prNumberCommitSha = decoded.slice(colonIdx + 1);
+  const { repoFullName, prNumberCommitSha } = parsed;
+
+  // Verify the user has access to this repo
+  try {
+    const hasAccess = await canAccessRepo(accessToken, repoFullName);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  } catch (err) {
+    if (err instanceof TokenExpiredError) {
+      return NextResponse.json({ error: "Token expired" }, { status: 401 });
+    }
+    throw err;
+  }
 
   const store = await getDashboardStore();
   const item = await store.reviews.getReview(repoFullName, prNumberCommitSha);
@@ -79,15 +107,31 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const accessToken = (session as any).accessToken as string | undefined;
+  if (!accessToken) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { id } = await params;
-  const decoded = decodeURIComponent(id);
-  const colonIdx = decoded.lastIndexOf(":");
-  if (colonIdx === -1) {
+  const parsed = parseReviewId(id);
+  if (!parsed) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const repoFullName = decoded.slice(0, colonIdx);
-  const prNumberCommitSha = decoded.slice(colonIdx + 1);
+  const { repoFullName, prNumberCommitSha } = parsed;
+
+  // Verify the user has access to this repo
+  try {
+    const hasAccess = await canAccessRepo(accessToken, repoFullName);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  } catch (err) {
+    if (err instanceof TokenExpiredError) {
+      return NextResponse.json({ error: "Token expired" }, { status: 401 });
+    }
+    throw err;
+  }
 
   const body = await req.json();
   const feedback = body.feedback;

@@ -4,6 +4,7 @@ import { redirect, notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getDashboardStore } from "@/lib/store";
+import { canAccessRepo } from "@/lib/access-control";
 import ReviewDetail from "@/components/ReviewDetail";
 
 interface ReviewDetailPageProps {
@@ -20,6 +21,9 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
   const session = await getServerSession(authOptions);
   if (!session) redirect("/");
 
+  const accessToken = (session as any).accessToken as string | undefined;
+  if (!accessToken) redirect("/");
+
   const { id } = await params;
   const decoded = decodeURIComponent(id);
 
@@ -31,6 +35,14 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
   const prNumberCommitSha = decoded.slice(colonIdx + 1);
 
   if (!repoFullName || !prNumberCommitSha) notFound();
+
+  // Verify the user has access to this repo
+  try {
+    const hasAccess = await canAccessRepo(accessToken, repoFullName);
+    if (!hasAccess) notFound();
+  } catch {
+    redirect("/api/auth/signout");
+  }
 
   const store = await getDashboardStore();
   const item = await store.reviews.getReview(repoFullName, prNumberCommitSha);

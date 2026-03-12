@@ -37,6 +37,20 @@ export async function GET(req: NextRequest) {
   const installationId = url.searchParams.get("installation_id");
   if (!installationId) return NextResponse.json({ error: "Missing installation_id" }, { status: 400 });
 
+  // Verify the user has access to this installation
+  try {
+    const installations = await fetchUserInstallations(accessToken);
+    const hasAccess = installations.some((i) => String(i.id) === installationId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  } catch (err) {
+    if (err instanceof TokenExpiredError) {
+      return NextResponse.json({ error: "Token expired" }, { status: 401 });
+    }
+    return NextResponse.json({ settings: DEFAULT_INSTALLATION_SETTINGS });
+  }
+
   try {
     const store = await getDashboardStore();
     const settings = await store.installations.getSettings(installationId);
