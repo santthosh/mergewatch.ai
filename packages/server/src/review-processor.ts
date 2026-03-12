@@ -4,6 +4,7 @@ import {
   findExistingBotComment, getCommentReactions, createCheckRun,
   formatReviewComment, runReviewPipeline, shouldSkipPR,
   DEFAULT_CONFIG, mergeConfig,
+  BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
 } from '@mergewatch/core';
 import type { WebhookDeps } from './webhook-handler.js';
 
@@ -107,7 +108,16 @@ export async function processReviewJob(
         : undefined,
     });
 
-    // Post or update comment
+    // Submit as a proper PR review (shows MergeWatch as a reviewer)
+    const reviewEvent = mergeScoreToReviewEvent(result.mergeScore);
+    try {
+      await dismissStaleReviews(octokit, owner, repo, prNumber);
+      await submitPRReview(octokit, owner, repo, prNumber, `${BOT_COMMENT_MARKER}\n${comment}`, reviewEvent);
+    } catch (err) {
+      console.warn('Failed to submit PR review, falling back to issue comment:', err);
+    }
+
+    // Post or update issue comment (fallback / backwards compatibility)
     let commentId: number | undefined;
     if (job.existingCommentId) {
       await updateReviewComment(octokit, owner, repo, job.existingCommentId, comment);

@@ -27,6 +27,10 @@ import {
   mergeConfig,
   shouldSkipPR,
   RESPOND_PROMPT,
+  BOT_COMMENT_MARKER,
+  submitPRReview,
+  dismissStaleReviews,
+  mergeScoreToReviewEvent,
 } from '@mergewatch/core';
 import type {
   ReviewJobPayload,
@@ -271,7 +275,16 @@ export async function handler(
       mergeScoreReason: result.mergeScoreReason || undefined,
     });
 
-    // Post or update the review comment
+    // Submit as a proper PR review (shows MergeWatch as a reviewer)
+    const reviewEvent = mergeScoreToReviewEvent(result.mergeScore);
+    try {
+      await dismissStaleReviews(octokit, owner, repo, prNumber);
+      await submitPRReview(octokit, owner, repo, prNumber, `${BOT_COMMENT_MARKER}\n${commentBody}`, reviewEvent);
+    } catch (err) {
+      console.warn('Failed to submit PR review, falling back to issue comment:', err);
+    }
+
+    // Post or update the issue comment (fallback / backwards compatibility)
     let commentId: number | undefined;
     let targetCommentId = existingCommentId;
 

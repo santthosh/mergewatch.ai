@@ -53,6 +53,9 @@ export {
   getCommentReactions,
   createCheckRun,
   postReplyComment,
+  mergeScoreToReviewEvent,
+  submitPRReview,
+  dismissStaleReviews,
 } from './github/client.js';
 
 // ─── Comment formatter ──────────────────────────────────────────────────────
