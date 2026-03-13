@@ -20,6 +20,7 @@ export {
   runSummaryAgent,
   runDiagramAgent,
   runOrchestratorAgent,
+  runCustomAgent,
 } from './agents/reviewer.js';
 export type {
   AgentFinding,
@@ -39,6 +40,7 @@ export {
   DIAGRAM_PROMPT,
   ORCHESTRATOR_PROMPT,
   RESPOND_PROMPT,
+  CUSTOM_AGENT_RESPONSE_FORMAT,
 } from './agents/prompts.js';
 
 // ─── GitHub client (portable Octokit ops) ───────────────────────────────────
@@ -65,7 +67,7 @@ export type { Finding } from './comment-formatter.js';
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 export { DEFAULT_CONFIG, mergeConfig } from './config/defaults.js';
-export type { MergeWatchConfig } from './config/defaults.js';
+export type { MergeWatchConfig, CustomAgentDef } from './config/defaults.js';
 
 // ─── Context (codebase awareness) ────────────────────────────────────────────
 export { fetchFileContents } from './context/file-fetcher.js';

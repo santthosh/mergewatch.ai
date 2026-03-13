@@ -12,7 +12,7 @@
 import { Octokit } from "@octokit/rest";
 import yaml from 'js-yaml';
 import type { PRContext } from "../types/github.js";
-import type { MergeWatchConfig } from '../config/defaults.js';
+import type { MergeWatchConfig, CustomAgentDef } from '../config/defaults.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -438,6 +438,27 @@ export async function fetchRepoConfig(
         style: typeof a.style === 'boolean' ? a.style : true,
         summary: typeof a.summary === 'boolean' ? a.summary : true,
       };
+    }
+
+    // Codebase awareness fields
+    if (typeof parsed.codebaseAwareness === 'boolean') config.codebaseAwareness = parsed.codebaseAwareness;
+    if (typeof parsed.maxDependencyDepth === 'number') config.maxDependencyDepth = parsed.maxDependencyDepth;
+    if (typeof parsed.maxContextKB === 'number') config.maxContextKB = parsed.maxContextKB;
+
+    // Custom agents
+    if (Array.isArray(parsed.customAgents)) {
+      const validSeverities = new Set(['info', 'warning', 'critical']);
+      config.customAgents = (parsed.customAgents as unknown[])
+        .filter((a): a is Record<string, unknown> => !!a && typeof a === 'object')
+        .filter((a) => typeof a.name === 'string' && typeof a.prompt === 'string')
+        .map((a): CustomAgentDef => ({
+          name: a.name as string,
+          prompt: a.prompt as string,
+          severityDefault: validSeverities.has(a.severityDefault as string)
+            ? (a.severityDefault as 'info' | 'warning' | 'critical')
+            : 'warning',
+          enabled: typeof a.enabled === 'boolean' ? a.enabled : true,
+        }));
     }
 
     return config;
