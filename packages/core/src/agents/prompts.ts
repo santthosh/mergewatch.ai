@@ -208,3 +208,25 @@ Return a JSON object:
 }
 
 Preserve the "confidence" score (1-100) from the original agent findings. If two agents flagged the same issue, keep the higher confidence score.`;
+
+// ─── Custom agent response format ──────────────────────────────────────────
+export const CUSTOM_AGENT_RESPONSE_FORMAT = `
+
+Return a JSON object with this exact shape:
+{
+  "findings": [
+    {
+      "file": "path/to/file.ts",
+      "line": 42,
+      "severity": "critical" | "warning" | "info",
+      "confidence": 85,
+      "title": "Short title (≤80 chars)",
+      "description": "Explanation of the issue.",
+      "suggestion": "Concrete fix or recommendation."
+    }
+  ]
+}
+
+The "confidence" field is a number from 1 to 100 representing how confident you are that this is a real issue (not a false positive). Use 90+ for obvious, clear-cut issues; 70-89 for likely issues; 50-69 for possible issues worth flagging; below 50 for speculative concerns.
+
+If there are no findings, return: { "findings": [] }`;

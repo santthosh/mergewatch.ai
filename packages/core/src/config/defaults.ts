@@ -4,6 +4,18 @@
  * or when specific fields are omitted from the config.
  */
 
+/** Definition of a user-defined custom review agent. */
+export interface CustomAgentDef {
+  /** Display name for the agent (used as finding category) */
+  name: string;
+  /** System prompt for the agent */
+  prompt: string;
+  /** Default severity for findings from this agent */
+  severityDefault: 'info' | 'warning' | 'critical';
+  /** Whether this custom agent is enabled */
+  enabled: boolean;
+}
+
 export interface MergeWatchConfig {
   /** Primary model used for review agents */
   model: string;
@@ -34,6 +46,8 @@ export interface MergeWatchConfig {
   maxDependencyDepth: number;
   /** Maximum total size of related file context in KB */
   maxContextKB: number;
+  /** User-defined custom review agents */
+  customAgents: CustomAgentDef[];
 }
 
 export const DEFAULT_CONFIG: MergeWatchConfig = {
@@ -63,6 +77,7 @@ export const DEFAULT_CONFIG: MergeWatchConfig = {
   codebaseAwareness: true,
   maxDependencyDepth: 1,
   maxContextKB: 256,
+  customAgents: [],
 };
 
 /**
@@ -77,5 +92,6 @@ export function mergeConfig(partial: Partial<MergeWatchConfig>): MergeWatchConfi
       ...DEFAULT_CONFIG.agents,
       ...(partial.agents ?? {}),
     },
+    customAgents: partial.customAgents ?? DEFAULT_CONFIG.customAgents,
   };
 }
