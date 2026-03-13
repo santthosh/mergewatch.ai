@@ -256,6 +256,7 @@ export async function handler(
       enabledAgents: mode === 'summary'
         ? { security: false, bugs: false, style: false, summary: true, diagram: false }
         : { ...runtimeConfig.agents, diagram: instSettings.summary.diagram },
+      customAgents: runtimeConfig.customAgents,
     }, { llm });
 
     const reviewDetailUrl = `${DASHBOARD_BASE_URL}/dashboard/reviews/${encodeURIComponent(`${repoFullName}:${prNumberCommitSha}`)}`;
