@@ -10,7 +10,9 @@
  */
 
 import { Octokit } from "@octokit/rest";
+import yaml from 'js-yaml';
 import type { PRContext } from "../types/github.js";
+import type { MergeWatchConfig } from '../config/defaults.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -379,4 +381,72 @@ export async function postReplyComment(
     body,
   });
   return data.id;
+}
+
+// ---------------------------------------------------------------------------
+// Repository config (.mergewatch.yml)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch and parse .mergewatch.yml from a repository's default branch.
+ * Returns null if the file doesn't exist.
+ */
+export async function fetchRepoConfig(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<Partial<MergeWatchConfig> | null> {
+  try {
+    const { data } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: '.mergewatch.yml',
+    });
+
+    if (Array.isArray(data) || data.type !== 'file' || !data.content) {
+      return null;
+    }
+
+    const content = Buffer.from(data.content, 'base64').toString('utf-8');
+    const parsed = yaml.load(content) as Record<string, unknown> | null;
+    if (!parsed || typeof parsed !== 'object') {
+      return null;
+    }
+
+    // Map YAML fields to MergeWatchConfig fields
+    const config: Partial<MergeWatchConfig> = {};
+
+    if (typeof parsed.model === 'string') config.model = parsed.model;
+    if (typeof parsed.lightModel === 'string') config.lightModel = parsed.lightModel;
+    if (typeof parsed.maxTokensPerAgent === 'number') config.maxTokensPerAgent = parsed.maxTokensPerAgent;
+    if (typeof parsed.minSeverity === 'string' && ['info', 'warning', 'critical'].includes(parsed.minSeverity)) {
+      config.minSeverity = parsed.minSeverity as 'info' | 'warning' | 'critical';
+    }
+    if (typeof parsed.maxFindings === 'number') config.maxFindings = parsed.maxFindings;
+    if (typeof parsed.postSummaryOnClean === 'boolean') config.postSummaryOnClean = parsed.postSummaryOnClean;
+    if (Array.isArray(parsed.customStyleRules)) {
+      config.customStyleRules = parsed.customStyleRules.filter((r: unknown) => typeof r === 'string');
+    }
+    if (Array.isArray(parsed.excludePatterns)) {
+      config.excludePatterns = parsed.excludePatterns.filter((p: unknown) => typeof p === 'string');
+    }
+    if (parsed.agents && typeof parsed.agents === 'object') {
+      const a = parsed.agents as Record<string, unknown>;
+      config.agents = {
+        security: typeof a.security === 'boolean' ? a.security : true,
+        bugs: typeof a.bugs === 'boolean' ? a.bugs : true,
+        style: typeof a.style === 'boolean' ? a.style : true,
+        summary: typeof a.summary === 'boolean' ? a.summary : true,
+      };
+    }
+
+    return config;
+  } catch (err: unknown) {
+    // 404 means no config file — that's fine
+    if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 404) {
+      return null;
+    }
+    console.warn(`Failed to fetch .mergewatch.yml from ${owner}/${repo}:`, err);
+    return null;
+  }
 }
