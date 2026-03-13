@@ -5,6 +5,7 @@ import {
   formatReviewComment, runReviewPipeline, shouldSkipPR,
   DEFAULT_CONFIG, mergeConfig,
   BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
+  fetchRepoConfig,
 } from '@mergewatch/core';
 import type { WebhookDeps } from './webhook-handler.js';
 
@@ -52,9 +53,11 @@ export async function processReviewJob(
   const installation = await deps.installationStore.get(instId, repoFullName);
   const instSettings = await deps.installationStore.getSettings(instId);
 
-  // Merge config
+  // Merge config: YAML provides base, dashboard settings override, env var model overrides all
+  const yamlConfig = await fetchRepoConfig(octokit, owner, repo);
   const modelOverride = process.env.LLM_MODEL;
   const config = mergeConfig({
+    ...(yamlConfig ?? {}),
     ...(installation?.config || {}),
     ...(modelOverride ? { model: modelOverride, lightModel: modelOverride } : {}),
   });

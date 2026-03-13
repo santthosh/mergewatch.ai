@@ -31,6 +31,7 @@ import {
   submitPRReview,
   dismissStaleReviews,
   mergeScoreToReviewEvent,
+  fetchRepoConfig,
 } from '@mergewatch/core';
 import type {
   ReviewJobPayload,
@@ -232,7 +233,8 @@ export async function handler(
         : [],
     };
 
-    const runtimeConfig = mergeConfig(settingsOverrides);
+    const yamlConfig = await fetchRepoConfig(octokit, owner, repo);
+    const runtimeConfig = mergeConfig({ ...(yamlConfig ?? {}), ...settingsOverrides });
 
     const modelId = installation?.modelId ?? DEFAULT_BEDROCK_MODEL_ID;
     const lightModelId = runtimeConfig.lightModel;
