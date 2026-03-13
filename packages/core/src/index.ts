@@ -56,6 +56,7 @@ export {
   mergeScoreToReviewEvent,
   submitPRReview,
   dismissStaleReviews,
+  fetchRepoConfig,
 } from './github/client.js';
 
 // ─── Comment formatter ──────────────────────────────────────────────────────
