@@ -32,6 +32,8 @@ import {
   dismissStaleReviews,
   mergeScoreToReviewEvent,
   fetchRepoConfig,
+  fetchFileContents,
+  resolveImportsForFiles,
 } from '@mergewatch/core';
 import type {
   ReviewJobPayload,
@@ -242,6 +244,35 @@ export async function handler(
     const modelName = Object.entries(SUPPORTED_MODELS)
       .find(([, id]) => id === modelId)?.[0] ?? modelId;
 
+    // Fetch related files for codebase awareness
+    let relatedFiles: Record<string, string> | undefined;
+    if (runtimeConfig.codebaseAwareness) {
+      try {
+        // Get the contents of changed files first
+        const changedFilePaths = prContext.files || [];
+        const changedFileContents = await fetchFileContents(
+          octokit, owner, repo, headSha, changedFilePaths, runtimeConfig.maxContextKB,
+        );
+
+        // Resolve imports from changed files
+        const importPaths = resolveImportsForFiles(changedFileContents, runtimeConfig.maxDependencyDepth);
+
+        // Fetch the imported files
+        if (importPaths.length > 0) {
+          const remainingBudgetKB = runtimeConfig.maxContextKB - Math.ceil(
+            Object.values(changedFileContents).reduce((sum, c) => sum + Buffer.byteLength(c, 'utf-8'), 0) / 1024
+          );
+          if (remainingBudgetKB > 0) {
+            relatedFiles = await fetchFileContents(
+              octokit, owner, repo, headSha, importPaths, remainingBudgetKB,
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch related files for codebase awareness:', err);
+      }
+    }
+
     const result = await runReviewPipeline({
       diff,
       context: {
@@ -258,6 +289,7 @@ export async function handler(
       enabledAgents: mode === 'summary'
         ? { security: false, bugs: false, style: false, summary: true, diagram: false }
         : { ...runtimeConfig.agents, diagram: instSettings.summary.diagram },
+      relatedFiles,
     }, { llm });
 
     const reviewDetailUrl = `${DASHBOARD_BASE_URL}/dashboard/reviews/${encodeURIComponent(`${repoFullName}:${prNumberCommitSha}`)}`;
