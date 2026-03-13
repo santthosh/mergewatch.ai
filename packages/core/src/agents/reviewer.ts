@@ -18,7 +18,9 @@ import {
   SUMMARY_PROMPT,
   DIAGRAM_PROMPT,
   ORCHESTRATOR_PROMPT,
+  CUSTOM_AGENT_RESPONSE_FORMAT,
 } from './prompts.js';
+import type { CustomAgentDef } from '../config/defaults.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -33,7 +35,7 @@ export interface AgentFinding {
 }
 
 export interface OrchestratedFinding extends AgentFinding {
-  category: 'security' | 'bug' | 'style';
+  category: string;
 }
 
 export interface ReviewContext {
@@ -192,10 +194,32 @@ export async function runSummaryAgent(
   return parsed.summary;
 }
 
+// ─── Custom agents ──────────────────────────────────────────────────────────
+
+/** Run a user-defined custom review agent. */
+export async function runCustomAgent(
+  agentDef: CustomAgentDef,
+  diff: string,
+  context: ReviewContext,
+  modelId: string,
+  llm: ILLMProvider,
+  relatedFiles?: Record<string, string>,
+): Promise<AgentFinding[]> {
+  const systemPrompt = `${agentDef.prompt}\n${CUSTOM_AGENT_RESPONSE_FORMAT}`;
+  const prompt = buildPrompt(systemPrompt, diff, context, relatedFiles);
+  const raw = await llm.invoke(modelId, prompt);
+  const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
+  // Apply default severity if agent didn't specify
+  return parsed.findings.map((f) => ({
+    ...f,
+    severity: f.severity || agentDef.severityDefault,
+  }));
+}
+
 // ─── Orchestrator ──────────────────────────────────────────────────────────
 
 interface TaggedFindings {
-  category: 'security' | 'bug' | 'style';
+  category: string;
   findings: AgentFinding[];
 }
 
@@ -258,6 +282,8 @@ export interface ReviewPipelineOptions {
     diagram: boolean;
   };
   relatedFiles?: Record<string, string>;
+  /** User-defined custom review agents */
+  customAgents?: CustomAgentDef[];
 }
 
 export interface ReviewPipelineResult {
@@ -286,6 +312,7 @@ export async function runReviewPipeline(
     maxFindings,
     enabledAgents,
     relatedFiles,
+    customAgents = [],
   } = options;
   const { llm } = deps;
 
@@ -308,11 +335,32 @@ export async function runReviewPipeline(
       : Promise.resolve({ diagram: '', caption: '' } as DiagramResult),
   ]);
 
+  // Run enabled custom agents in parallel
+  const enabledCustomAgents = customAgents.filter((a) => a.enabled);
+  const customResults = enabledCustomAgents.length > 0
+    ? await Promise.all(
+        enabledCustomAgents.map((agentDef) =>
+          runCustomAgent(agentDef, diff, context, modelId, llm, relatedFiles)
+            .catch((err) => {
+              console.warn(`Custom agent "${agentDef.name}" failed:`, err);
+              return [] as AgentFinding[];
+            })
+        ),
+      )
+    : [];
+
+  // Tag custom agent findings
+  const customTagged: TaggedFindings[] = enabledCustomAgents.map((agentDef, i) => ({
+    category: agentDef.name,
+    findings: customResults[i] || [],
+  }));
+
   // Orchestrate: deduplicate + rank all findings
   const taggedFindings: TaggedFindings[] = [
     { category: 'security', findings: securityFindings },
     { category: 'bug', findings: bugFindings },
     { category: 'style', findings: styleFindings },
+    ...customTagged,
   ];
 
   const orchestratorResult = await runOrchestratorAgent(
