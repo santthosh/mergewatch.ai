@@ -28,6 +28,12 @@ export interface MergeWatchConfig {
   maxFindings: number;
   /** Whether to post a summary even when there are no findings */
   postSummaryOnClean: boolean;
+  /** Whether to fetch related file contents for context-aware reviews */
+  codebaseAwareness: boolean;
+  /** Maximum depth for resolving import dependencies (1-2) */
+  maxDependencyDepth: number;
+  /** Maximum total size of related file context in KB */
+  maxContextKB: number;
 }
 
 export const DEFAULT_CONFIG: MergeWatchConfig = {
@@ -54,6 +60,9 @@ export const DEFAULT_CONFIG: MergeWatchConfig = {
   minSeverity: 'info',
   maxFindings: 25,
   postSummaryOnClean: true,
+  codebaseAwareness: true,
+  maxDependencyDepth: 1,
+  maxContextKB: 256,
 };
 
 /**
