@@ -5,6 +5,7 @@ import {
   formatReviewComment, runReviewPipeline, shouldSkipPR,
   DEFAULT_CONFIG, mergeConfig,
   BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
+  fetchFileContents, resolveImportsForFiles,
 } from '@mergewatch/core';
 import type { WebhookDeps } from './webhook-handler.js';
 
@@ -62,6 +63,33 @@ export async function processReviewJob(
   const startTime = Date.now();
 
   try {
+    // Fetch related files for codebase awareness
+    let relatedFiles: Record<string, string> | undefined;
+    if (config.codebaseAwareness) {
+      try {
+        const changedFilePaths = prContext.files || [];
+        const ref = prContext.headBranch || 'HEAD';
+        const changedFileContents = await fetchFileContents(
+          octokit, owner, repo, ref, changedFilePaths, config.maxContextKB,
+        );
+
+        const importPaths = resolveImportsForFiles(changedFileContents, config.maxDependencyDepth);
+
+        if (importPaths.length > 0) {
+          const remainingBudgetKB = config.maxContextKB - Math.ceil(
+            Object.values(changedFileContents).reduce((sum, c) => sum + Buffer.byteLength(c, 'utf-8'), 0) / 1024
+          );
+          if (remainingBudgetKB > 0) {
+            relatedFiles = await fetchFileContents(
+              octokit, owner, repo, ref, importPaths, remainingBudgetKB,
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch related files for codebase awareness:', err);
+      }
+    }
+
     // Run review pipeline
     const result = await runReviewPipeline(
       {
@@ -84,6 +112,7 @@ export async function processReviewJob(
           summary: true,
           diagram: instSettings.summary?.diagram !== false,
         },
+        relatedFiles,
       },
       { llm: deps.llm },
     );

@@ -66,6 +66,10 @@ export type { Finding } from './comment-formatter.js';
 export { DEFAULT_CONFIG, mergeConfig } from './config/defaults.js';
 export type { MergeWatchConfig } from './config/defaults.js';
 
+// ─── Context (codebase awareness) ────────────────────────────────────────────
+export { fetchFileContents } from './context/file-fetcher.js';
+export { resolveImports, resolveImportsForFiles } from './context/import-resolver.js';
+
 // ─── Skip logic ─────────────────────────────────────────────────────────────
 export { shouldSkipPR, SKIP_PATTERNS } from './skip-logic.js';
 
