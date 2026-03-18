@@ -437,6 +437,10 @@ export async function fetchRepoConfig(
         bugs: typeof a.bugs === 'boolean' ? a.bugs : true,
         style: typeof a.style === 'boolean' ? a.style : true,
         summary: typeof a.summary === 'boolean' ? a.summary : true,
+        diagram: typeof a.diagram === 'boolean' ? a.diagram : true,
+        errorHandling: typeof a.errorHandling === 'boolean' ? a.errorHandling : true,
+        testCoverage: typeof a.testCoverage === 'boolean' ? a.testCoverage : true,
+        commentAccuracy: typeof a.commentAccuracy === 'boolean' ? a.commentAccuracy : true,
       };
     }
 

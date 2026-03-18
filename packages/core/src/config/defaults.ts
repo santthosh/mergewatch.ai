@@ -29,6 +29,10 @@ export interface MergeWatchConfig {
     bugs: boolean;
     style: boolean;
     summary: boolean;
+    diagram: boolean;
+    errorHandling: boolean;
+    testCoverage: boolean;
+    commentAccuracy: boolean;
   };
   /** Custom style rules appended to the style agent prompt */
   customStyleRules: string[];
@@ -59,6 +63,10 @@ export const DEFAULT_CONFIG: MergeWatchConfig = {
     bugs: true,
     style: true,
     summary: true,
+    diagram: true,
+    errorHandling: true,
+    testCoverage: true,
+    commentAccuracy: true,
   },
   customStyleRules: [],
   excludePatterns: [
@@ -84,7 +92,7 @@ export const DEFAULT_CONFIG: MergeWatchConfig = {
  * Merges a partial user config (from .mergewatch.yml / DynamoDB) with defaults.
  * Only defined fields in the partial override the defaults.
  */
-export function mergeConfig(partial: Partial<MergeWatchConfig>): MergeWatchConfig {
+export function mergeConfig(partial: Partial<Omit<MergeWatchConfig, 'agents'>> & { agents?: Partial<MergeWatchConfig['agents']> }): MergeWatchConfig {
   return {
     ...DEFAULT_CONFIG,
     ...partial,
