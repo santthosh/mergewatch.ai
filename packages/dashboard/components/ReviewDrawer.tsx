@@ -466,8 +466,11 @@ export default function ReviewDrawer({
               </div>
             </>
           ) : (
-            <div className="flex items-center justify-center h-full text-sm text-fg-tertiary">
-              Review not found.
+            <div className="flex flex-col items-center justify-center h-full text-center px-6">
+              <p className="text-base font-medium text-fg-primary">Review not found</p>
+              <p className="mt-2 text-sm text-fg-secondary">
+                This review may have been removed or the link may be incorrect.
+              </p>
             </div>
           )}
         </div>

@@ -12,6 +12,16 @@ export class TokenExpiredError extends Error {
   }
 }
 
+/** Thrown when a GitHub API call fails due to a network error (timeout, DNS, etc.). */
+export class GitHubNetworkError extends Error {
+  constructor(cause?: unknown) {
+    const msg = cause instanceof Error ? cause.message : "Network error";
+    super(`GitHub API unavailable: ${msg}`);
+    this.name = "GitHubNetworkError";
+    this.cause = cause;
+  }
+}
+
 export interface Installation {
   id: number;
   account: {
@@ -38,10 +48,15 @@ export interface RepoResult {
 export async function fetchUserInstallations(
   accessToken: string,
 ): Promise<Installation[]> {
-  const res = await fetch(
-    `${GITHUB_API}/user/installations?per_page=100`,
-    { headers: GITHUB_HEADERS(accessToken), cache: "no-store" },
-  );
+  let res: Response;
+  try {
+    res = await fetch(
+      `${GITHUB_API}/user/installations?per_page=100`,
+      { headers: GITHUB_HEADERS(accessToken), cache: "no-store" },
+    );
+  } catch (err) {
+    throw new GitHubNetworkError(err);
+  }
 
   if (res.status === 401 || res.status === 403) {
     throw new TokenExpiredError();
@@ -79,10 +94,15 @@ export async function fetchInstallationRepos(
     `${GITHUB_API}/user/installations/${installationId}/repositories?per_page=100`;
 
   while (nextUrl) {
-    const res = await fetch(nextUrl, {
-      headers: GITHUB_HEADERS(accessToken),
-      cache: "no-store",
-    });
+    let res: Response;
+    try {
+      res = await fetch(nextUrl, {
+        headers: GITHUB_HEADERS(accessToken),
+        cache: "no-store",
+      });
+    } catch (err) {
+      throw new GitHubNetworkError(err);
+    }
 
     if (!res.ok) break;
 
@@ -127,10 +147,15 @@ export async function fetchInstallationReposPage(
   perPage: number = 30,
 ): Promise<{ repos: RepoResult[]; totalCount: number; hasMore: boolean }> {
   const url = `${GITHUB_API}/user/installations/${installationId}/repositories?per_page=${perPage}&page=${page}`;
-  const res = await fetch(url, {
-    headers: GITHUB_HEADERS(accessToken),
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: GITHUB_HEADERS(accessToken),
+      cache: "no-store",
+    });
+  } catch (err) {
+    throw new GitHubNetworkError(err);
+  }
 
   if (res.status === 401 || res.status === 403) {
     throw new TokenExpiredError();
@@ -169,10 +194,15 @@ export async function fetchAccessibleRepoNames(
     `${GITHUB_API}/user/installations/${installationId}/repositories?per_page=100`;
 
   while (nextUrl) {
-    const res = await fetch(nextUrl, {
-      headers: GITHUB_HEADERS(accessToken),
-      cache: "no-store",
-    });
+    let res: Response;
+    try {
+      res = await fetch(nextUrl, {
+        headers: GITHUB_HEADERS(accessToken),
+        cache: "no-store",
+      });
+    } catch (err) {
+      throw new GitHubNetworkError(err);
+    }
 
     if (res.status === 401 || res.status === 403) {
       throw new TokenExpiredError();
@@ -205,10 +235,15 @@ export async function checkInstallationAdmin(
   if (installation.account.type === "User") {
     // Personal account — only the owner should be admin.
     // Compare the authenticated user's login against the installation account.
-    const res = await fetch(`${GITHUB_API}/user`, {
-      headers: GITHUB_HEADERS(accessToken),
-      cache: "no-store",
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${GITHUB_API}/user`, {
+        headers: GITHUB_HEADERS(accessToken),
+        cache: "no-store",
+      });
+    } catch (err) {
+      throw new GitHubNetworkError(err);
+    }
     if (res.status === 401 || res.status === 403) {
       throw new TokenExpiredError();
     }
@@ -218,10 +253,15 @@ export async function checkInstallationAdmin(
   }
 
   // For org installations, check user's membership role
-  const res = await fetch(
-    `${GITHUB_API}/user/memberships/orgs/${installation.account.login}`,
-    { headers: GITHUB_HEADERS(accessToken), cache: "no-store" },
-  );
+  let res: Response;
+  try {
+    res = await fetch(
+      `${GITHUB_API}/user/memberships/orgs/${installation.account.login}`,
+      { headers: GITHUB_HEADERS(accessToken), cache: "no-store" },
+    );
+  } catch (err) {
+    throw new GitHubNetworkError(err);
+  }
 
   if (res.status === 401 || res.status === 403) {
     throw new TokenExpiredError();

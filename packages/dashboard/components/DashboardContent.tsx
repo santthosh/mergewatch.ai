@@ -150,10 +150,11 @@ export default function DashboardContent({
           Monitored Repositories
         </h2>
         {repos.length === 0 ? (
-          <div className="rounded-lg border border-border-default bg-surface-card px-6 py-10 text-center">
-            <p className="text-sm text-fg-tertiary">
+          <div className="rounded-lg border border-border-default bg-surface-card p-12 text-center">
+            <p className="text-base font-medium text-fg-primary">No monitored repositories</p>
+            <p className="mt-2 text-sm text-fg-secondary">
               {isAdmin
-                ? "No repositories are being monitored. Click \"Manage Repositories\" to select repos."
+                ? "Click \"Manage Repositories\" to select which repos MergeWatch should review."
                 : "No repositories are being monitored for this organization."}
             </p>
           </div>
@@ -177,7 +178,11 @@ export default function DashboardContent({
           Recent Reviews
         </h2>
         {loadingReviews ? (
-          <p className="py-12 text-center text-sm text-fg-tertiary">Loading reviews…</p>
+          <div className="space-y-2">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-14 animate-pulse rounded-lg bg-surface-card-hover" />
+            ))}
+          </div>
         ) : (
           <ReviewTable reviews={reviews} onSelect={handleReviewSelect} />
         )}
