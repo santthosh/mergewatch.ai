@@ -310,17 +310,21 @@ export async function handler(
       mergeScoreReason: result.mergeScoreReason || undefined,
     });
 
-    // Submit as a proper PR review (shows MergeWatch as a reviewer)
+    // Submit as a proper PR review (shows MergeWatch as a reviewer).
+    // Only fall back to an issue comment if the PR review API fails.
     const reviewEvent = mergeScoreToReviewEvent(result.mergeScore);
+    let commentId: number | undefined;
+    let prReviewSucceeded = false;
+
     try {
       await dismissStaleReviews(octokit, owner, repo, prNumber);
       await submitPRReview(octokit, owner, repo, prNumber, `${BOT_COMMENT_MARKER}\n${commentBody}`, reviewEvent);
+      prReviewSucceeded = true;
     } catch (err) {
       console.warn('Failed to submit PR review, falling back to issue comment:', err);
     }
 
-    // Post or update the issue comment (fallback / backwards compatibility)
-    let commentId: number | undefined;
+    // Clean up any legacy issue comment from before PR reviews were used
     let targetCommentId = existingCommentId;
 
     if (!targetCommentId) {
@@ -341,11 +345,23 @@ export async function handler(
       targetCommentId = (await findExistingBotComment(octokit, owner, repo, prNumber)) ?? undefined;
     }
 
-    if (targetCommentId) {
-      await updateReviewComment(octokit, owner, repo, targetCommentId, commentBody);
-      commentId = targetCommentId;
+    if (prReviewSucceeded) {
+      // PR review posted successfully — delete any legacy issue comment to avoid duplicates
+      if (targetCommentId) {
+        try {
+          await octokit.issues.deleteComment({ owner, repo, comment_id: targetCommentId });
+        } catch (err) {
+          console.warn('Failed to delete legacy issue comment:', err);
+        }
+      }
     } else {
-      commentId = await postReviewComment(octokit, owner, repo, prNumber, commentBody);
+      // PR review failed — fall back to issue comment
+      if (targetCommentId) {
+        await updateReviewComment(octokit, owner, repo, targetCommentId, commentBody);
+        commentId = targetCommentId;
+      } else {
+        commentId = await postReviewComment(octokit, owner, repo, prNumber, commentBody);
+      }
     }
 
     await addPRReaction(octokit, owner, repo, prNumber, '+1');

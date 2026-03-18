@@ -141,27 +141,44 @@ export async function processReviewJob(
         : undefined,
     });
 
-    // Submit as a proper PR review (shows MergeWatch as a reviewer)
+    // Submit as a proper PR review (shows MergeWatch as a reviewer).
+    // Only fall back to an issue comment if the PR review API fails.
     const reviewEvent = mergeScoreToReviewEvent(result.mergeScore);
+    let commentId: number | undefined;
+    let prReviewSucceeded = false;
+
     try {
       await dismissStaleReviews(octokit, owner, repo, prNumber);
       await submitPRReview(octokit, owner, repo, prNumber, `${BOT_COMMENT_MARKER}\n${comment}`, reviewEvent);
+      prReviewSucceeded = true;
     } catch (err) {
       console.warn('Failed to submit PR review, falling back to issue comment:', err);
     }
 
-    // Post or update issue comment (fallback / backwards compatibility)
-    let commentId: number | undefined;
-    if (job.existingCommentId) {
-      await updateReviewComment(octokit, owner, repo, job.existingCommentId, comment);
-      commentId = job.existingCommentId;
+    if (prReviewSucceeded) {
+      // PR review posted successfully — delete any legacy issue comment to avoid duplicates
+      const existingComment = job.existingCommentId
+        || await findExistingBotComment(octokit, owner, repo, prNumber);
+      if (existingComment) {
+        try {
+          await octokit.issues.deleteComment({ owner, repo, comment_id: existingComment });
+        } catch (err) {
+          console.warn('Failed to delete legacy issue comment:', err);
+        }
+      }
     } else {
-      const existing = await findExistingBotComment(octokit, owner, repo, prNumber);
-      if (existing) {
-        await updateReviewComment(octokit, owner, repo, existing, comment);
-        commentId = existing;
+      // PR review failed — fall back to issue comment
+      if (job.existingCommentId) {
+        await updateReviewComment(octokit, owner, repo, job.existingCommentId, comment);
+        commentId = job.existingCommentId;
       } else {
-        commentId = await postReviewComment(octokit, owner, repo, prNumber, comment);
+        const existing = await findExistingBotComment(octokit, owner, repo, prNumber);
+        if (existing) {
+          await updateReviewComment(octokit, owner, repo, existing, comment);
+          commentId = existing;
+        } else {
+          commentId = await postReviewComment(octokit, owner, repo, prNumber, comment);
+        }
       }
     }
 
