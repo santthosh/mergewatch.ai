@@ -8,6 +8,7 @@ import { useTheme } from "next-themes";
 import {
   Home,
   GitPullRequest,
+  BarChart3,
   GitBranch,
   Settings,
   ChevronDown,
@@ -31,6 +32,7 @@ const navItems: NavEntry[] = [
   { type: "section", label: "MAIN" },
   { type: "item", label: "Home", href: "/dashboard", icon: Home },
   { type: "item", label: "Reviews", href: "/dashboard/reviews", icon: GitPullRequest },
+  { type: "item", label: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { type: "section", label: "CONFIGURE" },
   { type: "item", label: "Repositories", href: "/dashboard/repositories", icon: GitBranch },
   { type: "item", label: "Settings", href: "/dashboard/settings", icon: Settings },
