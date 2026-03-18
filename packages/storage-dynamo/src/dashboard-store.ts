@@ -110,6 +110,8 @@ class DynamoDashboardReviewStore implements IDashboardReviewStore {
     limit: number,
     cursor?: string,
     status?: string,
+    startDate?: string,
+    endDate?: string,
   ): Promise<PaginatedResult<ReviewItem>> {
     // Decode cursor: { keys: { [repo]: LastEvaluatedKey }, exhausted: string[] }
     let cursorState: {
@@ -142,11 +144,27 @@ class DynamoDashboardReviewStore implements IDashboardReviewStore {
         Limit: limit,
       };
 
+      const filterParts: string[] = [];
+
       if (status) {
-        params.FilterExpression = '#s = :status';
-        params.ExpressionAttributeNames = { '#s': 'status' };
+        filterParts.push('#s = :status');
+        if (!params.ExpressionAttributeNames) params.ExpressionAttributeNames = {};
+        (params.ExpressionAttributeNames as Record<string, string>)['#s'] = 'status';
         (params.ExpressionAttributeValues as Record<string, unknown>)[':status'] =
           status === 'completed' ? 'complete' : status;
+      }
+
+      if (startDate) {
+        filterParts.push('createdAt >= :startDate');
+        (params.ExpressionAttributeValues as Record<string, unknown>)[':startDate'] = startDate;
+      }
+      if (endDate) {
+        filterParts.push('createdAt <= :endDate');
+        (params.ExpressionAttributeValues as Record<string, unknown>)[':endDate'] = endDate;
+      }
+
+      if (filterParts.length > 0) {
+        params.FilterExpression = filterParts.join(' AND ');
       }
 
       if (cursorState.keys[repoFullName]) {

@@ -53,12 +53,14 @@ export interface IDashboardInstallationStore {
 // ─── Review store (dashboard operations) ────────────────────────────────────
 
 export interface IDashboardReviewStore {
-  /** List reviews across multiple repos with pagination and optional status filter. */
+  /** List reviews across multiple repos with pagination and optional status/date filter. */
   listReviews(
     repos: string[],
     limit: number,
     cursor?: string,
     status?: string,
+    startDate?: string,
+    endDate?: string,
   ): Promise<PaginatedResult<ReviewItem>>;
 
   /** Get a single review by composite key. */

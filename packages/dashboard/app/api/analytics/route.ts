@@ -28,6 +28,14 @@ export async function GET(req: NextRequest) {
 
   const sp = req.nextUrl.searchParams;
   const installationIdParam = sp.get("installation_id");
+  const repoParam = sp.get("repo") ?? undefined;
+
+  // Validate date parameters
+  const isoDateRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?Z)?$/;
+  const rawStart = sp.get("start_date");
+  const rawEnd = sp.get("end_date");
+  const startDate = rawStart && isoDateRegex.test(rawStart) ? rawStart : undefined;
+  const endDate = rawEnd && isoDateRegex.test(rawEnd) ? rawEnd : undefined;
 
   try {
     const userInstallations = await fetchUserInstallations(accessToken);
@@ -62,13 +70,16 @@ export async function GET(req: NextRequest) {
     }
 
     if (accessibleRepos.size === 0) {
-      return NextResponse.json({ analytics: null });
+      return NextResponse.json({ analytics: null, availableRepos: [] });
     }
 
-    const targetRepos = Array.from(accessibleRepos);
+    const allRepos = Array.from(accessibleRepos).sort();
+    const targetRepos = repoParam
+      ? allRepos.filter((r) => r === repoParam)
+      : allRepos;
 
-    // Fetch up to 500 reviews for aggregation
-    const result = await store.reviews.listReviews(targetRepos, 500);
+    // Fetch up to 500 reviews for aggregation (with optional date filter)
+    const result = await store.reviews.listReviews(targetRepos, 500, undefined, undefined, startDate, endDate);
     const reviews = result.items;
 
     // --- Aggregate analytics in-memory ---
@@ -87,8 +98,19 @@ export async function GET(req: NextRequest) {
     let totalFindings = 0;
     let mergeScoreSum = 0;
     let mergeScoreCount = 0;
+    // Status counts
+    const statusCounts: Record<string, number> = { complete: 0, failed: 0, skipped: 0, pending: 0, in_progress: 0 };
+    // Findings-per-review trend
+    const findingsByDate = new Map<string, { sum: number; count: number }>();
+    // Merge score distribution (1-5)
+    const mergeScoreDistribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
 
     for (const review of reviews) {
+      // Status counts
+      if (review.status && statusCounts[review.status] !== undefined) {
+        statusCounts[review.status]++;
+      }
+
       // Score trend
       if (review.createdAt && review.mergeScore != null) {
         const date = review.createdAt.substring(0, 10); // YYYY-MM-DD
@@ -98,6 +120,12 @@ export async function GET(req: NextRequest) {
         scoreByDate.set(date, entry);
         mergeScoreSum += review.mergeScore;
         mergeScoreCount += 1;
+
+        // Merge score distribution
+        const rounded = Math.round(review.mergeScore);
+        if (rounded >= 1 && rounded <= 5) {
+          mergeScoreDistribution[rounded]++;
+        }
       }
 
       // Severity and category from findings
@@ -111,6 +139,16 @@ export async function GET(req: NextRequest) {
             categoryBreakdown[finding.category]++;
           }
         }
+      }
+
+      // Findings-per-review trend (only completed reviews)
+      if (review.createdAt && review.status === "complete") {
+        const date = review.createdAt.substring(0, 10);
+        const fc = review.findingCount ?? 0;
+        const entry = findingsByDate.get(date) ?? { sum: 0, count: 0 };
+        entry.sum += fc;
+        entry.count += 1;
+        findingsByDate.set(date, entry);
       }
 
       // Duration stats
@@ -158,9 +196,18 @@ export async function GET(req: NextRequest) {
         .map(([repo, count]) => ({ repo, count }))
         .sort((a, b) => b.count - a.count),
       categoryBreakdown,
+      statusCounts,
+      findingsPerReviewTrend: Array.from(findingsByDate.entries())
+        .map(([date, { sum, count }]) => ({
+          date,
+          avgFindings: Math.round((sum / count) * 100) / 100,
+          count,
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date)),
+      mergeScoreDistribution,
     };
 
-    return NextResponse.json({ analytics });
+    return NextResponse.json({ analytics, availableRepos: allRepos });
   } catch (err) {
     if (err instanceof TokenExpiredError) {
       return NextResponse.json({ error: "Token expired" }, { status: 401 });
