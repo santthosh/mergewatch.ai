@@ -5,7 +5,7 @@
  * the per-repo parallel queries needed for DynamoDB.
  */
 
-import { eq, and, inArray, desc, sql, count } from 'drizzle-orm';
+import { eq, and, inArray, desc, sql, count, gte, lte } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
@@ -148,6 +148,8 @@ class PostgresDashboardReviewStore implements IDashboardReviewStore {
     limit: number,
     cursor?: string,
     status?: string,
+    startDate?: string,
+    endDate?: string,
   ): Promise<PaginatedResult<ReviewItem>> {
     if (repos.length === 0) return { items: [], nextCursor: null };
 
@@ -166,6 +168,12 @@ class PostgresDashboardReviewStore implements IDashboardReviewStore {
     if (status) {
       const dbStatus = status === 'completed' ? 'complete' : status;
       conditions.push(eq(reviews.status, dbStatus));
+    }
+    if (startDate) {
+      conditions.push(gte(reviews.createdAt, startDate));
+    }
+    if (endDate) {
+      conditions.push(lte(reviews.createdAt, endDate));
     }
 
     const rows = await this.db
