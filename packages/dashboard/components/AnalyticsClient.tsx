@@ -326,9 +326,11 @@ export default function AnalyticsClient({ installationId }: AnalyticsClientProps
     [timeRange, customStart, customEnd],
   );
 
+  const invalidDateRange = timeRange === "custom" && customStart && customEnd && customEnd < customStart;
+
   useEffect(() => {
-    // Don't fetch if custom range is incomplete
-    if (timeRange === "custom" && (!customStart || !customEnd)) return;
+    // Don't fetch if custom range is incomplete or inverted
+    if (timeRange === "custom" && (!customStart || !customEnd || customEnd < customStart)) return;
 
     let cancelled = false;
 
@@ -403,15 +405,18 @@ export default function AnalyticsClient({ installationId }: AnalyticsClientProps
               type="date"
               value={customStart}
               onChange={(e) => setCustomStart(e.target.value)}
-              className="rounded-md border border-border-default bg-surface-card px-2 py-1.5 text-sm text-fg-primary focus:border-accent-emphasis focus:outline-none focus:ring-1 focus:ring-accent-emphasis"
+              className={`rounded-md border bg-surface-card px-2 py-1.5 text-sm text-fg-primary focus:outline-none focus:ring-1 ${invalidDateRange ? "border-red-500 focus:border-red-500 focus:ring-red-500" : "border-border-default focus:border-accent-emphasis focus:ring-accent-emphasis"}`}
             />
             <span className="text-xs text-fg-tertiary">to</span>
             <input
               type="date"
               value={customEnd}
               onChange={(e) => setCustomEnd(e.target.value)}
-              className="rounded-md border border-border-default bg-surface-card px-2 py-1.5 text-sm text-fg-primary focus:border-accent-emphasis focus:outline-none focus:ring-1 focus:ring-accent-emphasis"
+              className={`rounded-md border bg-surface-card px-2 py-1.5 text-sm text-fg-primary focus:outline-none focus:ring-1 ${invalidDateRange ? "border-red-500 focus:border-red-500 focus:ring-red-500" : "border-border-default focus:border-accent-emphasis focus:ring-accent-emphasis"}`}
             />
+            {invalidDateRange && (
+              <span className="text-xs text-red-500">End date must be after start date</span>
+            )}
           </div>
         )}
       </div>
@@ -527,7 +532,7 @@ export default function AnalyticsClient({ installationId }: AnalyticsClientProps
     label: score === 1 ? "1 (Risky)" : score === 5 ? "5 (Safe)" : String(score),
     value: data.mergeScoreDistribution[score] ?? 0,
     fill: SCORE_DIST_COLORS[score],
-  })).filter((d) => d.value > 0 || true); // always show all 5 buckets
+  })); // always show all 5 buckets for consistent x-axis
 
   return (
     <div className="px-4 py-6 sm:px-8">

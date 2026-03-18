@@ -28,9 +28,14 @@ export async function GET(req: NextRequest) {
 
   const sp = req.nextUrl.searchParams;
   const installationIdParam = sp.get("installation_id");
-  const startDate = sp.get("start_date") ?? undefined;
-  const endDate = sp.get("end_date") ?? undefined;
   const repoParam = sp.get("repo") ?? undefined;
+
+  // Validate date parameters
+  const isoDateRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?Z)?$/;
+  const rawStart = sp.get("start_date");
+  const rawEnd = sp.get("end_date");
+  const startDate = rawStart && isoDateRegex.test(rawStart) ? rawStart : undefined;
+  const endDate = rawEnd && isoDateRegex.test(rawEnd) ? rawEnd : undefined;
 
   try {
     const userInstallations = await fetchUserInstallations(accessToken);
