@@ -3,7 +3,7 @@ import ThemeProvider from "@/components/ThemeProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MergeWatch.ai — AI-Powered PR Reviews",
+  title: "mergewatch.ai — AI-Powered PR Reviews",
   description:
     "Bring your own model. Run in your cloud. AI code reviews that respect your infrastructure.",
   icons: {

@@ -214,9 +214,12 @@ export default function ReviewTable({
 }) {
   if (reviews.length === 0) {
     return (
-      <p className="py-12 text-center text-sm text-fg-tertiary">
-        No reviews yet. Connect a repo and open a pull request to get started.
-      </p>
+      <div className="rounded-lg border border-border-default bg-surface-card p-12 text-center">
+        <p className="text-base font-medium text-fg-primary">No reviews yet</p>
+        <p className="mt-2 text-sm text-fg-secondary">
+          Reviews will appear here once MergeWatch has reviewed some pull requests.
+        </p>
+      </div>
     );
   }
 

@@ -525,12 +525,19 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="py-16 text-center px-4 sm:px-8">
-          <p className="text-sm text-fg-tertiary">
-            {searchQuery || statusFilter || repoFilter
-              ? "No reviews match your filters."
-              : "No reviews yet. Open a pull request to get started."}
-          </p>
+        <div className="px-4 py-6 sm:px-8">
+          <div className="rounded-lg border border-border-default bg-surface-card p-12 text-center">
+            <p className="text-base font-medium text-fg-primary">
+              {searchQuery || statusFilter || repoFilter
+                ? "No matching reviews"
+                : "No reviews yet"}
+            </p>
+            <p className="mt-2 text-sm text-fg-secondary">
+              {searchQuery || statusFilter || repoFilter
+                ? "Try adjusting your search or filters to find what you're looking for."
+                : "Reviews will appear here once MergeWatch has reviewed some pull requests."}
+            </p>
+          </div>
         </div>
       ) : (() => {
         const groups = groupByPR(filtered);
