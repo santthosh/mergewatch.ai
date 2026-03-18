@@ -17,6 +17,9 @@ import {
   STYLE_REVIEWER_PROMPT,
   SUMMARY_PROMPT,
   DIAGRAM_PROMPT,
+  ERROR_HANDLING_REVIEWER_PROMPT,
+  TEST_COVERAGE_REVIEWER_PROMPT,
+  COMMENT_ACCURACY_REVIEWER_PROMPT,
   ORCHESTRATOR_PROMPT,
   CUSTOM_AGENT_RESPONSE_FORMAT,
 } from './prompts.js';
@@ -180,6 +183,48 @@ export async function runDiagramAgent(
   return parsed;
 }
 
+/** Run the error handling review agent. */
+export async function runErrorHandlingAgent(
+  diff: string,
+  context: ReviewContext,
+  modelId: string,
+  llm: ILLMProvider,
+  relatedFiles?: Record<string, string>,
+): Promise<AgentFinding[]> {
+  const prompt = buildPrompt(ERROR_HANDLING_REVIEWER_PROMPT, diff, context, relatedFiles);
+  const raw = await llm.invoke(modelId, prompt);
+  const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
+  return parsed.findings;
+}
+
+/** Run the test coverage review agent. */
+export async function runTestCoverageAgent(
+  diff: string,
+  context: ReviewContext,
+  modelId: string,
+  llm: ILLMProvider,
+  relatedFiles?: Record<string, string>,
+): Promise<AgentFinding[]> {
+  const prompt = buildPrompt(TEST_COVERAGE_REVIEWER_PROMPT, diff, context, relatedFiles);
+  const raw = await llm.invoke(modelId, prompt);
+  const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
+  return parsed.findings;
+}
+
+/** Run the comment accuracy review agent. */
+export async function runCommentAccuracyAgent(
+  diff: string,
+  context: ReviewContext,
+  modelId: string,
+  llm: ILLMProvider,
+  relatedFiles?: Record<string, string>,
+): Promise<AgentFinding[]> {
+  const prompt = buildPrompt(COMMENT_ACCURACY_REVIEWER_PROMPT, diff, context, relatedFiles);
+  const raw = await llm.invoke(modelId, prompt);
+  const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
+  return parsed.findings;
+}
+
 /** Run the summary agent that produces a human-readable PR summary. */
 export async function runSummaryAgent(
   diff: string,
@@ -280,6 +325,9 @@ export interface ReviewPipelineOptions {
     style: boolean;
     summary: boolean;
     diagram: boolean;
+    errorHandling: boolean;
+    testCoverage: boolean;
+    commentAccuracy: boolean;
   };
   relatedFiles?: Record<string, string>;
   /** User-defined custom review agents */
@@ -317,7 +365,11 @@ export async function runReviewPipeline(
   const { llm } = deps;
 
   // Launch all enabled agents in parallel
-  const [securityFindings, bugFindings, styleFindings, summary, diagramResult] = await Promise.all([
+  const [
+    securityFindings, bugFindings, styleFindings,
+    errorHandlingFindings, testCoverageFindings, commentAccuracyFindings,
+    summary, diagramResult,
+  ] = await Promise.all([
     enabledAgents.security
       ? runSecurityAgent(diff, context, modelId, llm, relatedFiles)
       : Promise.resolve([]),
@@ -326,6 +378,15 @@ export async function runReviewPipeline(
       : Promise.resolve([]),
     enabledAgents.style
       ? runStyleAgent(diff, context, modelId, llm, customStyleRules, relatedFiles)
+      : Promise.resolve([]),
+    enabledAgents.errorHandling
+      ? runErrorHandlingAgent(diff, context, modelId, llm, relatedFiles)
+      : Promise.resolve([]),
+    enabledAgents.testCoverage
+      ? runTestCoverageAgent(diff, context, modelId, llm, relatedFiles)
+      : Promise.resolve([]),
+    enabledAgents.commentAccuracy
+      ? runCommentAccuracyAgent(diff, context, lightModelId, llm, relatedFiles)
       : Promise.resolve([]),
     enabledAgents.summary
       ? runSummaryAgent(diff, context, lightModelId, llm, relatedFiles)
@@ -360,6 +421,9 @@ export async function runReviewPipeline(
     { category: 'security', findings: securityFindings },
     { category: 'bug', findings: bugFindings },
     { category: 'style', findings: styleFindings },
+    { category: 'error-handling', findings: errorHandlingFindings },
+    { category: 'test-coverage', findings: testCoverageFindings },
+    { category: 'comment-accuracy', findings: commentAccuracyFindings },
     ...customTagged,
   ];
 

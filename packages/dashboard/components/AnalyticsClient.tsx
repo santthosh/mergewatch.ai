@@ -76,6 +76,9 @@ const CATEGORY_COLORS: Record<string, string> = {
   security: CHART_COLORS.red,
   bug: CHART_COLORS.orange,
   style: CHART_COLORS.purple,
+  'error-handling': CHART_COLORS.yellow,
+  'test-coverage': CHART_COLORS.blue,
+  'comment-accuracy': CHART_COLORS.green,
 };
 
 const STATUS_COLORS: Record<string, string> = {

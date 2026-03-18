@@ -229,6 +229,10 @@ export async function handler(
         bugs: instSettings.commentTypes.syntax,
         style: instSettings.commentTypes.style,
         summary: instSettings.summary.prSummary,
+        diagram: true,
+        errorHandling: true,
+        testCoverage: true,
+        commentAccuracy: true,
       },
       customStyleRules: instSettings.customInstructions
         ? [instSettings.customInstructions]
@@ -287,7 +291,7 @@ export async function handler(
       customStyleRules: runtimeConfig.customStyleRules,
       maxFindings: runtimeConfig.maxFindings,
       enabledAgents: mode === 'summary'
-        ? { security: false, bugs: false, style: false, summary: true, diagram: false }
+        ? { security: false, bugs: false, style: false, summary: true, diagram: false, errorHandling: false, testCoverage: false, commentAccuracy: false }
         : { ...runtimeConfig.agents, diagram: instSettings.summary.diagram },
       relatedFiles,
       customAgents: runtimeConfig.customAgents,
