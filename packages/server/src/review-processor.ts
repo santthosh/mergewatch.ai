@@ -5,6 +5,8 @@ import {
   formatReviewComment, runReviewPipeline, shouldSkipPR,
   DEFAULT_CONFIG, mergeConfig,
   BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
+  fetchRepoConfig,
+  fetchFileContents, resolveImportsForFiles,
 } from '@mergewatch/core';
 import type { WebhookDeps } from './webhook-handler.js';
 
@@ -52,9 +54,11 @@ export async function processReviewJob(
   const installation = await deps.installationStore.get(instId, repoFullName);
   const instSettings = await deps.installationStore.getSettings(instId);
 
-  // Merge config
+  // Merge config: YAML provides base, dashboard settings override, env var model overrides all
+  const yamlConfig = await fetchRepoConfig(octokit, owner, repo);
   const modelOverride = process.env.LLM_MODEL;
   const config = mergeConfig({
+    ...(yamlConfig ?? {}),
     ...(installation?.config || {}),
     ...(modelOverride ? { model: modelOverride, lightModel: modelOverride } : {}),
   });
@@ -62,6 +66,33 @@ export async function processReviewJob(
   const startTime = Date.now();
 
   try {
+    // Fetch related files for codebase awareness
+    let relatedFiles: Record<string, string> | undefined;
+    if (config.codebaseAwareness) {
+      try {
+        const changedFilePaths = prContext.files || [];
+        const ref = prContext.headBranch || 'HEAD';
+        const changedFileContents = await fetchFileContents(
+          octokit, owner, repo, ref, changedFilePaths, config.maxContextKB,
+        );
+
+        const importPaths = resolveImportsForFiles(changedFileContents, config.maxDependencyDepth);
+
+        if (importPaths.length > 0) {
+          const remainingBudgetKB = config.maxContextKB - Math.ceil(
+            Object.values(changedFileContents).reduce((sum, c) => sum + Buffer.byteLength(c, 'utf-8'), 0) / 1024
+          );
+          if (remainingBudgetKB > 0) {
+            relatedFiles = await fetchFileContents(
+              octokit, owner, repo, ref, importPaths, remainingBudgetKB,
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch related files for codebase awareness:', err);
+      }
+    }
+
     // Run review pipeline
     const result = await runReviewPipeline(
       {
@@ -84,6 +115,8 @@ export async function processReviewJob(
           summary: true,
           diagram: instSettings.summary?.diagram !== false,
         },
+        relatedFiles,
+        customAgents: config.customAgents,
       },
       { llm: deps.llm },
     );
@@ -108,27 +141,44 @@ export async function processReviewJob(
         : undefined,
     });
 
-    // Submit as a proper PR review (shows MergeWatch as a reviewer)
+    // Submit as a proper PR review (shows MergeWatch as a reviewer).
+    // Only fall back to an issue comment if the PR review API fails.
     const reviewEvent = mergeScoreToReviewEvent(result.mergeScore);
+    let commentId: number | undefined;
+    let prReviewSucceeded = false;
+
     try {
       await dismissStaleReviews(octokit, owner, repo, prNumber);
       await submitPRReview(octokit, owner, repo, prNumber, `${BOT_COMMENT_MARKER}\n${comment}`, reviewEvent);
+      prReviewSucceeded = true;
     } catch (err) {
       console.warn('Failed to submit PR review, falling back to issue comment:', err);
     }
 
-    // Post or update issue comment (fallback / backwards compatibility)
-    let commentId: number | undefined;
-    if (job.existingCommentId) {
-      await updateReviewComment(octokit, owner, repo, job.existingCommentId, comment);
-      commentId = job.existingCommentId;
+    if (prReviewSucceeded) {
+      // PR review posted successfully — delete any legacy issue comment to avoid duplicates
+      const existingComment = job.existingCommentId
+        || await findExistingBotComment(octokit, owner, repo, prNumber);
+      if (existingComment) {
+        try {
+          await octokit.issues.deleteComment({ owner, repo, comment_id: existingComment });
+        } catch (err) {
+          console.warn('Failed to delete legacy issue comment:', err);
+        }
+      }
     } else {
-      const existing = await findExistingBotComment(octokit, owner, repo, prNumber);
-      if (existing) {
-        await updateReviewComment(octokit, owner, repo, existing, comment);
-        commentId = existing;
+      // PR review failed — fall back to issue comment
+      if (job.existingCommentId) {
+        await updateReviewComment(octokit, owner, repo, job.existingCommentId, comment);
+        commentId = job.existingCommentId;
       } else {
-        commentId = await postReviewComment(octokit, owner, repo, prNumber, comment);
+        const existing = await findExistingBotComment(octokit, owner, repo, prNumber);
+        if (existing) {
+          await updateReviewComment(octokit, owner, repo, existing, comment);
+          commentId = existing;
+        } else {
+          commentId = await postReviewComment(octokit, owner, repo, prNumber, comment);
+        }
       }
     }
 

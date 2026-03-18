@@ -18,7 +18,9 @@ import {
   SUMMARY_PROMPT,
   DIAGRAM_PROMPT,
   ORCHESTRATOR_PROMPT,
+  CUSTOM_AGENT_RESPONSE_FORMAT,
 } from './prompts.js';
+import type { CustomAgentDef } from '../config/defaults.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -33,7 +35,7 @@ export interface AgentFinding {
 }
 
 export interface OrchestratedFinding extends AgentFinding {
-  category: 'security' | 'bug' | 'style';
+  category: string;
 }
 
 export interface ReviewContext {
@@ -55,7 +57,7 @@ export interface ReviewContext {
  * Build the user-facing prompt by combining the system prompt with the diff
  * and optional PR context.
  */
-function buildPrompt(systemPrompt: string, diff: string, context: ReviewContext): string {
+function buildPrompt(systemPrompt: string, diff: string, context: ReviewContext, relatedFiles?: Record<string, string>): string {
   const contextBlock = [
     `Repository: ${context.owner}/${context.repo}`,
     `PR #${context.prNumber}`,
@@ -65,7 +67,16 @@ function buildPrompt(systemPrompt: string, diff: string, context: ReviewContext)
     .filter(Boolean)
     .join('\n');
 
-  return `${systemPrompt}\n\n--- PR Context ---\n${contextBlock}\n\n--- Diff ---\n${diff}`;
+  let prompt = `${systemPrompt}\n\n--- PR Context ---\n${contextBlock}\n\n--- Diff ---\n${diff}`;
+
+  if (relatedFiles && Object.keys(relatedFiles).length > 0) {
+    const filesSection = Object.entries(relatedFiles)
+      .map(([path, content]) => `### ${path}\n\`\`\`\n${content}\n\`\`\``)
+      .join('\n\n');
+    prompt += `\n\n--- Related Files ---\nThe following files are imported by or related to the changed files. Use them for context:\n\n${filesSection}`;
+  }
+
+  return prompt;
 }
 
 /**
@@ -99,8 +110,9 @@ export async function runSecurityAgent(
   context: ReviewContext,
   modelId: string,
   llm: ILLMProvider,
+  relatedFiles?: Record<string, string>,
 ): Promise<AgentFinding[]> {
-  const prompt = buildPrompt(SECURITY_REVIEWER_PROMPT, diff, context);
+  const prompt = buildPrompt(SECURITY_REVIEWER_PROMPT, diff, context, relatedFiles);
   const raw = await llm.invoke(modelId, prompt);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   return parsed.findings;
@@ -112,8 +124,9 @@ export async function runBugAgent(
   context: ReviewContext,
   modelId: string,
   llm: ILLMProvider,
+  relatedFiles?: Record<string, string>,
 ): Promise<AgentFinding[]> {
-  const prompt = buildPrompt(BUG_REVIEWER_PROMPT, diff, context);
+  const prompt = buildPrompt(BUG_REVIEWER_PROMPT, diff, context, relatedFiles);
   const raw = await llm.invoke(modelId, prompt);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   return parsed.findings;
@@ -126,6 +139,7 @@ export async function runStyleAgent(
   modelId: string,
   llm: ILLMProvider,
   customRules: string[] = [],
+  relatedFiles?: Record<string, string>,
 ): Promise<AgentFinding[]> {
   let systemPrompt = STYLE_REVIEWER_PROMPT;
 
@@ -140,7 +154,7 @@ export async function runStyleAgent(
     systemPrompt = systemPrompt.replace('CUSTOM_RULES_PLACEHOLDER', '');
   }
 
-  const prompt = buildPrompt(systemPrompt, diff, context);
+  const prompt = buildPrompt(systemPrompt, diff, context, relatedFiles);
   const raw = await llm.invoke(modelId, prompt);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   return parsed.findings;
@@ -158,8 +172,9 @@ export async function runDiagramAgent(
   context: ReviewContext,
   modelId: string,
   llm: ILLMProvider,
+  relatedFiles?: Record<string, string>,
 ): Promise<DiagramResult> {
-  const prompt = buildPrompt(DIAGRAM_PROMPT, diff, context);
+  const prompt = buildPrompt(DIAGRAM_PROMPT, diff, context, relatedFiles);
   const raw = await llm.invoke(modelId, prompt);
   const parsed = safeParseJson<DiagramResult>(raw, { diagram: '', caption: '' });
   return parsed;
@@ -171,17 +186,40 @@ export async function runSummaryAgent(
   context: ReviewContext,
   modelId: string,
   llm: ILLMProvider,
+  relatedFiles?: Record<string, string>,
 ): Promise<string> {
-  const prompt = buildPrompt(SUMMARY_PROMPT, diff, context);
+  const prompt = buildPrompt(SUMMARY_PROMPT, diff, context, relatedFiles);
   const raw = await llm.invoke(modelId, prompt);
   const parsed = safeParseJson<{ summary: string }>(raw, { summary: '' });
   return parsed.summary;
 }
 
+// ─── Custom agents ──────────────────────────────────────────────────────────
+
+/** Run a user-defined custom review agent. */
+export async function runCustomAgent(
+  agentDef: CustomAgentDef,
+  diff: string,
+  context: ReviewContext,
+  modelId: string,
+  llm: ILLMProvider,
+  relatedFiles?: Record<string, string>,
+): Promise<AgentFinding[]> {
+  const systemPrompt = `${agentDef.prompt}\n${CUSTOM_AGENT_RESPONSE_FORMAT}`;
+  const prompt = buildPrompt(systemPrompt, diff, context, relatedFiles);
+  const raw = await llm.invoke(modelId, prompt);
+  const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
+  // Apply default severity if agent didn't specify
+  return parsed.findings.map((f) => ({
+    ...f,
+    severity: f.severity || agentDef.severityDefault,
+  }));
+}
+
 // ─── Orchestrator ──────────────────────────────────────────────────────────
 
 interface TaggedFindings {
-  category: 'security' | 'bug' | 'style';
+  category: string;
   findings: AgentFinding[];
 }
 
@@ -243,6 +281,9 @@ export interface ReviewPipelineOptions {
     summary: boolean;
     diagram: boolean;
   };
+  relatedFiles?: Record<string, string>;
+  /** User-defined custom review agents */
+  customAgents?: CustomAgentDef[];
 }
 
 export interface ReviewPipelineResult {
@@ -270,33 +311,56 @@ export async function runReviewPipeline(
     customStyleRules = [],
     maxFindings,
     enabledAgents,
+    relatedFiles,
+    customAgents = [],
   } = options;
   const { llm } = deps;
 
   // Launch all enabled agents in parallel
   const [securityFindings, bugFindings, styleFindings, summary, diagramResult] = await Promise.all([
     enabledAgents.security
-      ? runSecurityAgent(diff, context, modelId, llm)
+      ? runSecurityAgent(diff, context, modelId, llm, relatedFiles)
       : Promise.resolve([]),
     enabledAgents.bugs
-      ? runBugAgent(diff, context, modelId, llm)
+      ? runBugAgent(diff, context, modelId, llm, relatedFiles)
       : Promise.resolve([]),
     enabledAgents.style
-      ? runStyleAgent(diff, context, modelId, llm, customStyleRules)
+      ? runStyleAgent(diff, context, modelId, llm, customStyleRules, relatedFiles)
       : Promise.resolve([]),
     enabledAgents.summary
-      ? runSummaryAgent(diff, context, lightModelId, llm)
+      ? runSummaryAgent(diff, context, lightModelId, llm, relatedFiles)
       : Promise.resolve(''),
     enabledAgents.diagram
-      ? runDiagramAgent(diff, context, lightModelId, llm)
+      ? runDiagramAgent(diff, context, lightModelId, llm, relatedFiles)
       : Promise.resolve({ diagram: '', caption: '' } as DiagramResult),
   ]);
+
+  // Run enabled custom agents in parallel
+  const enabledCustomAgents = customAgents.filter((a) => a.enabled);
+  const customResults = enabledCustomAgents.length > 0
+    ? await Promise.all(
+        enabledCustomAgents.map((agentDef) =>
+          runCustomAgent(agentDef, diff, context, modelId, llm, relatedFiles)
+            .catch((err) => {
+              console.warn(`Custom agent "${agentDef.name}" failed:`, err);
+              return [] as AgentFinding[];
+            })
+        ),
+      )
+    : [];
+
+  // Tag custom agent findings
+  const customTagged: TaggedFindings[] = enabledCustomAgents.map((agentDef, i) => ({
+    category: agentDef.name,
+    findings: customResults[i] || [],
+  }));
 
   // Orchestrate: deduplicate + rank all findings
   const taggedFindings: TaggedFindings[] = [
     { category: 'security', findings: securityFindings },
     { category: 'bug', findings: bugFindings },
     { category: 'style', findings: styleFindings },
+    ...customTagged,
   ];
 
   const orchestratorResult = await runOrchestratorAgent(

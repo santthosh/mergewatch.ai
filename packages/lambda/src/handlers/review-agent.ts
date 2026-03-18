@@ -31,6 +31,9 @@ import {
   submitPRReview,
   dismissStaleReviews,
   mergeScoreToReviewEvent,
+  fetchRepoConfig,
+  fetchFileContents,
+  resolveImportsForFiles,
 } from '@mergewatch/core';
 import type {
   ReviewJobPayload,
@@ -232,13 +235,43 @@ export async function handler(
         : [],
     };
 
-    const runtimeConfig = mergeConfig(settingsOverrides);
+    const yamlConfig = await fetchRepoConfig(octokit, owner, repo);
+    const runtimeConfig = mergeConfig({ ...(yamlConfig ?? {}), ...settingsOverrides });
 
     const modelId = installation?.modelId ?? DEFAULT_BEDROCK_MODEL_ID;
     const lightModelId = runtimeConfig.lightModel;
 
     const modelName = Object.entries(SUPPORTED_MODELS)
       .find(([, id]) => id === modelId)?.[0] ?? modelId;
+
+    // Fetch related files for codebase awareness
+    let relatedFiles: Record<string, string> | undefined;
+    if (runtimeConfig.codebaseAwareness) {
+      try {
+        // Get the contents of changed files first
+        const changedFilePaths = prContext.files || [];
+        const changedFileContents = await fetchFileContents(
+          octokit, owner, repo, headSha, changedFilePaths, runtimeConfig.maxContextKB,
+        );
+
+        // Resolve imports from changed files
+        const importPaths = resolveImportsForFiles(changedFileContents, runtimeConfig.maxDependencyDepth);
+
+        // Fetch the imported files
+        if (importPaths.length > 0) {
+          const remainingBudgetKB = runtimeConfig.maxContextKB - Math.ceil(
+            Object.values(changedFileContents).reduce((sum, c) => sum + Buffer.byteLength(c, 'utf-8'), 0) / 1024
+          );
+          if (remainingBudgetKB > 0) {
+            relatedFiles = await fetchFileContents(
+              octokit, owner, repo, headSha, importPaths, remainingBudgetKB,
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch related files for codebase awareness:', err);
+      }
+    }
 
     const result = await runReviewPipeline({
       diff,
@@ -256,6 +289,8 @@ export async function handler(
       enabledAgents: mode === 'summary'
         ? { security: false, bugs: false, style: false, summary: true, diagram: false }
         : { ...runtimeConfig.agents, diagram: instSettings.summary.diagram },
+      relatedFiles,
+      customAgents: runtimeConfig.customAgents,
     }, { llm });
 
     const reviewDetailUrl = `${DASHBOARD_BASE_URL}/dashboard/reviews/${encodeURIComponent(`${repoFullName}:${prNumberCommitSha}`)}`;
@@ -275,17 +310,21 @@ export async function handler(
       mergeScoreReason: result.mergeScoreReason || undefined,
     });
 
-    // Submit as a proper PR review (shows MergeWatch as a reviewer)
+    // Submit as a proper PR review (shows MergeWatch as a reviewer).
+    // Only fall back to an issue comment if the PR review API fails.
     const reviewEvent = mergeScoreToReviewEvent(result.mergeScore);
+    let commentId: number | undefined;
+    let prReviewSucceeded = false;
+
     try {
       await dismissStaleReviews(octokit, owner, repo, prNumber);
       await submitPRReview(octokit, owner, repo, prNumber, `${BOT_COMMENT_MARKER}\n${commentBody}`, reviewEvent);
+      prReviewSucceeded = true;
     } catch (err) {
       console.warn('Failed to submit PR review, falling back to issue comment:', err);
     }
 
-    // Post or update the issue comment (fallback / backwards compatibility)
-    let commentId: number | undefined;
+    // Clean up any legacy issue comment from before PR reviews were used
     let targetCommentId = existingCommentId;
 
     if (!targetCommentId) {
@@ -306,11 +345,23 @@ export async function handler(
       targetCommentId = (await findExistingBotComment(octokit, owner, repo, prNumber)) ?? undefined;
     }
 
-    if (targetCommentId) {
-      await updateReviewComment(octokit, owner, repo, targetCommentId, commentBody);
-      commentId = targetCommentId;
+    if (prReviewSucceeded) {
+      // PR review posted successfully — delete any legacy issue comment to avoid duplicates
+      if (targetCommentId) {
+        try {
+          await octokit.issues.deleteComment({ owner, repo, comment_id: targetCommentId });
+        } catch (err) {
+          console.warn('Failed to delete legacy issue comment:', err);
+        }
+      }
     } else {
-      commentId = await postReviewComment(octokit, owner, repo, prNumber, commentBody);
+      // PR review failed — fall back to issue comment
+      if (targetCommentId) {
+        await updateReviewComment(octokit, owner, repo, targetCommentId, commentBody);
+        commentId = targetCommentId;
+      } else {
+        commentId = await postReviewComment(octokit, owner, repo, prNumber, commentBody);
+      }
     }
 
     await addPRReaction(octokit, owner, repo, prNumber, '+1');
