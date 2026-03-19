@@ -24,6 +24,8 @@ import {
   CUSTOM_AGENT_RESPONSE_FORMAT,
 } from './prompts.js';
 import type { CustomAgentDef } from '../config/defaults.js';
+import { FILE_REQUEST_INSTRUCTION, invokeWithFileFetching } from '../context/agentic-fetcher.js';
+import type { FileFetchOptions } from '../context/agentic-fetcher.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -58,9 +60,15 @@ export interface ReviewContext {
 
 /**
  * Build the user-facing prompt by combining the system prompt with the diff
- * and optional PR context.
+ * and optional PR context. When agentic file fetching is enabled, injects
+ * the FILE_REQUEST_INSTRUCTION via the FILE_REQUEST_PLACEHOLDER in prompts.
  */
-function buildPrompt(systemPrompt: string, diff: string, context: ReviewContext, relatedFiles?: Record<string, string>): string {
+function buildPrompt(systemPrompt: string, diff: string, context: ReviewContext, agenticFetch: boolean): string {
+  // Inject or strip the file request instruction placeholder
+  const resolvedPrompt = agenticFetch
+    ? systemPrompt.replace('FILE_REQUEST_PLACEHOLDER', FILE_REQUEST_INSTRUCTION)
+    : systemPrompt.replace('FILE_REQUEST_PLACEHOLDER', '');
+
   const contextBlock = [
     `Repository: ${context.owner}/${context.repo}`,
     `PR #${context.prNumber}`,
@@ -70,16 +78,7 @@ function buildPrompt(systemPrompt: string, diff: string, context: ReviewContext,
     .filter(Boolean)
     .join('\n');
 
-  let prompt = `${systemPrompt}\n\n--- PR Context ---\n${contextBlock}\n\n--- Diff ---\n${diff}`;
-
-  if (relatedFiles && Object.keys(relatedFiles).length > 0) {
-    const filesSection = Object.entries(relatedFiles)
-      .map(([path, content]) => `### ${path}\n\`\`\`\n${content}\n\`\`\``)
-      .join('\n\n');
-    prompt += `\n\n--- Related Files ---\nThe following files are imported by or related to the changed files. Use them for context:\n\n${filesSection}`;
-  }
-
-  return prompt;
+  return `${resolvedPrompt}\n\n--- PR Context ---\n${contextBlock}\n\n--- Diff ---\n${diff}`;
 }
 
 /**
@@ -105,6 +104,30 @@ function safeParseJson<T>(raw: string, fallback: T): T {
   }
 }
 
+// ─── Agent invocation helper ────────────────────────────────────────────────
+
+/**
+ * Invoke an agent with optional agentic file fetching.
+ * When fileFetchOptions is provided, the agent can request files from the repo.
+ * Otherwise, falls back to a simple llm.invoke().
+ */
+async function invokeAgent(
+  llm: ILLMProvider,
+  modelId: string,
+  prompt: string,
+  fileFetchOptions?: FileFetchOptions,
+): Promise<string> {
+  if (fileFetchOptions) {
+    const result = await invokeWithFileFetching(llm, modelId, prompt, fileFetchOptions);
+    if (result.roundsUsed > 1) {
+      const fileCount = Object.keys(result.fetchedFiles).length;
+      console.log(`Agent fetched ${fileCount} file(s) in ${result.roundsUsed} round(s)`);
+    }
+    return result.response;
+  }
+  return llm.invoke(modelId, prompt);
+}
+
 // ─── Individual agents ─────────────────────────────────────────────────────
 
 /** Run the security review agent. */
@@ -113,10 +136,10 @@ export async function runSecurityAgent(
   context: ReviewContext,
   modelId: string,
   llm: ILLMProvider,
-  relatedFiles?: Record<string, string>,
+  fileFetchOptions?: FileFetchOptions,
 ): Promise<AgentFinding[]> {
-  const prompt = buildPrompt(SECURITY_REVIEWER_PROMPT, diff, context, relatedFiles);
-  const raw = await llm.invoke(modelId, prompt);
+  const prompt = buildPrompt(SECURITY_REVIEWER_PROMPT, diff, context, !!fileFetchOptions);
+  const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   return parsed.findings;
 }
@@ -127,10 +150,10 @@ export async function runBugAgent(
   context: ReviewContext,
   modelId: string,
   llm: ILLMProvider,
-  relatedFiles?: Record<string, string>,
+  fileFetchOptions?: FileFetchOptions,
 ): Promise<AgentFinding[]> {
-  const prompt = buildPrompt(BUG_REVIEWER_PROMPT, diff, context, relatedFiles);
-  const raw = await llm.invoke(modelId, prompt);
+  const prompt = buildPrompt(BUG_REVIEWER_PROMPT, diff, context, !!fileFetchOptions);
+  const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   return parsed.findings;
 }
@@ -142,7 +165,7 @@ export async function runStyleAgent(
   modelId: string,
   llm: ILLMProvider,
   customRules: string[] = [],
-  relatedFiles?: Record<string, string>,
+  fileFetchOptions?: FileFetchOptions,
 ): Promise<AgentFinding[]> {
   let systemPrompt = STYLE_REVIEWER_PROMPT;
 
@@ -157,8 +180,8 @@ export async function runStyleAgent(
     systemPrompt = systemPrompt.replace('CUSTOM_RULES_PLACEHOLDER', '');
   }
 
-  const prompt = buildPrompt(systemPrompt, diff, context, relatedFiles);
-  const raw = await llm.invoke(modelId, prompt);
+  const prompt = buildPrompt(systemPrompt, diff, context, !!fileFetchOptions);
+  const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   return parsed.findings;
 }
@@ -175,9 +198,8 @@ export async function runDiagramAgent(
   context: ReviewContext,
   modelId: string,
   llm: ILLMProvider,
-  relatedFiles?: Record<string, string>,
 ): Promise<DiagramResult> {
-  const prompt = buildPrompt(DIAGRAM_PROMPT, diff, context, relatedFiles);
+  const prompt = buildPrompt(DIAGRAM_PROMPT, diff, context, false);
   const raw = await llm.invoke(modelId, prompt);
   const parsed = safeParseJson<DiagramResult>(raw, { diagram: '', caption: '' });
   return parsed;
@@ -189,10 +211,10 @@ export async function runErrorHandlingAgent(
   context: ReviewContext,
   modelId: string,
   llm: ILLMProvider,
-  relatedFiles?: Record<string, string>,
+  fileFetchOptions?: FileFetchOptions,
 ): Promise<AgentFinding[]> {
-  const prompt = buildPrompt(ERROR_HANDLING_REVIEWER_PROMPT, diff, context, relatedFiles);
-  const raw = await llm.invoke(modelId, prompt);
+  const prompt = buildPrompt(ERROR_HANDLING_REVIEWER_PROMPT, diff, context, !!fileFetchOptions);
+  const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   return parsed.findings;
 }
@@ -203,10 +225,10 @@ export async function runTestCoverageAgent(
   context: ReviewContext,
   modelId: string,
   llm: ILLMProvider,
-  relatedFiles?: Record<string, string>,
+  fileFetchOptions?: FileFetchOptions,
 ): Promise<AgentFinding[]> {
-  const prompt = buildPrompt(TEST_COVERAGE_REVIEWER_PROMPT, diff, context, relatedFiles);
-  const raw = await llm.invoke(modelId, prompt);
+  const prompt = buildPrompt(TEST_COVERAGE_REVIEWER_PROMPT, diff, context, !!fileFetchOptions);
+  const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   return parsed.findings;
 }
@@ -217,10 +239,10 @@ export async function runCommentAccuracyAgent(
   context: ReviewContext,
   modelId: string,
   llm: ILLMProvider,
-  relatedFiles?: Record<string, string>,
+  fileFetchOptions?: FileFetchOptions,
 ): Promise<AgentFinding[]> {
-  const prompt = buildPrompt(COMMENT_ACCURACY_REVIEWER_PROMPT, diff, context, relatedFiles);
-  const raw = await llm.invoke(modelId, prompt);
+  const prompt = buildPrompt(COMMENT_ACCURACY_REVIEWER_PROMPT, diff, context, !!fileFetchOptions);
+  const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   return parsed.findings;
 }
@@ -231,9 +253,8 @@ export async function runSummaryAgent(
   context: ReviewContext,
   modelId: string,
   llm: ILLMProvider,
-  relatedFiles?: Record<string, string>,
 ): Promise<string> {
-  const prompt = buildPrompt(SUMMARY_PROMPT, diff, context, relatedFiles);
+  const prompt = buildPrompt(SUMMARY_PROMPT, diff, context, false);
   const raw = await llm.invoke(modelId, prompt);
   const parsed = safeParseJson<{ summary: string }>(raw, { summary: '' });
   return parsed.summary;
@@ -248,11 +269,11 @@ export async function runCustomAgent(
   context: ReviewContext,
   modelId: string,
   llm: ILLMProvider,
-  relatedFiles?: Record<string, string>,
+  fileFetchOptions?: FileFetchOptions,
 ): Promise<AgentFinding[]> {
   const systemPrompt = `${agentDef.prompt}\n${CUSTOM_AGENT_RESPONSE_FORMAT}`;
-  const prompt = buildPrompt(systemPrompt, diff, context, relatedFiles);
-  const raw = await llm.invoke(modelId, prompt);
+  const prompt = buildPrompt(systemPrompt, diff, context, !!fileFetchOptions);
+  const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   // Apply default severity if agent didn't specify
   return parsed.findings.map((f) => ({
@@ -329,7 +350,8 @@ export interface ReviewPipelineOptions {
     testCoverage: boolean;
     commentAccuracy: boolean;
   };
-  relatedFiles?: Record<string, string>;
+  /** Agentic file fetching options — when provided, review agents can request files from the repo */
+  fileFetchOptions?: FileFetchOptions;
   /** User-defined custom review agents */
   customAgents?: CustomAgentDef[];
 }
@@ -359,40 +381,41 @@ export async function runReviewPipeline(
     customStyleRules = [],
     maxFindings,
     enabledAgents,
-    relatedFiles,
+    fileFetchOptions,
     customAgents = [],
   } = options;
   const { llm } = deps;
 
   // Launch all enabled agents in parallel
+  // Note: summary and diagram agents don't get file fetching (they benefit less from deep context)
   const [
     securityFindings, bugFindings, styleFindings,
     errorHandlingFindings, testCoverageFindings, commentAccuracyFindings,
     summary, diagramResult,
   ] = await Promise.all([
     enabledAgents.security
-      ? runSecurityAgent(diff, context, modelId, llm, relatedFiles)
+      ? runSecurityAgent(diff, context, modelId, llm, fileFetchOptions)
       : Promise.resolve([]),
     enabledAgents.bugs
-      ? runBugAgent(diff, context, modelId, llm, relatedFiles)
+      ? runBugAgent(diff, context, modelId, llm, fileFetchOptions)
       : Promise.resolve([]),
     enabledAgents.style
-      ? runStyleAgent(diff, context, modelId, llm, customStyleRules, relatedFiles)
+      ? runStyleAgent(diff, context, modelId, llm, customStyleRules, fileFetchOptions)
       : Promise.resolve([]),
     enabledAgents.errorHandling
-      ? runErrorHandlingAgent(diff, context, modelId, llm, relatedFiles)
+      ? runErrorHandlingAgent(diff, context, modelId, llm, fileFetchOptions)
       : Promise.resolve([]),
     enabledAgents.testCoverage
-      ? runTestCoverageAgent(diff, context, modelId, llm, relatedFiles)
+      ? runTestCoverageAgent(diff, context, modelId, llm, fileFetchOptions)
       : Promise.resolve([]),
     enabledAgents.commentAccuracy
-      ? runCommentAccuracyAgent(diff, context, lightModelId, llm, relatedFiles)
+      ? runCommentAccuracyAgent(diff, context, lightModelId, llm, fileFetchOptions)
       : Promise.resolve([]),
     enabledAgents.summary
-      ? runSummaryAgent(diff, context, lightModelId, llm, relatedFiles)
+      ? runSummaryAgent(diff, context, lightModelId, llm)
       : Promise.resolve(''),
     enabledAgents.diagram
-      ? runDiagramAgent(diff, context, lightModelId, llm, relatedFiles)
+      ? runDiagramAgent(diff, context, lightModelId, llm)
       : Promise.resolve({ diagram: '', caption: '' } as DiagramResult),
   ]);
 
@@ -401,7 +424,7 @@ export async function runReviewPipeline(
   const customResults = enabledCustomAgents.length > 0
     ? await Promise.all(
         enabledCustomAgents.map((agentDef) =>
-          runCustomAgent(agentDef, diff, context, modelId, llm, relatedFiles)
+          runCustomAgent(agentDef, diff, context, modelId, llm, fileFetchOptions)
             .catch((err) => {
               console.warn(`Custom agent "${agentDef.name}" failed:`, err);
               return [] as AgentFinding[];

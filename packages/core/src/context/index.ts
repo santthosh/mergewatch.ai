@@ -1,2 +1,3 @@
 export { fetchFileContents } from './file-fetcher.js';
-export { resolveImports, resolveImportsForFiles } from './import-resolver.js';
+export { invokeWithFileFetching, FILE_REQUEST_INSTRUCTION } from './agentic-fetcher.js';
+export type { FileFetchOptions, AgenticInvokeResult } from './agentic-fetcher.js';

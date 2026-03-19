@@ -44,7 +44,9 @@ Return a JSON object with this exact shape:
 
 The "confidence" field is a number from 1 to 100 representing how confident you are that this is a real issue (not a false positive). Use 90+ for obvious, clear-cut issues; 70-89 for likely issues; 50-69 for possible issues worth flagging; below 50 for speculative concerns.
 
-If there are no security findings, return: { "findings": [] }`;
+If there are no security findings, return: { "findings": [] }
+
+FILE_REQUEST_PLACEHOLDER`;
 
 // ─── Bug agent ─────────────────────────────────────────────────────────────
 export const BUG_REVIEWER_PROMPT = `${SHARED_PREAMBLE}
@@ -76,7 +78,9 @@ Return a JSON object with this exact shape:
 
 The "confidence" field is a number from 1 to 100 representing how confident you are that this is a real issue (not a false positive). Use 90+ for obvious, clear-cut issues; 70-89 for likely issues; 50-69 for possible issues worth flagging; below 50 for speculative concerns.
 
-If there are no bug findings, return: { "findings": [] }`;
+If there are no bug findings, return: { "findings": [] }
+
+FILE_REQUEST_PLACEHOLDER`;
 
 // ─── Style agent ───────────────────────────────────────────────────────────
 export const STYLE_REVIEWER_PROMPT = `${SHARED_PREAMBLE}
@@ -113,7 +117,9 @@ Return a JSON object with this exact shape:
 
 The "confidence" field is a number from 1 to 100 representing how confident you are that this is a real issue (not a false positive). Use 90+ for obvious, clear-cut issues; 70-89 for likely issues; 50-69 for possible issues worth flagging; below 50 for speculative concerns.
 
-If there are no style findings, return: { "findings": [] }`;
+If there are no style findings, return: { "findings": [] }
+
+FILE_REQUEST_PLACEHOLDER`;
 
 // ─── Summary agent ─────────────────────────────────────────────────────────
 export const SUMMARY_PROMPT = `${SHARED_PREAMBLE}
@@ -192,7 +198,9 @@ Return a JSON object with this exact shape:
 
 The "confidence" field is a number from 1 to 100 representing how confident you are that this is a real issue (not a false positive). Use 90+ for obvious, clear-cut issues; 70-89 for likely issues; 50-69 for possible issues worth flagging; below 50 for speculative concerns.
 
-If there are no error handling findings, return: { "findings": [] }`;
+If there are no error handling findings, return: { "findings": [] }
+
+FILE_REQUEST_PLACEHOLDER`;
 
 // ─── Test coverage agent ──────────────────────────────────────────────────
 export const TEST_COVERAGE_REVIEWER_PROMPT = `${SHARED_PREAMBLE}
@@ -228,7 +236,9 @@ Return a JSON object with this exact shape:
 
 The "confidence" field is a number from 1 to 100 representing how confident you are that this is a real issue (not a false positive). Use 90+ for obvious, clear-cut issues; 70-89 for likely issues; 50-69 for possible issues worth flagging; below 50 for speculative concerns.
 
-If there are no test coverage findings, return: { "findings": [] }`;
+If there are no test coverage findings, return: { "findings": [] }
+
+FILE_REQUEST_PLACEHOLDER`;
 
 // ─── Comment accuracy agent ───────────────────────────────────────────────
 export const COMMENT_ACCURACY_REVIEWER_PROMPT = `${SHARED_PREAMBLE}
@@ -265,7 +275,9 @@ Return a JSON object with this exact shape:
 
 The "confidence" field is a number from 1 to 100 representing how confident you are that this is a real issue (not a false positive). Use 90+ for obvious, clear-cut issues; 70-89 for likely issues; 50-69 for possible issues worth flagging; below 50 for speculative concerns.
 
-If there are no comment accuracy findings, return: { "findings": [] }`;
+If there are no comment accuracy findings, return: { "findings": [] }
+
+FILE_REQUEST_PLACEHOLDER`;
 
 // ─── Conversational response agent ─────────────────────────────────────────
 export const RESPOND_PROMPT = `You are MergeWatch, an AI code review assistant. A developer has posted a follow-up comment on a pull request that you previously reviewed.
