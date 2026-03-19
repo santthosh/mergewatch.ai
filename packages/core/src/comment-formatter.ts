@@ -65,6 +65,9 @@ interface FormatOptions {
   enabledAgentCount?: number;
 }
 
+/** Maximum number of findings to include in the reviewer checklist. */
+const MAX_CHECKLIST_ITEMS = 5;
+
 // ─── Severity display config ───────────────────────────────────────────────
 
 const SEVERITY_META: Record<Finding['severity'], { emoji: string; label: string; order: number }> = {
@@ -291,7 +294,7 @@ export function formatReviewComment(options: FormatOptions): string {
   if (ux?.reviewerChecklist !== false && findings.length > 0) {
     const checklistFindings = findings
       .filter((f) => f.severity === 'critical' || f.severity === 'warning')
-      .slice(0, 5);
+      .slice(0, MAX_CHECKLIST_ITEMS);
 
     if (checklistFindings.length > 0) {
       lines.push('<details><summary>Reviewer checklist</summary>');

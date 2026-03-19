@@ -47,11 +47,14 @@ export function computeReviewDelta(
   }
 
   let newCount = 0;
+  let carriedOverCount = 0;
   for (const key of currKeys) {
-    if (!prevKeys.has(key)) newCount++;
+    if (prevKeys.has(key)) {
+      carriedOverCount++;
+    } else {
+      newCount++;
+    }
   }
-
-  const carriedOverCount = currentFindings.length - newCount;
 
   return { resolvedCount, newCount, carriedOverCount };
 }
