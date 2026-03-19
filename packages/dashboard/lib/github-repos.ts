@@ -219,6 +219,9 @@ async function _fetchAccessibleRepoNamesImpl(
   const cacheKey = `${tokenHash(accessToken)}:${installationId}`;
   const cached = repoNamesCache.get(cacheKey);
   if (cached && Date.now() < cached.expiry) {
+    // Re-insert to update Map insertion order (approximates LRU)
+    repoNamesCache.delete(cacheKey);
+    repoNamesCache.set(cacheKey, cached);
     return cached.data;
   }
 
@@ -317,18 +320,22 @@ async function _checkInstallationAdminImpl(
 }
 
 /**
- * React.cache()-wrapped admin check.
- * We store the latest Installation per id so the cache() wrapper only receives
- * primitive args (reference-equality safe). The map is cleared before each
- * write to avoid unbounded growth — only the current render's installations
- * are kept.
+ * React.cache()-wrapped admin check. Serializes Installation properties as
+ * primitive cache key args to avoid reference-equality issues and race conditions.
  */
-let _lastInstallation: { id: number; inst: Installation } | null = null;
-
 const _checkAdminCached = cache(
-  async (accessToken: string, installationId: number): Promise<boolean> => {
-    if (!_lastInstallation || _lastInstallation.id !== installationId) return false;
-    return _checkInstallationAdminImpl(accessToken, _lastInstallation.inst);
+  async (
+    accessToken: string,
+    installationId: number,
+    accountLogin: string,
+    accountType: "User" | "Organization",
+  ): Promise<boolean> => {
+    return _checkInstallationAdminImpl(accessToken, {
+      id: installationId,
+      account: { login: accountLogin, avatar_url: "", type: accountType },
+      created_at: "",
+      permissions: {},
+    });
   },
 );
 
@@ -336,6 +343,10 @@ export async function checkInstallationAdmin(
   accessToken: string,
   installation: Installation,
 ): Promise<boolean> {
-  _lastInstallation = { id: installation.id, inst: installation };
-  return _checkAdminCached(accessToken, installation.id);
+  return _checkAdminCached(
+    accessToken,
+    installation.id,
+    installation.account.login,
+    installation.account.type,
+  );
 }
