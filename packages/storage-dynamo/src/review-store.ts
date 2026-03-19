@@ -24,6 +24,30 @@ export class DynamoReviewStore implements IReviewStore {
     );
   }
 
+  async claimReview(review: ReviewItem): Promise<boolean> {
+    try {
+      await this.client.send(
+        new PutCommand({
+          TableName: this.tableName,
+          Item: { ...review, status: 'in_progress' },
+          ConditionExpression:
+            'attribute_not_exists(repoFullName) OR #s IN (:failed, :skipped)',
+          ExpressionAttributeNames: { '#s': 'status' },
+          ExpressionAttributeValues: {
+            ':failed': 'failed',
+            ':skipped': 'skipped',
+          },
+        }),
+      );
+      return true;
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'name' in err && err.name === 'ConditionalCheckFailedException') {
+        return false;
+      }
+      throw err;
+    }
+  }
+
   async updateStatus(
     repoFullName: string,
     prNumberCommitSha: string,
