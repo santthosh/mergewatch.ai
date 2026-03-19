@@ -5,6 +5,9 @@
  * handler can find and update an existing comment instead of posting duplicates.
  */
 
+import type { UXConfig } from './config/defaults.js';
+import type { ReviewDelta } from './review-delta.js';
+
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 export interface Finding {
@@ -16,6 +19,13 @@ export interface Finding {
   title: string;
   description: string;
   suggestion: string;
+}
+
+export interface WorkDoneSection {
+  filesScanned: number;
+  linesScanned: number;
+  agentsRan: number;
+  hasDependencyFiles: boolean;
 }
 
 interface FormatOptions {
@@ -43,7 +53,20 @@ interface FormatOptions {
   mergeScore?: number;
   /** One-line reason for the merge score */
   mergeScoreReason?: string;
+  /** UX configuration */
+  ux?: UXConfig;
+  /** Work done stats for the work-done section */
+  workDone?: WorkDoneSection;
+  /** Delta from previous review (null if first review) */
+  delta?: ReviewDelta | null;
+  /** Number of findings suppressed by orchestrator */
+  suppressedCount?: number;
+  /** Number of enabled agents that ran */
+  enabledAgentCount?: number;
 }
+
+/** Maximum number of findings to include in the reviewer checklist. */
+const MAX_CHECKLIST_ITEMS = 5;
 
 // ─── Severity display config ───────────────────────────────────────────────
 
@@ -96,6 +119,37 @@ function renderFinding(f: Finding, showConfidence: boolean): string {
   return line;
 }
 
+const DEPENDENCY_FILE_PATTERNS = [
+  /package\.json$/,
+  /package-lock\.json$/,
+  /yarn\.lock$/,
+  /pnpm-lock\.yaml$/,
+  /Gemfile\.lock$/,
+  /Cargo\.lock$/,
+  /go\.sum$/,
+  /requirements\.txt$/,
+  /poetry\.lock$/,
+];
+
+/** Build work-done section data from PR context file stats. */
+export function buildWorkDoneSection(
+  files: string[],
+  totalAdditions: number,
+  totalDeletions: number,
+  enabledAgentCount: number,
+): WorkDoneSection {
+  const hasDependencyFiles = files.some((f) =>
+    DEPENDENCY_FILE_PATTERNS.some((p) => p.test(f)),
+  );
+
+  return {
+    filesScanned: files.length,
+    linesScanned: totalAdditions + totalDeletions,
+    agentsRan: enabledAgentCount,
+    hasDependencyFiles,
+  };
+}
+
 // ─── Main formatter ────────────────────────────────────────────────────────
 
 /**
@@ -117,6 +171,10 @@ export function formatReviewComment(options: FormatOptions): string {
     reviewDetailUrl,
     mergeScore,
     mergeScoreReason,
+    ux,
+    workDone,
+    delta,
+    suppressedCount,
   } = options;
 
   const lines: string[] = [];
@@ -124,19 +182,55 @@ export function formatReviewComment(options: FormatOptions): string {
   // Note: the hidden marker (<!-- mergewatch-review -->) is prepended by
   // postReviewComment / updateReviewComment in github/client.ts — not here.
 
-  // Header — logo wordmark
-  lines.push('<img src="https://raw.githubusercontent.com/santthosh/mergewatch.ai/main/assets/wordmark-fit.png" alt="mergewatch" height="16" />');
+  // 1. Header — custom or default logo wordmark
+  if (ux?.commentHeader) {
+    lines.push(ux.commentHeader);
+  } else {
+    lines.push('<img src="https://raw.githubusercontent.com/santthosh/mergewatch.ai/main/assets/wordmark-fit.png" alt="mergewatch" height="16" />');
+  }
   lines.push('');
 
-  // Merge readiness score — highly visible
+  // 2. Work Done section
+  if (workDone && (ux?.showWorkDone !== false)) {
+    const parts: string[] = [
+      `**${workDone.filesScanned}** file${workDone.filesScanned !== 1 ? 's' : ''} scanned`,
+      `**${workDone.linesScanned.toLocaleString()}** lines reviewed`,
+      `**${workDone.agentsRan}** specialized agent${workDone.agentsRan !== 1 ? 's' : ''} ran`,
+    ];
+    if (workDone.hasDependencyFiles) {
+      parts.push('dependency files detected');
+    }
+    lines.push(`> ${parts.join(' \u00B7 ')}`);
+    lines.push('');
+  }
+
+  // 3. Delta strip (re-review progress)
+  if (delta) {
+    const deltaParts: string[] = [];
+    if (delta.resolvedCount > 0) {
+      deltaParts.push(`\u2705 **${delta.resolvedCount}** resolved`);
+    }
+    if (delta.newCount > 0) {
+      deltaParts.push(`\uD83C\uDD95 **${delta.newCount}** new`);
+    }
+    if (delta.carriedOverCount > 0) {
+      deltaParts.push(`\u27A1\uFE0F **${delta.carriedOverCount}** carried over`);
+    }
+    if (deltaParts.length > 0) {
+      lines.push(`> ${deltaParts.join(' \u00B7 ')}`);
+      lines.push('');
+    }
+  }
+
+  // 4. Merge readiness score — highly visible
   if (mergeScore != null) {
     const scoreDisplay = renderMergeScore(mergeScore);
-    const reasonSuffix = mergeScoreReason ? ` — ${mergeScoreReason}` : '';
+    const reasonSuffix = mergeScoreReason ? ` \u2014 ${mergeScoreReason}` : '';
     lines.push(`> ${scoreDisplay}${reasonSuffix}`);
     lines.push('');
   }
 
-  // Summary (collapsible)
+  // 5. Summary (collapsible)
   if (summary && showSummary) {
     lines.push('<details><summary>Summary</summary>');
     lines.push('');
@@ -146,9 +240,9 @@ export function formatReviewComment(options: FormatOptions): string {
     lines.push('');
   }
 
-  // Diagram (collapsible)
+  // 6. Diagram (collapsible)
   if (diagram && showDiagram) {
-    const captionText = diagramCaption ? ` — ${diagramCaption}` : '';
+    const captionText = diagramCaption ? ` \u2014 ${diagramCaption}` : '';
     lines.push(`<details><summary>Diagram${captionText}</summary>`);
     lines.push('');
     lines.push('```mermaid');
@@ -159,9 +253,14 @@ export function formatReviewComment(options: FormatOptions): string {
     lines.push('');
   }
 
-  // Findings grouped by severity
+  // 7. Findings OR All Clear message
   if (findings.length === 0) {
-    lines.push('No issues found — looking good! \u2705');
+    if (ux?.allClearMessage !== false) {
+      lines.push('\uD83C\uDF89 **All clear!** No issues found \u2014 this PR looks good to go.');
+      lines.push('');
+    } else {
+      lines.push('No issues found \u2014 looking good! \u2705');
+    }
   } else if (!showIssuesTable) {
     lines.push(`${findings.length} issue${findings.length !== 1 ? 's' : ''} found.`);
   } else {
@@ -181,7 +280,40 @@ export function formatReviewComment(options: FormatOptions): string {
     }
   }
 
-  // Footer
+  // 8. Suppressed count (collapsible)
+  if (suppressedCount && suppressedCount > 0 && (ux?.showSuppressedCount !== false)) {
+    lines.push(`<details><summary>${suppressedCount} additional finding${suppressedCount !== 1 ? 's' : ''} suppressed by deduplication and quality filters</summary>`);
+    lines.push('');
+    lines.push('The orchestrator removed duplicate findings and those below the confidence threshold to keep the review focused on high-signal issues.');
+    lines.push('');
+    lines.push('</details>');
+    lines.push('');
+  }
+
+  // 9. Reviewer checklist (derived from top critical/warning findings)
+  if (ux?.reviewerChecklist !== false && findings.length > 0) {
+    const checklistFindings = findings
+      .filter((f) => f.severity === 'critical' || f.severity === 'warning')
+      .slice(0, MAX_CHECKLIST_ITEMS);
+
+    if (checklistFindings.length > 0) {
+      lines.push('<details><summary>Reviewer checklist</summary>');
+      lines.push('');
+      for (const f of checklistFindings) {
+        lines.push(`- [ ] ${f.title} (\`${f.file}:${f.line}\`)`);
+      }
+      lines.push('');
+      lines.push('</details>');
+      lines.push('');
+    }
+  }
+
+  // 10. Deference footer
+  lines.push('---');
+  lines.push('*These are flags, not verdicts. You know this codebase.*');
+  lines.push('');
+
+  // 11. Dashboard link + custom footer
   const footerParts: string[] = [];
   if (reviewDetailUrl) {
     footerParts.push(`[View full details](${reviewDetailUrl})`);
@@ -190,8 +322,7 @@ export function formatReviewComment(options: FormatOptions): string {
     footerParts.push(commentFooter);
   }
   if (footerParts.length > 0) {
-    lines.push('---');
-    lines.push(footerParts.join(' · '));
+    lines.push(footerParts.join(' \u00B7 '));
   }
 
   return lines.join('\n');

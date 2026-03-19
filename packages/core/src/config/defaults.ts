@@ -16,6 +16,30 @@ export interface CustomAgentDef {
   enabled: boolean;
 }
 
+export interface UXConfig {
+  /** Tone of review findings: collaborative (default), direct, or advisory */
+  tone: 'collaborative' | 'direct' | 'advisory';
+  /** Whether to show the "work done" section in the review comment */
+  showWorkDone: boolean;
+  /** Whether to show how many findings were suppressed by the orchestrator */
+  showSuppressedCount: boolean;
+  /** Whether to show a reviewer checklist derived from top findings */
+  reviewerChecklist: boolean;
+  /** Whether to show a special "all clear" message when there are no findings */
+  allClearMessage: boolean;
+  /** Custom header text for the review comment (replaces default logo) */
+  commentHeader: string;
+}
+
+export const DEFAULT_UX_CONFIG: UXConfig = {
+  tone: 'collaborative',
+  showWorkDone: true,
+  showSuppressedCount: true,
+  reviewerChecklist: true,
+  allClearMessage: true,
+  commentHeader: '',
+};
+
 export interface MergeWatchConfig {
   /** Primary model used for review agents */
   model: string;
@@ -52,6 +76,8 @@ export interface MergeWatchConfig {
   maxContextKB: number;
   /** User-defined custom review agents */
   customAgents: CustomAgentDef[];
+  /** UX configuration for reviewer experience */
+  ux: UXConfig;
 }
 
 export const DEFAULT_CONFIG: MergeWatchConfig = {
@@ -86,13 +112,14 @@ export const DEFAULT_CONFIG: MergeWatchConfig = {
   maxFileRequestRounds: 1,
   maxContextKB: 256,
   customAgents: [],
+  ux: { ...DEFAULT_UX_CONFIG },
 };
 
 /**
  * Merges a partial user config (from .mergewatch.yml / DynamoDB) with defaults.
  * Only defined fields in the partial override the defaults.
  */
-export function mergeConfig(partial: Partial<Omit<MergeWatchConfig, 'agents'>> & { agents?: Partial<MergeWatchConfig['agents']> }): MergeWatchConfig {
+export function mergeConfig(partial: Partial<Omit<MergeWatchConfig, 'agents' | 'ux'>> & { agents?: Partial<MergeWatchConfig['agents']>; ux?: Partial<UXConfig> }): MergeWatchConfig {
   return {
     ...DEFAULT_CONFIG,
     ...partial,
@@ -101,5 +128,9 @@ export function mergeConfig(partial: Partial<Omit<MergeWatchConfig, 'agents'>> &
       ...(partial.agents ?? {}),
     },
     customAgents: partial.customAgents ?? DEFAULT_CONFIG.customAgents,
+    ux: {
+      ...DEFAULT_UX_CONFIG,
+      ...(partial.ux ?? {}),
+    },
   };
 }

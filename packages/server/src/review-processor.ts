@@ -1,4 +1,4 @@
-import type { ReviewJobPayload, IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider, FileFetchOptions } from '@mergewatch/core';
+import type { ReviewJobPayload, IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider, FileFetchOptions, ReviewDelta } from '@mergewatch/core';
 import {
   getPRDiff, getPRContext, addPRReaction, postReviewComment, updateReviewComment,
   findExistingBotComment, getCommentReactions, createCheckRun,
@@ -6,6 +6,7 @@ import {
   DEFAULT_CONFIG, mergeConfig,
   BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
   fetchRepoConfig,
+  buildWorkDoneSection, computeReviewDelta,
 } from '@mergewatch/core';
 import type { WebhookDeps } from './webhook-handler.js';
 
@@ -109,11 +110,34 @@ export async function processReviewJob(
         },
         fileFetchOptions,
         customAgents: config.customAgents,
+        tone: config.ux.tone,
       },
       { llm: deps.llm },
     );
 
     const durationMs = Date.now() - startTime;
+
+    // Build work-done section from PR context stats
+    const workDone = buildWorkDoneSection(
+      prContext.files,
+      prContext.totalAdditions,
+      prContext.totalDeletions,
+      result.enabledAgentCount,
+    );
+
+    // Compute delta from previous review (if any)
+    let delta: ReviewDelta | null = null;
+    try {
+      const prevReviews = await deps.reviewStore.queryByPR(repoFullName, `${prNumber}#`, 5);
+      const prevComplete = prevReviews.find(
+        (r) => r.status === 'complete' && r.prNumberCommitSha !== prNumberCommitSha && r.findings,
+      );
+      if (prevComplete?.findings) {
+        delta = computeReviewDelta(result.findings, prevComplete.findings);
+      }
+    } catch (err) {
+      console.warn('Failed to compute review delta:', err);
+    }
 
     // Format comment
     const comment = formatReviewComment({
@@ -131,6 +155,11 @@ export async function processReviewJob(
       reviewDetailUrl: deps.dashboardBaseUrl
         ? `${deps.dashboardBaseUrl}/dashboard/reviews/${encodeURIComponent(repoFullName)}/${prNumberCommitSha}`
         : undefined,
+      ux: config.ux,
+      workDone,
+      delta,
+      suppressedCount: result.suppressedCount,
+      enabledAgentCount: result.enabledAgentCount,
     });
 
     // Submit as a proper PR review (shows MergeWatch as a reviewer).
