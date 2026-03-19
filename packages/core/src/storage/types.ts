@@ -16,6 +16,13 @@ export interface IInstallationStore {
 
 export interface IReviewStore {
   upsert(review: ReviewItem): Promise<void>;
+  /**
+   * Atomically claim a review for processing.
+   * Inserts the review record only if no record with the same key exists
+   * or the existing record is not already in_progress/complete.
+   * Returns true if this caller claimed the review, false if another worker already has it.
+   */
+  claimReview(review: ReviewItem): Promise<boolean>;
   updateStatus(
     repoFullName: string,
     key: string,

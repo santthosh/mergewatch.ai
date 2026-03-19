@@ -26,9 +26,9 @@ export async function processReviewJob(
   const shortSha = prContext.headBranch?.slice(0, 7) || 'unknown';
   const prNumberCommitSha = `${prNumber}#${shortSha}`;
 
-  // Create initial review record
+  // Atomically claim this review — prevents duplicate processing
   const now = new Date().toISOString();
-  await deps.reviewStore.upsert({
+  const claimed = await deps.reviewStore.claimReview({
     repoFullName,
     prNumberCommitSha,
     status: 'in_progress',
@@ -37,6 +37,10 @@ export async function processReviewJob(
     prAuthor: owner,
     installationId: instId,
   });
+  if (!claimed) {
+    console.log(`Review already in progress for ${repoFullName}#${prNumber}@${shortSha}, skipping`);
+    return;
+  }
 
   // Add eyes reaction
   await addPRReaction(octokit, owner, repo, prNumber, 'eyes').catch(() => {});

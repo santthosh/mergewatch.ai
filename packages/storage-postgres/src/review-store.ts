@@ -1,4 +1,4 @@
-import { eq, and, like, desc } from 'drizzle-orm';
+import { eq, and, like, desc, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { IReviewStore, ReviewItem, ReviewStatus } from '@mergewatch/core';
 import { reviews } from './schema.js';
@@ -63,6 +63,24 @@ export class PostgresReviewStore implements IReviewStore {
           settingsUsed: (review.settingsUsed as any) ?? null,
         },
       });
+  }
+
+  async claimReview(review: ReviewItem): Promise<boolean> {
+    // INSERT only if no row exists, or existing row is in a retriable state
+    const result = await this.db.execute(sql`
+      INSERT INTO reviews (repo_full_name, pr_number_commit_sha, status, created_at,
+        pr_title, pr_author, pr_author_avatar, head_branch, base_branch, installation_id)
+      VALUES (
+        ${review.repoFullName}, ${review.prNumberCommitSha}, 'in_progress', ${review.createdAt},
+        ${review.prTitle ?? null}, ${review.prAuthor ?? null}, ${review.prAuthorAvatar ?? null},
+        ${review.headBranch ?? null}, ${review.baseBranch ?? null}, ${review.installationId ?? null}
+      )
+      ON CONFLICT (repo_full_name, pr_number_commit_sha)
+      DO UPDATE SET status = 'in_progress', created_at = ${review.createdAt}
+      WHERE reviews.status IN ('failed', 'skipped')
+      RETURNING repo_full_name
+    `);
+    return (result as any[]).length > 0;
   }
 
   async updateStatus(

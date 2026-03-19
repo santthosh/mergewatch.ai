@@ -188,7 +188,7 @@ export async function handler(
     };
   }
 
-  // Create the initial review record
+  // Atomically claim this review — prevents duplicate processing
   const reviewStartedAt = new Date().toISOString();
   const reviewRecord: ReviewItem = {
     repoFullName,
@@ -202,7 +202,14 @@ export async function handler(
     baseBranch: prDetails.data.base.ref,
     installationId: String(installationId),
   };
-  await reviewStore.upsert(reviewRecord);
+  const claimed = await reviewStore.claimReview(reviewRecord);
+  if (!claimed) {
+    console.log(`Review already in progress for ${repoFullName}#${prNumber}@${shortSha}, skipping`);
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ message: 'Already in progress', prNumberCommitSha }),
+    };
+  }
 
   await addPRReaction(octokit, owner, repo, prNumber, 'eyes');
 
