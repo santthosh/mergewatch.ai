@@ -4,9 +4,9 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getDashboardStore } from "@/lib/store";
+import type { InstallationItem } from "@mergewatch/core";
 import {
   fetchUserInstallations,
-  fetchInstallationRepos,
   checkInstallationAdmin,
   TokenExpiredError,
 } from "@/lib/github-repos";
@@ -58,41 +58,25 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   const installationId = String(activeInstallation.id);
 
-  // Check admin status
-  const isAdmin = await checkInstallationAdmin(accessToken, activeInstallation);
-
-  // Fetch all repos available in this installation (from GitHub API)
-  const { repos: allInstallationRepos } = await fetchInstallationRepos(
-    accessToken,
-    activeInstallation.id,
-  );
-
-  // Fetch monitored repos from store
+  // Parallelize admin check and store query (both independent of each other)
   const store = await getDashboardStore();
-  let monitoredNames = new Set<string>();
 
-  try {
-    const items = await store.installations.listByInstallation(installationId);
-    monitoredNames = new Set(
-      items
-        .filter((item) => item.monitored === true)
-        .map((item) => item.repoFullName),
-    );
-  } catch {
-    // Store error — show empty state
-  }
+  const [isAdmin, monitoredItems] = await Promise.all([
+    checkInstallationAdmin(accessToken, activeInstallation),
+    store.installations.listByInstallation(installationId).catch((): InstallationItem[] => []),
+  ]);
 
-  // Filter to only monitored repos — show nothing until admin selects repos
-  const monitoredRepos = allInstallationRepos.filter((r) =>
-    monitoredNames.has(r.repoFullName),
-  );
+  const monitoredItemsList = monitoredItems.filter((item) => item.monitored === true);
+  const monitoredNames = new Set(monitoredItemsList.map((item) => item.repoFullName));
 
-  // Build repos list (reviews are fetched client-side via /api/reviews)
-  const repos = monitoredRepos.map((ir) => ({
-    repoFullName: ir.repoFullName,
-    installedAt: ir.installedAt,
-    reviewCount: 0,
-  }));
+  // Build repos list from monitored store items (reviews are fetched client-side via /api/reviews)
+  const repos = monitoredItemsList
+    .sort((a, b) => a.repoFullName.localeCompare(b.repoFullName))
+    .map((item) => ({
+      repoFullName: item.repoFullName,
+      installedAt: item.installedAt || new Date().toISOString(),
+      reviewCount: 0,
+    }));
 
   return (
     <DashboardContent

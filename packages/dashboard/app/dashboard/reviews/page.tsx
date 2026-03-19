@@ -49,8 +49,10 @@ export default async function ReviewsPage({ searchParams }: ReviewsPageProps) {
   const repos: string[] = [];
 
   try {
-    const userRepoNames = await fetchAccessibleRepoNames(accessToken, activeInstallation.id);
-    const items = await store.installations.listByInstallation(installationId);
+    const [userRepoNames, items] = await Promise.all([
+      fetchAccessibleRepoNames(accessToken, activeInstallation.id),
+      store.installations.listByInstallation(installationId),
+    ]);
     for (const item of items) {
       if (item.monitored === true && userRepoNames.has(item.repoFullName)) {
         repos.push(item.repoFullName);

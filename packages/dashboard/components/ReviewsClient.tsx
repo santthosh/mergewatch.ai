@@ -499,7 +499,11 @@ export default function ReviewsClient({ repos, installationId }: ReviewsClientPr
             className="rounded-lg border border-border-default bg-surface-card px-4 py-3"
           >
             <div className="text-xs text-fg-tertiary">{stat.label}</div>
-            <div className="mt-1 text-lg font-semibold text-fg-primary">{stat.value}</div>
+            {loading ? (
+              <div className="mt-1 h-7 w-12 animate-pulse rounded bg-surface-card-hover" />
+            ) : (
+              <div className="mt-1 text-lg font-semibold text-fg-primary">{stat.value}</div>
+            )}
           </div>
         ))}
       </div>

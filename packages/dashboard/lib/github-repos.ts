@@ -1,8 +1,31 @@
+import { cache } from "react";
+import { createHash } from "crypto";
+
 const GITHUB_API = "https://api.github.com";
 const GITHUB_HEADERS = (accessToken: string) => ({
   Authorization: `Bearer ${accessToken}`,
   Accept: "application/vnd.github+json",
 });
+
+/** Hash a token so we never store raw credentials as cache keys. */
+function tokenHash(token: string): string {
+  return createHash("sha256").update(token).digest("hex").slice(0, 16);
+}
+
+// --- TTL cache for fetchAccessibleRepoNames (persists across requests in warm containers) ---
+const REPO_NAMES_TTL_MS = 60_000; // 60 seconds
+const REPO_NAMES_CACHE_MAX = 50;
+const repoNamesCache = new Map<string, { data: Set<string>; expiry: number }>();
+
+/** Evict expired entries from a TTL map. */
+function evictExpired(map: Map<string, { expiry: number }>) {
+  const now = Date.now();
+  const expired: string[] = [];
+  map.forEach((entry, key) => {
+    if (now >= entry.expiry) expired.push(key);
+  });
+  expired.forEach((key) => map.delete(key));
+}
 
 /** Thrown when the GitHub token is expired or revoked. */
 export class TokenExpiredError extends Error {
@@ -45,7 +68,7 @@ export interface RepoResult {
 /**
  * Fetch all GitHub App installations accessible to the authenticated user.
  */
-export async function fetchUserInstallations(
+async function _fetchUserInstallationsImpl(
   accessToken: string,
 ): Promise<Installation[]> {
   let res: Response;
@@ -79,6 +102,9 @@ export async function fetchUserInstallations(
     permissions: i.permissions ?? {},
   }));
 }
+
+/** React.cache()-wrapped: deduplicates within a single server render pass. */
+export const fetchUserInstallations = cache(_fetchUserInstallationsImpl);
 
 /**
  * Fetch repos for a specific installation. Supports optional search query.
@@ -185,10 +211,20 @@ export async function fetchInstallationReposPage(
  * Fetch the full set of repo names the user can access for a given installation.
  * Uses GitHub's paginated API which only returns repos visible to the authenticated user.
  */
-export async function fetchAccessibleRepoNames(
+async function _fetchAccessibleRepoNamesImpl(
   accessToken: string,
   installationId: number,
 ): Promise<Set<string>> {
+  // Check TTL cache first (persists across requests in warm containers / long-lived processes)
+  const cacheKey = `${tokenHash(accessToken)}:${installationId}`;
+  const cached = repoNamesCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiry) {
+    // Re-insert to update Map insertion order (approximates LRU)
+    repoNamesCache.delete(cacheKey);
+    repoNamesCache.set(cacheKey, cached);
+    return cached.data;
+  }
+
   const names = new Set<string>();
   let nextUrl: string | null =
     `${GITHUB_API}/user/installations/${installationId}/repositories?per_page=100`;
@@ -219,8 +255,19 @@ export async function fetchAccessibleRepoNames(
     nextUrl = match ? match[1] : null;
   }
 
+  // Store in TTL cache (evict stale entries first to bound memory)
+  evictExpired(repoNamesCache);
+  if (repoNamesCache.size >= REPO_NAMES_CACHE_MAX) {
+    const oldest = repoNamesCache.keys().next().value!;
+    repoNamesCache.delete(oldest);
+  }
+  repoNamesCache.set(cacheKey, { data: names, expiry: Date.now() + REPO_NAMES_TTL_MS });
+
   return names;
 }
+
+/** React.cache()-wrapped: deduplicates within a single server render pass. */
+export const fetchAccessibleRepoNames = cache(_fetchAccessibleRepoNamesImpl);
 
 /**
  * Check if the authenticated user is an admin for the given installation.
@@ -228,7 +275,7 @@ export async function fetchAccessibleRepoNames(
  * - Personal account installations: only the account owner is admin.
  * - Org installations: only org admins are considered installation admins.
  */
-export async function checkInstallationAdmin(
+async function _checkInstallationAdminImpl(
   accessToken: string,
   installation: Installation,
 ): Promise<boolean> {
@@ -270,4 +317,36 @@ export async function checkInstallationAdmin(
 
   const membership = await res.json();
   return membership.role === "admin";
+}
+
+/**
+ * React.cache()-wrapped admin check. Serializes Installation properties as
+ * primitive cache key args to avoid reference-equality issues and race conditions.
+ */
+const _checkAdminCached = cache(
+  async (
+    accessToken: string,
+    installationId: number,
+    accountLogin: string,
+    accountType: "User" | "Organization",
+  ): Promise<boolean> => {
+    return _checkInstallationAdminImpl(accessToken, {
+      id: installationId,
+      account: { login: accountLogin, avatar_url: "", type: accountType },
+      created_at: "",
+      permissions: {},
+    });
+  },
+);
+
+export async function checkInstallationAdmin(
+  accessToken: string,
+  installation: Installation,
+): Promise<boolean> {
+  return _checkAdminCached(
+    accessToken,
+    installation.id,
+    installation.account.login,
+    installation.account.type,
+  );
 }

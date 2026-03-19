@@ -165,7 +165,8 @@ export default function DashboardContent({
                 key={repo.repoFullName}
                 repoFullName={repo.repoFullName}
                 installedAt={repo.installedAt}
-                reviewCount={reviewCounts[repo.repoFullName] ?? repo.reviewCount}
+                reviewCount={reviewCounts[repo.repoFullName] ?? 0}
+                loading={loadingReviews}
               />
             ))}
           </div>
