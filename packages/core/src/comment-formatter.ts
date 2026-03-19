@@ -125,7 +125,7 @@ export function formatReviewComment(options: FormatOptions): string {
   // postReviewComment / updateReviewComment in github/client.ts — not here.
 
   // Header — logo wordmark
-  lines.push('<img src="https://raw.githubusercontent.com/santthosh/mergewatch.ai/main/assets/wordmark-fit.png" alt="mergewatch" height="32" />');
+  lines.push('<img src="https://raw.githubusercontent.com/santthosh/mergewatch.ai/main/assets/wordmark-fit.png" alt="mergewatch" height="16" />');
   lines.push('');
 
   // Merge readiness score — highly visible
