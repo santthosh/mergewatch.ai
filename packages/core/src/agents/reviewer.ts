@@ -141,7 +141,7 @@ export async function runSecurityAgent(
   const prompt = buildPrompt(SECURITY_REVIEWER_PROMPT, diff, context, !!fileFetchOptions);
   const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
-  return parsed.findings;
+  return parsed.findings ?? [];
 }
 
 /** Run the bug detection agent. */
@@ -155,7 +155,7 @@ export async function runBugAgent(
   const prompt = buildPrompt(BUG_REVIEWER_PROMPT, diff, context, !!fileFetchOptions);
   const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
-  return parsed.findings;
+  return parsed.findings ?? [];
 }
 
 /** Run the style / code-quality agent. Accepts optional custom rules. */
@@ -183,7 +183,7 @@ export async function runStyleAgent(
   const prompt = buildPrompt(systemPrompt, diff, context, !!fileFetchOptions);
   const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
-  return parsed.findings;
+  return parsed.findings ?? [];
 }
 
 /** Result from the diagram agent. */
@@ -216,7 +216,7 @@ export async function runErrorHandlingAgent(
   const prompt = buildPrompt(ERROR_HANDLING_REVIEWER_PROMPT, diff, context, !!fileFetchOptions);
   const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
-  return parsed.findings;
+  return parsed.findings ?? [];
 }
 
 /** Run the test coverage review agent. */
@@ -230,7 +230,7 @@ export async function runTestCoverageAgent(
   const prompt = buildPrompt(TEST_COVERAGE_REVIEWER_PROMPT, diff, context, !!fileFetchOptions);
   const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
-  return parsed.findings;
+  return parsed.findings ?? [];
 }
 
 /** Run the comment accuracy review agent. */
@@ -244,7 +244,7 @@ export async function runCommentAccuracyAgent(
   const prompt = buildPrompt(COMMENT_ACCURACY_REVIEWER_PROMPT, diff, context, !!fileFetchOptions);
   const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
-  return parsed.findings;
+  return parsed.findings ?? [];
 }
 
 /** Run the summary agent that produces a human-readable PR summary. */
@@ -276,7 +276,7 @@ export async function runCustomAgent(
   const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   // Apply default severity if agent didn't specify
-  return parsed.findings.map((f) => ({
+  return (parsed.findings ?? []).map((f) => ({
     ...f,
     severity: f.severity || agentDef.severityDefault,
   }));
@@ -307,7 +307,7 @@ export async function runOrchestratorAgent(
 ): Promise<OrchestratorResult> {
   // Build a combined findings list with category tags for the orchestrator
   const allFindings = taggedFindings.flatMap(({ category, findings }) =>
-    findings.map((f) => ({ ...f, category })),
+    (findings ?? []).map((f) => ({ ...f, category })),
   );
 
   // If there are no findings, skip the orchestrator entirely
@@ -325,7 +325,7 @@ export async function runOrchestratorAgent(
     { findings: [] },
   );
   return {
-    findings: parsed.findings,
+    findings: parsed.findings ?? [],
     mergeScore: Math.max(1, Math.min(5, parsed.mergeScore ?? 3)),
     mergeScoreReason: parsed.mergeScoreReason ?? '',
   };
