@@ -116,6 +116,7 @@ export async function processReviewJob(
           diagram: instSettings.summary?.diagram !== false,
         },
         relatedFiles,
+        customAgents: config.customAgents,
       },
       { llm: deps.llm },
     );
