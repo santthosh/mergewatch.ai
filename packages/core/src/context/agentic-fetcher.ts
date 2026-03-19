@@ -51,6 +51,26 @@ Rules:
 // ─── Core logic ─────────────────────────────────────────────────────────────
 
 /**
+ * Sanitize a file path from LLM output.
+ * Rejects paths with directory traversal or absolute paths.
+ */
+function sanitizeFilePath(filePath: string): string | null {
+  // Reject empty paths
+  if (!filePath || filePath.trim().length === 0) return null;
+
+  // Reject absolute paths
+  if (filePath.startsWith('/') || filePath.startsWith('\\')) return null;
+
+  // Reject directory traversal
+  if (filePath.includes('..')) return null;
+
+  // Reject paths with null bytes
+  if (filePath.includes('\0')) return null;
+
+  return filePath.trim();
+}
+
+/**
  * Parse a model response to check if it's a file request.
  * Returns the requested file paths, or null if the response is a normal analysis.
  */
@@ -74,8 +94,13 @@ function parseFileRequest(response: string): string[] | null {
       parsed.requestFiles.length > 0 &&
       parsed.requestFiles.every((p: unknown) => typeof p === 'string')
     ) {
-      // Cap at 10 files
-      return parsed.requestFiles.slice(0, 10);
+      // Sanitize and filter paths, cap at 10 files
+      const sanitized = parsed.requestFiles
+        .map((p: string) => sanitizeFilePath(p))
+        .filter((p: string | null): p is string => p !== null)
+        .slice(0, 10);
+
+      return sanitized.length > 0 ? sanitized : null;
     }
   } catch {
     // Not valid JSON — treat as normal response
@@ -106,7 +131,18 @@ export async function invokeWithFileFetching(
   let roundsUsed = 0;
 
   for (let round = 0; round < fetchOptions.maxRounds; round++) {
-    const response = await llm.invoke(modelId, currentPrompt, maxTokens);
+    let response: string;
+    try {
+      response = await llm.invoke(modelId, currentPrompt, maxTokens);
+    } catch (err) {
+      console.warn('LLM invocation failed during agentic file fetching, falling back to no-context analysis:', err);
+      // Fall back to a simple invoke without file fetching context
+      if (round === 0) {
+        throw err; // First round failure — let the caller handle it
+      }
+      // Subsequent round failure — return what we have from the previous round
+      return { response: '', fetchedFiles: allFetchedFiles, roundsUsed };
+    }
     roundsUsed++;
 
     const requestedFiles = parseFileRequest(response);
@@ -140,14 +176,28 @@ export async function invokeWithFileFetching(
     }
 
     // Fetch requested files
-    const fetched = await fetchFileContents(
-      fetchOptions.octokit,
-      fetchOptions.owner,
-      fetchOptions.repo,
-      fetchOptions.ref,
-      newFiles,
-      remainingKB,
-    );
+    let fetched: Record<string, string> = {};
+    try {
+      fetched = await fetchFileContents(
+        fetchOptions.octokit,
+        fetchOptions.owner,
+        fetchOptions.repo,
+        fetchOptions.ref,
+        newFiles,
+        remainingKB,
+      );
+    } catch (err) {
+      console.warn(`Failed to fetch ${newFiles.length} requested file(s), proceeding without additional context:`, err);
+    }
+
+    if (Object.keys(fetched).length === 0) {
+      console.warn(`None of the ${newFiles.length} requested file(s) could be fetched: ${newFiles.join(', ')}`);
+      // No files fetched — force analysis without additional context
+      const noFilesPrompt = currentPrompt + '\n\nThe requested files could not be fetched. Please proceed with your analysis using only the diff.';
+      const finalResponse = await llm.invoke(modelId, noFilesPrompt, maxTokens);
+      roundsUsed++;
+      return { response: finalResponse, fetchedFiles: allFetchedFiles, roundsUsed };
+    }
 
     Object.assign(allFetchedFiles, fetched);
 
