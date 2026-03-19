@@ -60,8 +60,10 @@ export async function GET(req: NextRequest) {
     }
 
     const accessibleRepos = new Set<string>();
-    for (const installation of targetInstallations) {
-      const items = await store.installations.listByInstallation(String(installation.id));
+    const storeItemLists = await Promise.all(
+      targetInstallations.map((inst) => store.installations.listByInstallation(String(inst.id))),
+    );
+    for (const items of storeItemLists) {
       for (const item of items) {
         if (item.monitored === true && userRepoNames.has(item.repoFullName)) {
           accessibleRepos.add(item.repoFullName);

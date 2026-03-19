@@ -32,6 +32,11 @@ const nextConfig = {
       '@aws-sdk/lib-dynamodb',
       'postgres',
     ],
+    // Cache visited dynamic pages on the client for 60s so fast tab-switching
+    // serves stale content instantly (revalidates in background on next nav).
+    staleTimes: {
+      dynamic: 60,
+    },
   },
 };
 
