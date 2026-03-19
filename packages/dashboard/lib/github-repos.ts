@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { createHash } from "crypto";
 
 const GITHUB_API = "https://api.github.com";
 const GITHUB_HEADERS = (accessToken: string) => ({
@@ -6,9 +7,25 @@ const GITHUB_HEADERS = (accessToken: string) => ({
   Accept: "application/vnd.github+json",
 });
 
+/** Hash a token so we never store raw credentials as cache keys. */
+function tokenHash(token: string): string {
+  return createHash("sha256").update(token).digest("hex").slice(0, 16);
+}
+
 // --- TTL cache for fetchAccessibleRepoNames (persists across requests in warm containers) ---
-const repoNamesCache = new Map<string, { data: Set<string>; expiry: number }>();
 const REPO_NAMES_TTL_MS = 60_000; // 60 seconds
+const REPO_NAMES_CACHE_MAX = 50;
+const repoNamesCache = new Map<string, { data: Set<string>; expiry: number }>();
+
+/** Evict expired entries from a TTL map. */
+function evictExpired(map: Map<string, { expiry: number }>) {
+  const now = Date.now();
+  const expired: string[] = [];
+  map.forEach((entry, key) => {
+    if (now >= entry.expiry) expired.push(key);
+  });
+  expired.forEach((key) => map.delete(key));
+}
 
 /** Thrown when the GitHub token is expired or revoked. */
 export class TokenExpiredError extends Error {
@@ -199,7 +216,7 @@ async function _fetchAccessibleRepoNamesImpl(
   installationId: number,
 ): Promise<Set<string>> {
   // Check TTL cache first (persists across requests in warm containers / long-lived processes)
-  const cacheKey = `${accessToken}:${installationId}`;
+  const cacheKey = `${tokenHash(accessToken)}:${installationId}`;
   const cached = repoNamesCache.get(cacheKey);
   if (cached && Date.now() < cached.expiry) {
     return cached.data;
@@ -235,7 +252,12 @@ async function _fetchAccessibleRepoNamesImpl(
     nextUrl = match ? match[1] : null;
   }
 
-  // Store in TTL cache
+  // Store in TTL cache (evict stale entries first to bound memory)
+  evictExpired(repoNamesCache);
+  if (repoNamesCache.size >= REPO_NAMES_CACHE_MAX) {
+    const oldest = repoNamesCache.keys().next().value!;
+    repoNamesCache.delete(oldest);
+  }
   repoNamesCache.set(cacheKey, { data: names, expiry: Date.now() + REPO_NAMES_TTL_MS });
 
   return names;
@@ -296,16 +318,17 @@ async function _checkInstallationAdminImpl(
 
 /**
  * React.cache()-wrapped admin check.
- * We store the Installation in a module-level map keyed by id so that the
- * cache() wrapper only receives primitive args (reference-equality safe).
+ * We store the latest Installation per id so the cache() wrapper only receives
+ * primitive args (reference-equality safe). The map is cleared before each
+ * write to avoid unbounded growth — only the current render's installations
+ * are kept.
  */
-const _installationById = new Map<number, Installation>();
+let _lastInstallation: { id: number; inst: Installation } | null = null;
 
 const _checkAdminCached = cache(
   async (accessToken: string, installationId: number): Promise<boolean> => {
-    const inst = _installationById.get(installationId);
-    if (!inst) return false;
-    return _checkInstallationAdminImpl(accessToken, inst);
+    if (!_lastInstallation || _lastInstallation.id !== installationId) return false;
+    return _checkInstallationAdminImpl(accessToken, _lastInstallation.inst);
   },
 );
 
@@ -313,6 +336,6 @@ export async function checkInstallationAdmin(
   accessToken: string,
   installation: Installation,
 ): Promise<boolean> {
-  _installationById.set(installation.id, installation);
+  _lastInstallation = { id: installation.id, inst: installation };
   return _checkAdminCached(accessToken, installation.id);
 }

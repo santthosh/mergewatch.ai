@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getDashboardStore } from "@/lib/store";
+import type { InstallationItem } from "@mergewatch/core";
 import {
   fetchUserInstallations,
   checkInstallationAdmin,
@@ -62,18 +63,18 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   const [isAdmin, monitoredItems] = await Promise.all([
     checkInstallationAdmin(accessToken, activeInstallation),
-    store.installations.listByInstallation(installationId).catch(() => [] as any[]),
+    store.installations.listByInstallation(installationId).catch((): InstallationItem[] => []),
   ]);
 
-  const monitoredItemsList = monitoredItems.filter((item: any) => item.monitored === true);
-  const monitoredNames = new Set(monitoredItemsList.map((item: any) => item.repoFullName as string));
+  const monitoredItemsList = monitoredItems.filter((item) => item.monitored === true);
+  const monitoredNames = new Set(monitoredItemsList.map((item) => item.repoFullName));
 
   // Build repos list from monitored store items (reviews are fetched client-side via /api/reviews)
   const repos = monitoredItemsList
-    .sort((a: any, b: any) => (a.repoFullName as string).localeCompare(b.repoFullName as string))
-    .map((item: any) => ({
-      repoFullName: item.repoFullName as string,
-      installedAt: item.installedAt as string || new Date().toISOString(),
+    .sort((a, b) => a.repoFullName.localeCompare(b.repoFullName))
+    .map((item) => ({
+      repoFullName: item.repoFullName,
+      installedAt: item.installedAt || new Date().toISOString(),
       reviewCount: 0,
     }));
 
