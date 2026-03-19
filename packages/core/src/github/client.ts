@@ -12,7 +12,7 @@
 import { Octokit } from "@octokit/rest";
 import yaml from 'js-yaml';
 import type { PRContext } from "../types/github.js";
-import type { MergeWatchConfig, CustomAgentDef } from '../config/defaults.js';
+import type { MergeWatchConfig, CustomAgentDef, UXConfig } from '../config/defaults.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -74,6 +74,7 @@ export async function getPRContext(
     octokit.pulls.listFiles({ owner, repo, pull_number: prNumber, per_page: 300 }),
   ]);
 
+  const files = filesResponse.data;
   return {
     owner,
     repo,
@@ -82,7 +83,9 @@ export async function getPRContext(
     description: pr.data.body,
     baseBranch: pr.data.base.ref,
     headBranch: pr.data.head.ref,
-    files: filesResponse.data.map((f) => f.filename),
+    files: files.map((f) => f.filename),
+    totalAdditions: files.reduce((sum, f) => sum + (f.additions ?? 0), 0),
+    totalDeletions: files.reduce((sum, f) => sum + (f.deletions ?? 0), 0),
   };
 }
 
@@ -463,6 +466,22 @@ export async function fetchRepoConfig(
             : 'warning',
           enabled: typeof a.enabled === 'boolean' ? a.enabled : true,
         }));
+    }
+
+    // UX config
+    if (parsed.ux && typeof parsed.ux === 'object') {
+      const u = parsed.ux as Record<string, unknown>;
+      const ux: Partial<UXConfig> = {};
+      const validTones = new Set(['collaborative', 'direct', 'advisory']);
+      if (typeof u.tone === 'string' && validTones.has(u.tone)) {
+        ux.tone = u.tone as UXConfig['tone'];
+      }
+      if (typeof u.showWorkDone === 'boolean') ux.showWorkDone = u.showWorkDone;
+      if (typeof u.showSuppressedCount === 'boolean') ux.showSuppressedCount = u.showSuppressedCount;
+      if (typeof u.reviewerChecklist === 'boolean') ux.reviewerChecklist = u.reviewerChecklist;
+      if (typeof u.allClearMessage === 'boolean') ux.allClearMessage = u.allClearMessage;
+      if (typeof u.commentHeader === 'string') ux.commentHeader = u.commentHeader;
+      config.ux = ux as UXConfig;
     }
 
     return config;

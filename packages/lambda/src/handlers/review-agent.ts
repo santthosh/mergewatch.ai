@@ -39,7 +39,9 @@ import type {
   ReviewFinding,
   MergeWatchConfig,
   FileFetchOptions,
+  ReviewDelta,
 } from '@mergewatch/core';
+import { buildWorkDoneSection, computeReviewDelta } from '@mergewatch/core';
 import { DynamoInstallationStore } from '@mergewatch/storage-dynamo';
 import { DynamoReviewStore } from '@mergewatch/storage-dynamo';
 import { BedrockLLMProvider, SUPPORTED_MODELS } from '@mergewatch/llm-bedrock';
@@ -284,9 +286,32 @@ export async function handler(
         : { ...runtimeConfig.agents, diagram: instSettings.summary.diagram },
       fileFetchOptions,
       customAgents: runtimeConfig.customAgents,
+      tone: runtimeConfig.ux.tone,
     }, { llm });
 
     const reviewDetailUrl = `${DASHBOARD_BASE_URL}/dashboard/reviews/${encodeURIComponent(`${repoFullName}:${prNumberCommitSha}`)}`;
+
+    // Build work-done section from PR context stats
+    const workDone = buildWorkDoneSection(
+      prContext.files,
+      prContext.totalAdditions,
+      prContext.totalDeletions,
+      result.enabledAgentCount,
+    );
+
+    // Compute delta from previous review (if any)
+    let delta: ReviewDelta | null = null;
+    try {
+      const prevReviews = await reviewStore.queryByPR(repoFullName, `${prNumber}#`, 5);
+      const prevComplete = prevReviews.find(
+        (r) => r.status === 'complete' && r.prNumberCommitSha !== prNumberCommitSha && r.findings,
+      );
+      if (prevComplete?.findings) {
+        delta = computeReviewDelta(result.findings, prevComplete.findings);
+      }
+    } catch (err) {
+      console.warn('Failed to compute review delta:', err);
+    }
 
     const commentBody = formatReviewComment({
       summary: result.summary,
@@ -301,6 +326,11 @@ export async function handler(
       reviewDetailUrl,
       mergeScore: result.mergeScore,
       mergeScoreReason: result.mergeScoreReason || undefined,
+      ux: runtimeConfig.ux,
+      workDone,
+      delta,
+      suppressedCount: result.suppressedCount,
+      enabledAgentCount: result.enabledAgentCount,
     });
 
     // Submit as a proper PR review (shows MergeWatch as a reviewer).

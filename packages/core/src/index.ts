@@ -47,6 +47,8 @@ export {
   ORCHESTRATOR_PROMPT,
   RESPOND_PROMPT,
   CUSTOM_AGENT_RESPONSE_FORMAT,
+  TONE_DIRECTIVES,
+  TONE_PLACEHOLDER,
 } from './agents/prompts.js';
 
 // ─── GitHub client (portable Octokit ops) ───────────────────────────────────
@@ -68,12 +70,16 @@ export {
 } from './github/client.js';
 
 // ─── Comment formatter ──────────────────────────────────────────────────────
-export { formatReviewComment } from './comment-formatter.js';
-export type { Finding } from './comment-formatter.js';
+export { formatReviewComment, buildWorkDoneSection } from './comment-formatter.js';
+export type { Finding, WorkDoneSection } from './comment-formatter.js';
+
+// ─── Review delta ────────────────────────────────────────────────────────────
+export { computeReviewDelta } from './review-delta.js';
+export type { ReviewDelta } from './review-delta.js';
 
 // ─── Config ─────────────────────────────────────────────────────────────────
-export { DEFAULT_CONFIG, mergeConfig } from './config/defaults.js';
-export type { MergeWatchConfig, CustomAgentDef } from './config/defaults.js';
+export { DEFAULT_CONFIG, DEFAULT_UX_CONFIG, mergeConfig } from './config/defaults.js';
+export type { MergeWatchConfig, CustomAgentDef, UXConfig } from './config/defaults.js';
 
 // ─── Context (agentic file fetching) ─────────────────────────────────────────
 export { fetchFileContents } from './context/file-fetcher.js';

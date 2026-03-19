@@ -169,6 +169,10 @@ export interface PRContext {
   baseBranch: string;
   headBranch: string;
   files: string[];
+  /** Total lines added across all files */
+  totalAdditions: number;
+  /** Total lines deleted across all files */
+  totalDeletions: number;
 }
 
 /** Shape of the async invocation payload sent to the ReviewAgent Lambda. */
