@@ -46,8 +46,8 @@ export interface MergeWatchConfig {
   postSummaryOnClean: boolean;
   /** Whether to fetch related file contents for context-aware reviews */
   codebaseAwareness: boolean;
-  /** Maximum depth for resolving import dependencies (1-2) */
-  maxDependencyDepth: number;
+  /** Maximum rounds of agentic file requests per agent (1-2) */
+  maxFileRequestRounds: number;
   /** Maximum total size of related file context in KB */
   maxContextKB: number;
   /** User-defined custom review agents */
@@ -83,7 +83,7 @@ export const DEFAULT_CONFIG: MergeWatchConfig = {
   maxFindings: 25,
   postSummaryOnClean: true,
   codebaseAwareness: true,
-  maxDependencyDepth: 1,
+  maxFileRequestRounds: 1,
   maxContextKB: 256,
   customAgents: [],
 };

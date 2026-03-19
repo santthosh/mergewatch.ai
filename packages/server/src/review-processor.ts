@@ -1,4 +1,4 @@
-import type { ReviewJobPayload, IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider } from '@mergewatch/core';
+import type { ReviewJobPayload, IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider, FileFetchOptions } from '@mergewatch/core';
 import {
   getPRDiff, getPRContext, addPRReaction, postReviewComment, updateReviewComment,
   findExistingBotComment, getCommentReactions, createCheckRun,
@@ -6,7 +6,6 @@ import {
   DEFAULT_CONFIG, mergeConfig,
   BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
   fetchRepoConfig,
-  fetchFileContents, resolveImportsForFiles,
 } from '@mergewatch/core';
 import type { WebhookDeps } from './webhook-handler.js';
 
@@ -66,32 +65,18 @@ export async function processReviewJob(
   const startTime = Date.now();
 
   try {
-    // Fetch related files for codebase awareness
-    let relatedFiles: Record<string, string> | undefined;
-    if (config.codebaseAwareness) {
-      try {
-        const changedFilePaths = prContext.files || [];
-        const ref = prContext.headBranch || 'HEAD';
-        const changedFileContents = await fetchFileContents(
-          octokit, owner, repo, ref, changedFilePaths, config.maxContextKB,
-        );
-
-        const importPaths = resolveImportsForFiles(changedFileContents, config.maxDependencyDepth);
-
-        if (importPaths.length > 0) {
-          const remainingBudgetKB = config.maxContextKB - Math.ceil(
-            Object.values(changedFileContents).reduce((sum, c) => sum + Buffer.byteLength(c, 'utf-8'), 0) / 1024
-          );
-          if (remainingBudgetKB > 0) {
-            relatedFiles = await fetchFileContents(
-              octokit, owner, repo, ref, importPaths, remainingBudgetKB,
-            );
-          }
+    // Build agentic file fetch options (agents will request files they need)
+    const ref = prContext.headBranch || 'HEAD';
+    const fileFetchOptions: FileFetchOptions | undefined = config.codebaseAwareness
+      ? {
+          octokit,
+          owner,
+          repo,
+          ref,
+          maxContextKB: config.maxContextKB,
+          maxRounds: config.maxFileRequestRounds,
         }
-      } catch (err) {
-        console.warn('Failed to fetch related files for codebase awareness:', err);
-      }
-    }
+      : undefined;
 
     // Run review pipeline
     const result = await runReviewPipeline(
@@ -118,7 +103,7 @@ export async function processReviewJob(
           testCoverage: config.agents.testCoverage,
           commentAccuracy: config.agents.commentAccuracy,
         },
-        relatedFiles,
+        fileFetchOptions,
         customAgents: config.customAgents,
       },
       { llm: deps.llm },

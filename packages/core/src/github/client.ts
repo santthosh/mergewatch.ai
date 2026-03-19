@@ -446,7 +446,7 @@ export async function fetchRepoConfig(
 
     // Codebase awareness fields
     if (typeof parsed.codebaseAwareness === 'boolean') config.codebaseAwareness = parsed.codebaseAwareness;
-    if (typeof parsed.maxDependencyDepth === 'number') config.maxDependencyDepth = parsed.maxDependencyDepth;
+    if (typeof parsed.maxFileRequestRounds === 'number') config.maxFileRequestRounds = parsed.maxFileRequestRounds;
     if (typeof parsed.maxContextKB === 'number') config.maxContextKB = parsed.maxContextKB;
 
     // Custom agents

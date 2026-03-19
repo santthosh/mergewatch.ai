@@ -75,9 +75,10 @@ export type { Finding } from './comment-formatter.js';
 export { DEFAULT_CONFIG, mergeConfig } from './config/defaults.js';
 export type { MergeWatchConfig, CustomAgentDef } from './config/defaults.js';
 
-// ─── Context (codebase awareness) ────────────────────────────────────────────
+// ─── Context (agentic file fetching) ─────────────────────────────────────────
 export { fetchFileContents } from './context/file-fetcher.js';
-export { resolveImports, resolveImportsForFiles } from './context/import-resolver.js';
+export { invokeWithFileFetching, FILE_REQUEST_INSTRUCTION } from './context/agentic-fetcher.js';
+export type { FileFetchOptions, AgenticInvokeResult } from './context/agentic-fetcher.js';
 
 // ─── Skip logic ─────────────────────────────────────────────────────────────
 export { shouldSkipPR, SKIP_PATTERNS } from './skip-logic.js';
