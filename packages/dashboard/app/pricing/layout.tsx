@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -11,5 +14,9 @@ export default function PricingLayout({
 }: {
   children: React.ReactNode;
 }) {
+  if (process.env.DEPLOYMENT_MODE !== "saas") {
+    redirect("/signin");
+  }
+
   return <>{children}</>;
 }
