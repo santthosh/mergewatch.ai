@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Wordmark } from "@/components/MergeWatchLogo";
 import {
@@ -17,8 +18,13 @@ import {
  *
  * 9 sections: Nav, Hero, Social Proof, How It Works, Output Preview,
  * Three Pillars, Deployment Choice, Final CTA, Footer.
+ *
+ * Self-hosted deployments skip straight to /signin.
  */
 export default function LandingPage() {
+  if (process.env.DEPLOYMENT_MODE !== "saas") {
+    redirect("/signin");
+  }
   return (
     <div className="flex min-h-screen flex-col">
       {/* ─── 1. Nav ────────────────────────────────────────────────────── */}
