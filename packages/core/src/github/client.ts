@@ -69,12 +69,11 @@ export async function getPRContext(
   prNumber: number
 ): Promise<PRContext> {
   // Fetch the PR metadata and the list of changed files in parallel.
-  const [pr, filesResponse] = await Promise.all([
+  // GitHub caps listFiles at 100 per page, so paginate to get all files.
+  const [pr, files] = await Promise.all([
     octokit.pulls.get({ owner, repo, pull_number: prNumber }),
-    octokit.pulls.listFiles({ owner, repo, pull_number: prNumber, per_page: 300 }),
+    octokit.paginate(octokit.pulls.listFiles, { owner, repo, pull_number: prNumber, per_page: 100 }),
   ]);
-
-  const files = filesResponse.data;
   return {
     owner,
     repo,
