@@ -153,6 +153,8 @@ Return a JSON object:
 }`;
 
 // ─── Diagram agent ────────────────────────────────────────────────────────
+export const PREVIOUS_DIAGRAM_PLACEHOLDER = '{{PREVIOUS_DIAGRAM}}';
+
 export const DIAGRAM_PROMPT = `You are a senior software engineer performing an automated code review.
 
 Analyse the diff and produce a Mermaid diagram that visualises the structure or flow of the changes.
@@ -169,6 +171,8 @@ Guidelines:
 - Use clear, short labels. ALWAYS wrap labels in double quotes if they contain ANY of these characters: ( ) [ ] { } | < > — e.g. A["invoke() method"] or B["Map<string>"].
 - Use subgraphs to group related files or modules when helpful.
 - If the diff is too trivial for a useful diagram (e.g. a one-line config change, a typo fix, or a single variable rename), return EMPTY (nothing at all).
+
+${PREVIOUS_DIAGRAM_PLACEHOLDER}
 
 Return ONLY raw Mermaid code — no JSON, no fences, no explanation.
 Use a Mermaid comment on the very first line as a caption: %% One-line description
