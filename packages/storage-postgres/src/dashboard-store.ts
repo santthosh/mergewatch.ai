@@ -127,14 +127,18 @@ class PostgresDashboardInstallationStore implements IDashboardInstallationStore 
     monitored: boolean,
   ): Promise<void> {
     await this.db
-      .update(installations)
-      .set({ monitored })
-      .where(
-        and(
-          eq(installations.installationId, installationId),
-          eq(installations.repoFullName, repoFullName),
-        ),
-      );
+      .insert(installations)
+      .values({
+        installationId,
+        repoFullName,
+        installedAt: new Date().toISOString(),
+        config: {},
+        monitored,
+      })
+      .onConflictDoUpdate({
+        target: [installations.installationId, installations.repoFullName],
+        set: { monitored },
+      });
   }
 }
 
