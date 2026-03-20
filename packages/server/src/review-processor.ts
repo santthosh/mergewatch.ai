@@ -83,6 +83,18 @@ export async function processReviewJob(
         }
       : undefined;
 
+    // Fetch previous reviews before pipeline (used for diagram consistency + delta computation)
+    let prevComplete: typeof prevReviewsResult[number] | undefined;
+    const prevReviewsResult = await deps.reviewStore.queryByPR(repoFullName, `${prNumber}#`, 5).catch((err) => {
+      console.warn('Failed to fetch previous reviews:', err);
+      return [] as Awaited<ReturnType<typeof deps.reviewStore.queryByPR>>;
+    });
+    prevComplete = prevReviewsResult.find(
+      (r) => r.status === 'complete' && r.prNumberCommitSha !== prNumberCommitSha && r.findings,
+    );
+
+    const previousDiagram = prevComplete?.diagramText as string | undefined;
+
     // Run review pipeline
     const result = await runReviewPipeline(
       {
@@ -111,6 +123,7 @@ export async function processReviewJob(
         fileFetchOptions,
         customAgents: config.customAgents,
         tone: config.ux.tone,
+        previousDiagram,
       },
       { llm: deps.llm },
     );
@@ -125,18 +138,10 @@ export async function processReviewJob(
       result.enabledAgentCount,
     );
 
-    // Compute delta from previous review (if any)
+    // Compute delta from previous review (reusing prevComplete fetched earlier)
     let delta: ReviewDelta | null = null;
-    try {
-      const prevReviews = await deps.reviewStore.queryByPR(repoFullName, `${prNumber}#`, 5);
-      const prevComplete = prevReviews.find(
-        (r) => r.status === 'complete' && r.prNumberCommitSha !== prNumberCommitSha && r.findings,
-      );
-      if (prevComplete?.findings) {
-        delta = computeReviewDelta(result.findings, prevComplete.findings);
-      }
-    } catch (err) {
-      console.warn('Failed to compute review delta:', err);
+    if (prevComplete?.findings) {
+      delta = computeReviewDelta(result.findings, prevComplete.findings);
     }
 
     // Format comment

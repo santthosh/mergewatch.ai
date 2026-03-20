@@ -17,6 +17,7 @@ import {
   STYLE_REVIEWER_PROMPT,
   SUMMARY_PROMPT,
   DIAGRAM_PROMPT,
+  PREVIOUS_DIAGRAM_PLACEHOLDER,
   ERROR_HANDLING_REVIEWER_PROMPT,
   TEST_COVERAGE_REVIEWER_PROMPT,
   COMMENT_ACCURACY_REVIEWER_PROMPT,
@@ -207,8 +208,25 @@ export async function runDiagramAgent(
   context: ReviewContext,
   modelId: string,
   llm: ILLMProvider,
+  previousDiagram?: string,
 ): Promise<DiagramResult> {
-  const prompt = buildPrompt(DIAGRAM_PROMPT, diff, context, false);
+  // Inject previous diagram for consistency or strip the placeholder
+  let diagramPrompt = DIAGRAM_PROMPT;
+  if (previousDiagram) {
+    diagramPrompt = diagramPrompt.replace(
+      PREVIOUS_DIAGRAM_PLACEHOLDER,
+      `IMPORTANT — Consistency with previous review:
+A previous review of this PR produced the diagram below. Maintain the same node IDs, naming conventions, diagram type, and overall layout. Only update nodes/edges that reflect actual changes in the new diff. Do not reorganise or rename unchanged elements.
+
+Previous diagram:
+\`\`\`mermaid
+${previousDiagram}
+\`\`\``,
+    );
+  } else {
+    diagramPrompt = diagramPrompt.replace(PREVIOUS_DIAGRAM_PLACEHOLDER, '');
+  }
+  const prompt = buildPrompt(diagramPrompt, diff, context, false);
   const raw = await llm.invoke(modelId, prompt);
   return parseDiagramResponse(raw);
 }
@@ -387,6 +405,8 @@ export interface ReviewPipelineOptions {
   customAgents?: CustomAgentDef[];
   /** Tone for review findings */
   tone?: UXConfig['tone'];
+  /** Previous diagram from an earlier review of this PR, used for layout consistency */
+  previousDiagram?: string;
 }
 
 export interface ReviewPipelineResult {
@@ -421,6 +441,7 @@ export async function runReviewPipeline(
     fileFetchOptions,
     customAgents = [],
     tone,
+    previousDiagram,
   } = options;
   const { llm } = deps;
 
@@ -453,7 +474,7 @@ export async function runReviewPipeline(
       ? runSummaryAgent(diff, context, lightModelId, llm)
       : Promise.resolve(''),
     enabledAgents.diagram
-      ? runDiagramAgent(diff, context, lightModelId, llm)
+      ? runDiagramAgent(diff, context, lightModelId, llm, previousDiagram)
       : Promise.resolve({ diagram: '', caption: '' } as DiagramResult),
   ]);
 
