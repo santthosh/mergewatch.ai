@@ -210,8 +210,27 @@ export async function runDiagramAgent(
 ): Promise<DiagramResult> {
   const prompt = buildPrompt(DIAGRAM_PROMPT, diff, context, false);
   const raw = await llm.invoke(modelId, prompt);
-  const parsed = safeParseJson<DiagramResult>(raw, { diagram: '', caption: '' });
-  return parsed;
+  return parseDiagramResponse(raw);
+}
+
+/** Parse raw Mermaid response: extract caption from leading %% comment. */
+function parseDiagramResponse(raw: string): DiagramResult {
+  let cleaned = raw.trim();
+  // Strip markdown code fences if the model wraps them anyway
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:mermaid)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+  }
+  if (!cleaned) return { diagram: '', caption: '' };
+
+  // Extract caption from leading Mermaid comment (%% ...)
+  const lines = cleaned.split('\n');
+  let caption = '';
+  if (lines[0].startsWith('%%')) {
+    caption = lines[0].replace(/^%%\s*/, '').trim();
+    lines.shift();
+  }
+  const diagram = lines.join('\n').trim();
+  return { diagram, caption };
 }
 
 /** Run the error handling review agent. */
