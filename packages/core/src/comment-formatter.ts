@@ -240,16 +240,14 @@ export function formatReviewComment(options: FormatOptions): string {
     lines.push('');
   }
 
-  // 6. Diagram (collapsible)
+  // 6. Diagram
   if (diagram && showDiagram) {
-    const captionText = diagramCaption ? ` \u2014 ${diagramCaption}` : '';
-    lines.push(`<details><summary>Diagram${captionText}</summary>`);
+    const captionText = diagramCaption ? `**Diagram** \u2014 ${diagramCaption}` : '**Diagram**';
+    lines.push(captionText);
     lines.push('');
     lines.push('```mermaid');
     lines.push(diagram);
     lines.push('```');
-    lines.push('');
-    lines.push('</details>');
     lines.push('');
   }
 

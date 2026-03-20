@@ -168,15 +168,19 @@ Guidelines:
 - Keep it concise: 5-15 nodes max. Collapse trivial files into groups.
 - Use clear, short labels. Wrap labels with special characters in double quotes.
 - Use subgraphs to group related files or modules when helpful.
-- If the diff is too trivial for a useful diagram (e.g. a one-line config change, a typo fix, or a single variable rename), return empty strings for both fields.
+- If the diff is too trivial for a useful diagram (e.g. a one-line config change, a typo fix, or a single variable rename), return EMPTY (nothing at all).
 
-Return a JSON object:
-{
-  "diagram": "mermaid diagram code (no fences)",
-  "caption": "One-line description of what the diagram shows"
-}
+Return ONLY raw Mermaid code — no JSON, no fences, no explanation.
+Use a Mermaid comment on the very first line as a caption: %% One-line description
 
-If no useful diagram can be generated, return: { "diagram": "", "caption": "" }`;
+Example response:
+%% Auth flow after middleware refactor
+sequenceDiagram
+    Client->>API: request
+    API->>Auth: validate
+    Auth-->>API: token
+
+If no useful diagram can be generated, return nothing (empty response).`;
 
 // ─── Error handling agent ─────────────────────────────────────────────────
 export const ERROR_HANDLING_REVIEWER_PROMPT = `${SHARED_PREAMBLE}
