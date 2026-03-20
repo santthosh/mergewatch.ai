@@ -153,7 +153,7 @@ Return a JSON object:
 }`;
 
 // ─── Diagram agent ────────────────────────────────────────────────────────
-export const DIAGRAM_PROMPT = `${SHARED_PREAMBLE}
+export const DIAGRAM_PROMPT = `You are a senior software engineer performing an automated code review.
 
 Analyse the diff and produce a Mermaid diagram that visualises the structure or flow of the changes.
 
