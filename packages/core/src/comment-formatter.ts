@@ -396,12 +396,8 @@ export function formatReviewComment(options: FormatOptions): string {
     lines.push('');
   }
 
-  // 10. Deference footer
+  // 10. Dashboard link + custom footer
   lines.push('---');
-  lines.push('*These are flags, not verdicts. You know this codebase.*');
-  lines.push('');
-
-  // 11. Dashboard link + custom footer
   const footerParts: string[] = [];
   if (reviewDetailUrl) {
     footerParts.push(`[View full details](${reviewDetailUrl})`);
