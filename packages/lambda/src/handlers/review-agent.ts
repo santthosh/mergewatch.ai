@@ -281,7 +281,7 @@ export async function handler(
       console.warn('Failed to fetch previous reviews:', err);
     }
 
-    const previousDiagram = prevComplete?.diagramText as string | undefined;
+    const previousDiagram = typeof prevComplete?.diagramText === 'string' ? prevComplete.diagramText : undefined;
 
     const result = await runReviewPipeline({
       diff,

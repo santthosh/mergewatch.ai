@@ -214,7 +214,7 @@ export async function runDiagramAgent(
 ): Promise<DiagramResult> {
   // Inject previous diagram for consistency or strip the placeholder
   let diagramPrompt = DIAGRAM_PROMPT;
-  if (previousDiagram) {
+  if (previousDiagram && previousDiagram.trim()) {
     diagramPrompt = diagramPrompt.replace(
       PREVIOUS_DIAGRAM_PLACEHOLDER,
       `IMPORTANT — Consistency with previous review:

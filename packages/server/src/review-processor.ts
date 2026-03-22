@@ -93,7 +93,7 @@ export async function processReviewJob(
       (r) => r.status === 'complete' && r.prNumberCommitSha !== prNumberCommitSha && r.findings,
     );
 
-    const previousDiagram = prevComplete?.diagramText as string | undefined;
+    const previousDiagram = typeof prevComplete?.diagramText === 'string' ? prevComplete.diagramText : undefined;
 
     // Run review pipeline
     const result = await runReviewPipeline(

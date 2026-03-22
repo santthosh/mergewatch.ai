@@ -153,6 +153,7 @@ Return a JSON object:
 }`;
 
 // ─── Diagram agent ────────────────────────────────────────────────────────
+// Replaced with consistency guidance when previousDiagram exists, otherwise stripped
 export const PREVIOUS_DIAGRAM_PLACEHOLDER = '{{PREVIOUS_DIAGRAM}}';
 
 export const DIAGRAM_PROMPT = `You are a senior software engineer performing an automated code review.
