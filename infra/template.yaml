@@ -137,12 +137,14 @@ Resources:
         AllowOrigins:
           - '*'
         AllowMethods:
+          - GET
           - POST
         AllowHeaders:
           - Content-Type
           - X-GitHub-Event
           - X-GitHub-Delivery
           - X-Hub-Signature-256
+          - Stripe-Signature
 
   # ===========================================================================
   # Lambda Function: WebhookHandler
@@ -246,6 +248,55 @@ Resources:
         Sourcemap: true
         EntryPoints:
           - handlers/review-agent.ts
+
+  # ===========================================================================
+  # Lambda Function: BillingHandler
+  # ===========================================================================
+  # Handles billing operations: card setup, top-ups, Stripe webhooks, and
+  # billing status queries. Separate from WebhookHandler/ReviewAgent because
+  # it has different IAM needs (Stripe SSM params) and a different timeout.
+
+  BillingHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'mergewatch-billing-${Stage}'
+      Description: Billing operations — card setup, top-ups, Stripe webhooks, status
+
+      CodeUri: ../packages/lambda/src/
+      Handler: handlers/billing.handler
+
+      MemorySize: 512
+      Timeout: 30
+
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+      Environment:
+        Variables:
+          STRIPE_SECRET_KEY: !Sub '{{resolve:ssm:/mergewatch/${Stage}/stripe-secret-key}}'
+          STRIPE_WEBHOOK_SECRET: !Sub '{{resolve:ssm:/mergewatch/${Stage}/stripe-webhook-secret}}'
+
+      Events:
+        BillingPost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WebhookApi
+            Path: /billing/{proxy+}
+            Method: POST
+        BillingGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WebhookApi
+            Path: /billing/{proxy+}
+            Method: GET
+
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - handlers/billing.ts
 
   # ===========================================================================
   # DynamoDB Table: Installations
@@ -513,6 +564,14 @@ Outputs:
   ReviewAgentArn:
     Description: ARN of the ReviewAgent Lambda function
     Value: !GetAtt ReviewAgent.Arn
+
+  BillingHandlerArn:
+    Description: ARN of the BillingHandler Lambda function
+    Value: !GetAtt BillingHandler.Arn
+
+  BillingUrl:
+    Description: Billing API base URL
+    Value: !Sub 'https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}/billing'
 
   # Table names for use in scripts or other tooling
   InstallationsTableName:

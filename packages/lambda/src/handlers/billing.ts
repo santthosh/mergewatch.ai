@@ -1,0 +1,252 @@
+/**
+ * AWS Lambda handler for MergeWatch billing operations.
+ *
+ * Routes:
+ *   POST /billing/setup   — Create Stripe Customer + Checkout Session (card setup)
+ *   GET  /billing/success  — Redirect to dashboard after successful setup
+ *   POST /billing/topup    — Charge saved card and credit balance
+ *   POST /billing/webhook  — Stripe webhook events
+ *   GET  /billing/status   — Return billing state for dashboard
+ */
+
+import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import {
+  getStripe,
+  ensureStripeCustomer,
+  createSetupSession,
+  createTopUp,
+  getBillingFields,
+  updateBillingFields,
+  closeBillingIssue,
+  FREE_REVIEW_LIMIT,
+} from '@mergewatch/billing';
+import { SSMGitHubAuthProvider } from '../github-auth-ssm.js';
+
+// -- Singletons ---------------------------------------------------------------
+
+const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const INSTALLATIONS_TABLE = process.env.INSTALLATIONS_TABLE ?? 'mergewatch-installations';
+const DASHBOARD_BASE_URL = process.env.DASHBOARD_BASE_URL ?? 'https://mergewatch.ai';
+
+const authProvider = new SSMGitHubAuthProvider();
+
+// -- Helpers ------------------------------------------------------------------
+
+function json(statusCode: number, body: Record<string, unknown>): APIGatewayProxyResultV2 {
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  };
+}
+
+function redirect(url: string): APIGatewayProxyResultV2 {
+  return {
+    statusCode: 302,
+    headers: { Location: url },
+    body: '',
+  };
+}
+
+// -- Route handlers -----------------------------------------------------------
+
+async function handleSetup(body: Record<string, unknown>): Promise<APIGatewayProxyResultV2> {
+  const installationId = body.installationId as string | undefined;
+  if (!installationId) {
+    return json(400, { error: 'installationId is required' });
+  }
+
+  const stripe = getStripe();
+  const customerId = await ensureStripeCustomer(stripe, dynamodb, INSTALLATIONS_TABLE, installationId);
+  const returnUrl = `${DASHBOARD_BASE_URL}/dashboard/billing`;
+  const checkoutUrl = await createSetupSession(stripe, customerId, returnUrl);
+
+  return json(200, { url: checkoutUrl });
+}
+
+async function handleSuccess(): Promise<APIGatewayProxyResultV2> {
+  return redirect(`${DASHBOARD_BASE_URL}/dashboard/billing?setup=complete`);
+}
+
+async function handleTopUp(body: Record<string, unknown>): Promise<APIGatewayProxyResultV2> {
+  const installationId = body.installationId as string | undefined;
+  const amountCents = body.amountCents as number | undefined;
+
+  if (!installationId || !amountCents || amountCents < 100) {
+    return json(400, { error: 'installationId and amountCents (>= 100) are required' });
+  }
+
+  const stripe = getStripe();
+  const { paymentIntentId, newBalanceCents } = await createTopUp(
+    stripe, dynamodb, INSTALLATIONS_TABLE, installationId, amountCents,
+  );
+
+  // Close billing issue if one is open
+  const fields = await getBillingFields(dynamodb, INSTALLATIONS_TABLE, installationId);
+  if (fields.blockIssueNumber && fields.blockIssueRepo) {
+    try {
+      const octokit = await authProvider.getInstallationOctokit(Number(installationId));
+      await closeBillingIssue(octokit, installationId, dynamodb, INSTALLATIONS_TABLE, fields.blockIssueNumber, fields.blockIssueRepo);
+    } catch (err) {
+      console.warn('Failed to close billing issue after top-up:', err);
+    }
+  }
+
+  return json(200, { paymentIntentId, newBalanceCents });
+}
+
+async function handleWebhook(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
+  const stripe = getStripe();
+  const sig = event.headers['stripe-signature'];
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!sig || !webhookSecret) {
+    return json(400, { error: 'Missing stripe-signature header or webhook secret' });
+  }
+
+  let stripeEvent;
+  try {
+    stripeEvent = stripe.webhooks.constructEvent(event.body ?? '', sig, webhookSecret);
+  } catch (err) {
+    console.error('Stripe webhook signature verification failed:', err);
+    return json(400, { error: 'Invalid signature' });
+  }
+
+  switch (stripeEvent.type) {
+    case 'customer.updated': {
+      // Sync balance from Stripe to DynamoDB
+      const customer = stripeEvent.data.object;
+      const installationId = customer.metadata?.mergewatchInstallationId;
+      if (installationId) {
+        // Stripe balance is negative for credits, we store as positive cents
+        const balanceCents = Math.abs(customer.balance ?? 0);
+        await updateBillingFields(dynamodb, INSTALLATIONS_TABLE, installationId, { balanceCents });
+      }
+      break;
+    }
+
+    case 'payment_intent.succeeded': {
+      const pi = stripeEvent.data.object;
+      const installationId = pi.metadata?.mergewatchInstallationId;
+      if (installationId && pi.metadata?.type === 'auto-reload') {
+        await updateBillingFields(dynamodb, INSTALLATIONS_TABLE, installationId, {
+          autoReloadInFlight: false,
+        });
+      }
+      break;
+    }
+
+    case 'payment_intent.payment_failed': {
+      const pi = stripeEvent.data.object;
+      const installationId = pi.metadata?.mergewatchInstallationId;
+      if (installationId && pi.metadata?.type === 'auto-reload') {
+        await updateBillingFields(dynamodb, INSTALLATIONS_TABLE, installationId, {
+          autoReloadInFlight: false,
+        });
+        console.warn(`Auto-reload payment failed for installation ${installationId}`);
+      }
+      break;
+    }
+
+    default:
+      console.log(`Unhandled Stripe event type: ${stripeEvent.type}`);
+  }
+
+  return json(200, { received: true });
+}
+
+async function handleStatus(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
+  const installationId = event.queryStringParameters?.installationId;
+  if (!installationId) {
+    return json(400, { error: 'installationId query parameter is required' });
+  }
+
+  const fields = await getBillingFields(dynamodb, INSTALLATIONS_TABLE, installationId);
+
+  const stripe = getStripe();
+  let hasPaymentMethod = false;
+
+  if (fields.stripeCustomerId) {
+    try {
+      const methods = await stripe.paymentMethods.list({
+        customer: fields.stripeCustomerId,
+        type: 'card',
+        limit: 1,
+      });
+      hasPaymentMethod = methods.data.length > 0;
+    } catch {
+      // Non-critical
+    }
+  }
+
+  return json(200, {
+    freeReviewsUsed: fields.freeReviewsUsed ?? 0,
+    freeReviewLimit: FREE_REVIEW_LIMIT,
+    balanceCents: fields.balanceCents ?? 0,
+    hasPaymentMethod,
+    stripeCustomerId: fields.stripeCustomerId ?? null,
+    autoReloadEnabled: fields.autoReloadEnabled ?? false,
+    autoReloadThresholdCents: fields.autoReloadThresholdCents ?? null,
+    autoReloadAmountCents: fields.autoReloadAmountCents ?? null,
+    blockedAt: fields.blockedAt ?? null,
+    totalBilledCents: fields.totalBilledCents ?? 0,
+    prCount: fields.prCount ?? 0,
+    prTimestamps: fields.prTimestamps ?? [],
+  });
+}
+
+// -- Main handler (path-based routing) ----------------------------------------
+
+export async function handler(
+  event: APIGatewayProxyEventV2,
+): Promise<APIGatewayProxyResultV2> {
+  const path = event.rawPath?.replace(/\/+$/, '') ?? '';
+  const method = event.requestContext?.http?.method ?? 'GET';
+
+  console.log(`Billing handler: ${method} ${path}`);
+
+  try {
+    // Parse body for POST requests
+    let body: Record<string, unknown> = {};
+    if (method === 'POST' && event.body) {
+      // Don't parse webhook body — it needs the raw string for signature verification
+      if (!path.endsWith('/webhook')) {
+        try {
+          body = JSON.parse(event.body);
+        } catch {
+          return json(400, { error: 'Invalid JSON body' });
+        }
+      }
+    }
+
+    if (method === 'POST' && path.endsWith('/setup')) {
+      return await handleSetup(body);
+    }
+
+    if (method === 'GET' && path.endsWith('/success')) {
+      return await handleSuccess();
+    }
+
+    if (method === 'POST' && path.endsWith('/topup')) {
+      return await handleTopUp(body);
+    }
+
+    if (method === 'POST' && path.endsWith('/webhook')) {
+      return await handleWebhook(event);
+    }
+
+    if (method === 'GET' && path.endsWith('/status')) {
+      return await handleStatus(event);
+    }
+
+    return json(404, { error: 'Not found' });
+  } catch (err) {
+    console.error('Billing handler error:', err);
+    return json(500, {
+      error: 'Internal server error',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+}

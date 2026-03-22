@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@mergewatch/core": "workspace:*",
-    "@aws-sdk/lib-dynamodb": "^3.721.0"
+    "@aws-sdk/lib-dynamodb": "^3.721.0",
+    "stripe": "^17.7.0"
   },
   "devDependencies": {
     "typescript": "^5.7.3"
