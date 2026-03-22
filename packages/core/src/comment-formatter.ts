@@ -372,7 +372,7 @@ export function formatReviewComment(options: FormatOptions): string {
     if (durationMs != null) {
       detailParts.push(`${(durationMs / 1000).toFixed(1)}s`);
     }
-    lines.push(`<details><summary>\u2699\uFE0F Review details${detailParts.length > 0 ? ` \u2014 ${detailParts.join(' \u00B7 ')}` : ''}</summary>`);
+    lines.push(`<details><summary>\u2139\uFE0F Review details${detailParts.length > 0 ? ` \u2014 ${detailParts.join(' \u00B7 ')}` : ''}</summary>`);
     lines.push('');
     lines.push('| | |');
     lines.push('|---|---|');
