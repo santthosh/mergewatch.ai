@@ -11,6 +11,7 @@ import {
   BarChart3,
   GitBranch,
   Settings,
+  CreditCard,
   ChevronDown,
   LogOut,
   Menu,
@@ -36,6 +37,9 @@ const navItems: NavEntry[] = [
   { type: "section", label: "CONFIGURE" },
   { type: "item", label: "Repositories", href: "/dashboard/repositories", icon: GitBranch },
   { type: "item", label: "Settings", href: "/dashboard/settings", icon: Settings },
+  ...(process.env.NEXT_PUBLIC_DEPLOYMENT_MODE === "saas" || process.env.DEPLOYMENT_MODE === "saas"
+    ? [{ type: "item" as const, label: "Billing", href: "/dashboard/billing", icon: CreditCard }]
+    : []),
   { type: "section", label: "RESOURCES" },
   { type: "item", label: "Documentation", href: "https://docs.mergewatch.ai", icon: BookOpen, external: true },
   { type: "item", label: "GitHub", href: "https://github.com/santthosh/mergewatch.ai", icon: Github, external: true },
