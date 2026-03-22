@@ -166,7 +166,7 @@ Choose the most appropriate diagram type:
 Guidelines:
 - Focus on what CHANGED — do not diagram the entire codebase.
 - Keep it concise: 5-15 nodes max. Collapse trivial files into groups.
-- Use clear, short labels. Wrap labels with special characters in double quotes.
+- Use clear, short labels. ALWAYS wrap labels in double quotes if they contain ANY of these characters: ( ) [ ] { } | < > — e.g. A["invoke() method"] or B["Map<string>"].
 - Use subgraphs to group related files or modules when helpful.
 - If the diff is too trivial for a useful diagram (e.g. a one-line config change, a typo fix, or a single variable rename), return EMPTY (nothing at all).
 
