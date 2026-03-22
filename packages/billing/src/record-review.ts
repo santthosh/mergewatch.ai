@@ -3,6 +3,7 @@ import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { FREE_REVIEW_LIMIT } from './constants';
 import { calculateReviewCost } from './cost';
 import { getBillingFields, incrementFreeReviewsUsed, deductBalanceAndRecordUsage } from './dynamo-billing';
+import { maybeAutoReload } from './auto-reload';
 
 /**
  * Record a completed review against billing.
@@ -67,6 +68,13 @@ export async function recordReview(
     } catch (err) {
       // Non-critical: DynamoDB is the source of truth, Stripe is secondary
       console.warn('Failed to debit Stripe customer balance:', err);
+    }
+
+    // Check if auto-reload should fire
+    try {
+      await maybeAutoReload(client, table, stripe, installationId);
+    } catch (err) {
+      console.warn('Auto-reload check failed:', err);
     }
   }
 }

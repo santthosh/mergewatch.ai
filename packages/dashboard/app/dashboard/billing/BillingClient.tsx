@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { CreditCard, Zap, TrendingUp, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { CreditCard, Zap, TrendingUp, AlertCircle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 
 interface BillingStatus {
   freeReviewsUsed: number;
@@ -42,6 +42,7 @@ export default function BillingClient({ installationId, accountLogin, setupCompl
   const [topUpLoading, setTopUpLoading] = useState<number | null>(null);
   const [setupLoading, setSetupLoading] = useState(false);
   const [showSetupBanner, setShowSetupBanner] = useState(setupComplete ?? false);
+  const [autoReloadSaving, setAutoReloadSaving] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -99,6 +100,30 @@ export default function BillingClient({ installationId, accountLogin, setupCompl
       setError(err instanceof Error ? err.message : "Top-up failed");
     } finally {
       setTopUpLoading(null);
+    }
+  };
+
+  const handleAutoReloadToggle = async () => {
+    setAutoReloadSaving(true);
+    try {
+      const newEnabled = !status?.autoReloadEnabled;
+      const res = await fetch("/api/billing/auto-reload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          installationId,
+          enabled: newEnabled,
+          // Default: reload $10 when balance drops below $1
+          thresholdCents: newEnabled ? (status?.autoReloadThresholdCents ?? 100) : undefined,
+          amountCents: newEnabled ? (status?.autoReloadAmountCents ?? 1000) : undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to update auto-reload");
+      await fetchStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update auto-reload");
+    } finally {
+      setAutoReloadSaving(false);
     }
   };
 
@@ -335,6 +360,45 @@ export default function BillingClient({ installationId, accountLogin, setupCompl
           </div>
         )}
       </div>
+
+      {/* Auto-Reload */}
+      {status.hasPaymentMethod && (
+        <div className="rounded-lg border border-border-default bg-surface-elevated p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <RefreshCw className="h-4 w-4 text-accent-green" />
+            <h2 className="text-sm font-medium text-fg-primary">Auto-Reload</h2>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-fg-secondary">
+                Automatically add credits when balance is low
+              </p>
+              {status.autoReloadEnabled && (
+                <p className="text-xs text-fg-tertiary mt-1">
+                  Reload ${((status.autoReloadAmountCents ?? 1000) / 100).toFixed(0)} when balance drops below ${((status.autoReloadThresholdCents ?? 100) / 100).toFixed(2)}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={handleAutoReloadToggle}
+              disabled={autoReloadSaving}
+              className={cn(
+                "relative w-11 h-6 shrink-0 rounded-full transition-colors duration-200",
+                "disabled:opacity-50 disabled:cursor-not-allowed",
+                status.autoReloadEnabled ? "bg-accent-green" : "bg-surface-subtle",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200",
+                  status.autoReloadEnabled && "translate-x-5",
+                )}
+              />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
