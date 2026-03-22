@@ -3,15 +3,19 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Wordmark } from "@/components/MergeWatchLogo";
-import { Github, Server, Cloud, ChevronDown, Zap, CreditCard, BarChart3 } from "lucide-react";
+import { Github, Server, Cloud, ChevronDown, Zap, CreditCard } from "lucide-react";
 
-const PLATFORM_FEE = 0.005;
+const INFRA_FEE = 0.005;
 const MARGIN_PERCENT = 0.40;
 const AVG_LLM_COST = 0.08; // average LLM cost per review
 const FREE_REVIEWS = 5;
 
+function platformFee(llmCost: number): number {
+  return INFRA_FEE + llmCost * MARGIN_PERCENT;
+}
+
 function estimateCost(llmCost: number): number {
-  return llmCost + PLATFORM_FEE + llmCost * MARGIN_PERCENT;
+  return llmCost + platformFee(llmCost);
 }
 
 export default function PricingPage() {
@@ -126,7 +130,7 @@ export default function PricingPage() {
                 Every review is billed based on its actual cost:
               </p>
               <div className="mt-3 rounded-md bg-surface-inset px-4 py-3 font-mono text-sm text-fg-primary">
-                You pay = LLM cost + platform fee + margin
+                You pay = LLM cost + platform fee
               </div>
               <div className="mt-4 space-y-3">
                 <div className="flex items-start gap-3">
@@ -142,16 +146,9 @@ export default function PricingPage() {
                   <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-primer-blue" />
                   <p className="text-sm text-primer-muted">
                     <strong className="text-fg-primary">Platform fee</strong>{" "}
-                    &mdash; $0.005 per review. Covers compute, storage, and
-                    GitHub integration.
-                  </p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <BarChart3 className="mt-0.5 h-4 w-4 shrink-0 text-primer-green" />
-                  <p className="text-sm text-primer-muted">
-                    <strong className="text-fg-primary">Margin</strong> &mdash;
-                    40% of LLM cost. Covers the multi-agent pipeline, dashboard,
-                    and ongoing development.
+                    &mdash; covers compute, storage, GitHub integration, the
+                    multi-agent pipeline, dashboard, and ongoing development.
+                    Scales with review size.
                   </p>
                 </div>
               </div>
@@ -159,62 +156,7 @@ export default function PricingPage() {
 
             {/* Example reviews */}
             <div className="mt-6 overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-border-default">
-                    <th className="pb-2 pr-4 font-medium text-primer-muted">
-                      Diff size
-                    </th>
-                    <th className="pb-2 pr-4 font-medium text-primer-muted">
-                      LLM cost
-                    </th>
-                    <th className="pb-2 pr-4 font-medium text-primer-muted">
-                      Platform
-                    </th>
-                    <th className="pb-2 pr-4 font-medium text-primer-muted">
-                      Margin
-                    </th>
-                    <th className="pb-2 font-medium text-primer-muted">
-                      You pay
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="text-fg-primary">
-                  <tr className="border-b border-border-subtle">
-                    <td className="py-2.5 pr-4 text-primer-muted">
-                      Small (~100 lines)
-                    </td>
-                    <td className="py-2.5 pr-4">$0.03</td>
-                    <td className="py-2.5 pr-4">$0.005</td>
-                    <td className="py-2.5 pr-4">$0.012</td>
-                    <td className="py-2.5 font-semibold text-primer-green">
-                      $0.047
-                    </td>
-                  </tr>
-                  <tr className="border-b border-border-subtle">
-                    <td className="py-2.5 pr-4 text-primer-muted">
-                      Medium (~400 lines)
-                    </td>
-                    <td className="py-2.5 pr-4">$0.08</td>
-                    <td className="py-2.5 pr-4">$0.005</td>
-                    <td className="py-2.5 pr-4">$0.032</td>
-                    <td className="py-2.5 font-semibold text-primer-green">
-                      $0.117
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2.5 pr-4 text-primer-muted">
-                      Large (~1,000 lines)
-                    </td>
-                    <td className="py-2.5 pr-4">$0.19</td>
-                    <td className="py-2.5 pr-4">$0.005</td>
-                    <td className="py-2.5 pr-4">$0.076</td>
-                    <td className="py-2.5 font-semibold text-primer-green">
-                      $0.271
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              <ExampleTable />
             </div>
 
             <p className="mt-4 text-xs leading-relaxed text-primer-muted">
@@ -594,6 +536,54 @@ function PrCalculator() {
         cost&nbsp;&mdash; actual cost varies by diff size.
       </p>
     </div>
+  );
+}
+
+function ExampleTable() {
+  const examples = [
+    { label: "Small (~100 lines)", llm: 0.03 },
+    { label: "Medium (~400 lines)", llm: 0.08 },
+    { label: "Large (~1,000 lines)", llm: 0.19 },
+  ];
+
+  return (
+    <table className="w-full text-left text-sm">
+      <thead>
+        <tr className="border-b border-border-default">
+          <th className="pb-2 pr-4 font-medium text-primer-muted">
+            Diff size
+          </th>
+          <th className="pb-2 pr-4 font-medium text-primer-muted">
+            LLM cost
+          </th>
+          <th className="pb-2 pr-4 font-medium text-primer-muted">
+            Platform fee
+          </th>
+          <th className="pb-2 font-medium text-primer-muted">You pay</th>
+        </tr>
+      </thead>
+      <tbody className="text-fg-primary">
+        {examples.map((ex, i) => (
+          <tr
+            key={ex.label}
+            className={
+              i < examples.length - 1
+                ? "border-b border-border-subtle"
+                : ""
+            }
+          >
+            <td className="py-2.5 pr-4 text-primer-muted">{ex.label}</td>
+            <td className="py-2.5 pr-4">${ex.llm.toFixed(3)}</td>
+            <td className="py-2.5 pr-4">
+              ${platformFee(ex.llm).toFixed(3)}
+            </td>
+            <td className="py-2.5 font-semibold text-primer-green">
+              ${estimateCost(ex.llm).toFixed(3)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
