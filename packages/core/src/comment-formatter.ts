@@ -134,6 +134,21 @@ function shortenPath(path: string): string {
   return parts.slice(-2).join('/');
 }
 
+/** Render a single finding as a detailed markdown list item. */
+function renderFinding(f: Finding, showConfidence: boolean): string {
+  const confidenceBadge = showConfidence && f.confidence != null
+    ? ` \`${f.confidence}%\``
+    : '';
+  let line = `- **\`${f.file}:${f.line}\`** — ${f.title}${confidenceBadge}`;
+  if (f.description) {
+    line += `\n  ${f.description}`;
+  }
+  if (f.suggestion) {
+    line += `\n  > **Suggestion:** ${f.suggestion}`;
+  }
+  return line;
+}
+
 const DEPENDENCY_FILE_PATTERNS = [
   /package\.json$/,
   /package-lock\.json$/,
@@ -179,6 +194,7 @@ export function formatReviewComment(options: FormatOptions): string {
     commentFooter,
     showSummary = true,
     showIssuesTable = true,
+    showConfidence = true,
     diagram,
     diagramCaption,
     showDiagram = true,
@@ -302,35 +318,57 @@ export function formatReviewComment(options: FormatOptions): string {
     }
   }
 
-  // 8. Info drawer — collapsed: info findings + suppressed count
-  const hasInfo = infoFindings.length > 0;
-  const hasSuppressed = (suppressedCount ?? 0) > 0 && (ux?.showSuppressedCount !== false);
-  if (hasInfo || hasSuppressed) {
-    const summaryParts: string[] = [];
-    if (hasInfo) {
-      summaryParts.push(`\uD83D\uDD35 ${infoFindings.length} info`);
-    }
-    if (hasSuppressed) {
-      summaryParts.push(`${suppressedCount} suppressed`);
-    }
-    lines.push(`<details><summary>${summaryParts.join(' \u00B7 ')}</summary>`);
-    lines.push('');
-    if (hasInfo) {
-      for (const f of infoFindings) {
-        const shortFile = shortenPath(f.file);
-        lines.push(`- \`${shortFile}:${f.line}\` \u2014 ${f.title}`);
+  // 8. Detailed findings — critical uncollapsed, warning/info collapsed
+  if (showIssuesTable && findings.length > 0) {
+    const criticalFindings = grouped.get('critical') ?? [];
+    const warningFindings = grouped.get('warning') ?? [];
+
+    // Critical — shown open (not collapsed)
+    if (criticalFindings.length > 0) {
+      lines.push(`### ${SEVERITY_META.critical.emoji} Critical (${criticalFindings.length})`);
+      for (const f of criticalFindings) {
+        lines.push(renderFinding(f, showConfidence));
       }
       lines.push('');
     }
-    if (hasSuppressed) {
-      lines.push(`The orchestrator removed ${suppressedCount} duplicate or low-confidence finding${suppressedCount !== 1 ? 's' : ''}.`);
+
+    // Warning — collapsed
+    if (warningFindings.length > 0) {
+      lines.push(`<details><summary>${SEVERITY_META.warning.emoji} Warnings (${warningFindings.length})</summary>`);
+      lines.push('');
+      for (const f of warningFindings) {
+        lines.push(renderFinding(f, showConfidence));
+      }
+      lines.push('');
+      lines.push('</details>');
       lines.push('');
     }
+
+    // Info — collapsed
+    if (infoFindings.length > 0) {
+      lines.push(`<details><summary>${SEVERITY_META.info.emoji} Info (${infoFindings.length})</summary>`);
+      lines.push('');
+      for (const f of infoFindings) {
+        lines.push(renderFinding(f, showConfidence));
+      }
+      lines.push('');
+      lines.push('</details>');
+      lines.push('');
+    }
+  }
+
+  // 9. Suppressed count
+  const hasSuppressed = (suppressedCount ?? 0) > 0 && (ux?.showSuppressedCount !== false);
+  if (hasSuppressed) {
+    lines.push(`<details><summary>${suppressedCount} suppressed</summary>`);
+    lines.push('');
+    lines.push(`The orchestrator removed ${suppressedCount} duplicate or low-confidence finding${suppressedCount !== 1 ? 's' : ''}.`);
+    lines.push('');
     lines.push('</details>');
     lines.push('');
   }
 
-  // 9. Review details drawer — collapsed: model, time, tokens, cost
+  // 10. Review details drawer — collapsed: model, time, tokens, cost
   const totalTokens = (inputTokens ?? 0) + (outputTokens ?? 0);
   const hasDetails = totalTokens > 0 || durationMs != null || model;
   if (hasDetails) {
