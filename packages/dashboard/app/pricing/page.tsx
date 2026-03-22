@@ -110,16 +110,18 @@ export default function PricingPage() {
 
         {/* ─── SaaS Pricing ──────────────────────────────────────────── */}
         <section className="px-6 pb-16">
-          <div className="mx-auto max-w-3xl">
-            <div className="flex items-center gap-2">
-              <Cloud className="h-5 w-5 text-primer-blue" />
-              <h2 className="text-lg font-semibold text-primer-blue">
-                Managed SaaS &mdash; How Pricing Works
-              </h2>
+          <div className="mx-auto max-w-3xl rounded-xl border border-border-default bg-surface-card/60 p-6">
+            <div className="flex items-start gap-3">
+              <Cloud className="mt-0.5 h-5 w-5 text-primer-blue" />
+              <div>
+                <h2 className="text-lg font-semibold text-primer-blue">
+                  Managed SaaS &mdash; How Pricing Works
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-primer-muted">
+                  Hosted by MergeWatch. No infrastructure required.
+                </p>
+              </div>
             </div>
-            <p className="mt-1 text-sm text-primer-muted">
-              Hosted by MergeWatch. No infrastructure required.
-            </p>
 
             {/* The formula */}
             <div className="mt-6 rounded-lg border border-border-default bg-surface-card/40 p-5">
