@@ -213,6 +213,74 @@ export async function runDiagramAgent(
   return parseDiagramResponse(raw);
 }
 
+/**
+ * Sanitize Mermaid output to prevent parse errors from special characters.
+ *
+ * Mermaid uses (), [], {}, >] etc. as node shape delimiters in flowcharts.
+ * When the LLM puts text like `invoke()` in a node or edge label without
+ * proper quoting, Mermaid misinterprets it as shape syntax.
+ *
+ * This function:
+ * 1. Quotes unquoted node labels that contain reserved characters
+ * 2. Quotes unquoted edge labels (|...|) that contain reserved characters
+ */
+function sanitizeMermaidOutput(diagram: string): string {
+  const lines = diagram.split('\n');
+  const sanitized = lines.map((line) => {
+    // Skip comments, directives, empty lines, and structural keywords
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('%%') || trimmed.startsWith('```') ||
+        /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|gitGraph|journey)\b/i.test(trimmed) ||
+        /^(subgraph|end|participant|actor|Note|loop|alt|else|opt|par|rect|activate|deactivate)\b/i.test(trimmed)) {
+      return line;
+    }
+
+    // For flowchart/graph lines: fix unquoted node labels with shape delimiters.
+    // Match node definitions like:  A[label with (parens)]  or  A(label with [brackets])
+    // where the label content itself contains characters that clash with the shape delimiters.
+    // Strategy: find bracket-delimited labels and quote their text content.
+    let result = line;
+
+    // Fix edge labels: |text with special chars| → |"text with special chars"|
+    result = result.replace(/\|([^|"]+)\|/g, (_match, label: string) => {
+      if (/[()[\]{}<>]/.test(label)) {
+        return `|"${label}"|`;
+      }
+      return _match;
+    });
+
+    // Fix node labels in square brackets: [text()] → ["text()"]
+    // Only quote if the inner text contains problematic characters and isn't already quoted
+    result = result.replace(/\[([^\]"]+)\]/g, (_match, label: string) => {
+      if (/[(){}]/.test(label)) {
+        return `["${label}"]`;
+      }
+      return _match;
+    });
+
+    // Fix node labels in round brackets (stadium/pill shape): (text[]) → ("text[]")
+    // Be careful not to match arrow syntax like -->
+    result = result.replace(/(?<!\-)\(([^)"]+)\)(?!\-)/g, (_match, label: string) => {
+      if (/[[\]{}]/.test(label)) {
+        return `("${label}")`;
+      }
+      return _match;
+    });
+
+    // Fix node labels in curly brackets (rhombus/diamond): {text()} → {"text()"}
+    result = result.replace(/\{([^}"]+)\}/g, (_match, label: string) => {
+      if (/[()[\]]/.test(label)) {
+        return `{"${label}"}`;
+      }
+      return _match;
+    });
+
+    return result;
+  });
+
+  return sanitized.join('\n');
+}
+
 /** Parse raw Mermaid response: extract caption from leading %% comment. */
 function parseDiagramResponse(raw: string): DiagramResult {
   let cleaned = raw.trim();
@@ -229,7 +297,7 @@ function parseDiagramResponse(raw: string): DiagramResult {
     caption = lines[0].replace(/^%%\s*/, '').trim();
     lines.shift();
   }
-  const diagram = lines.join('\n').trim();
+  const diagram = sanitizeMermaidOutput(lines.join('\n').trim());
   return { diagram, caption };
 }
 
