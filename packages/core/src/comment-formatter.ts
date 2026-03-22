@@ -357,20 +357,10 @@ export function formatReviewComment(options: FormatOptions): string {
     }
   }
 
-  // 9. Suppressed count
-  const hasSuppressed = (suppressedCount ?? 0) > 0 && (ux?.showSuppressedCount !== false);
-  if (hasSuppressed) {
-    lines.push(`<details><summary>${suppressedCount} suppressed</summary>`);
-    lines.push('');
-    lines.push(`The orchestrator removed ${suppressedCount} duplicate or low-confidence finding${suppressedCount !== 1 ? 's' : ''}.`);
-    lines.push('');
-    lines.push('</details>');
-    lines.push('');
-  }
-
-  // 10. Review details drawer — collapsed: model, time, tokens, cost
+  // 9. Review details drawer — collapsed: model, time, tokens, cost, suppressed
   const totalTokens = (inputTokens ?? 0) + (outputTokens ?? 0);
-  const hasDetails = totalTokens > 0 || durationMs != null || model;
+  const hasSuppressed = (suppressedCount ?? 0) > 0 && (ux?.showSuppressedCount !== false);
+  const hasDetails = totalTokens > 0 || durationMs != null || model || hasSuppressed;
   if (hasDetails) {
     const detailParts: string[] = [];
     if (totalTokens > 0) {
@@ -397,6 +387,9 @@ export function formatReviewComment(options: FormatOptions): string {
     }
     if (estimatedCostUsd != null && estimatedCostUsd > 0) {
       lines.push(`| **Est. cost** | ~$${estimatedCostUsd.toFixed(4)} (LLM only) |`);
+    }
+    if (hasSuppressed) {
+      lines.push(`| **Suppressed** | ${suppressedCount} finding${suppressedCount !== 1 ? 's' : ''} removed by dedup & quality filters |`);
     }
     lines.push('');
     lines.push('</details>');
