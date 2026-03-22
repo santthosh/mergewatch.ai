@@ -273,8 +273,9 @@ export default function PricingPage() {
             </div>
 
             <p className="mt-4 text-center text-xs italic text-primer-muted">
-              Per-seat pricing based on typical $24/dev/month plans. MergeWatch
-              estimates use average review cost of ~${estimateCost(AVG_LLM_COST).toFixed(2)}/review.
+              Per-seat pricing based on typical ${PER_SEAT_PRICE}/dev/month plans.
+              MergeWatch estimates use average review cost of ~${estimateCost(AVG_LLM_COST).toFixed(2)}/review
+              based on Claude Sonnet pricing.
             </p>
           </div>
         </section>
@@ -323,7 +324,8 @@ export default function PricingPage() {
                 comment showing your team&rsquo;s pace and a link to add
                 credits. Reviews resume the moment credits are available&nbsp;
                 &mdash; no subscription required. The {FREE_REVIEWS} free
-                reviews are a one-time evaluation and don&rsquo;t reset monthly.
+                reviews are a one-time, lifetime evaluation&nbsp;&mdash; once
+                used, they don&rsquo;t refresh.
               </FaqItem>
               <FaqItem question="How do I know what I'll pay?">
                 Use the calculator on this page to estimate based on your PR
@@ -589,10 +591,18 @@ function ExampleTable() {
   );
 }
 
-function ComparisonTable() {
-  const avgCost = estimateCost(AVG_LLM_COST);
-  const mw = (prs: number) => Math.max(0, prs - FREE_REVIEWS) * avgCost;
+// Per-seat competitor pricing: typical $24/dev/month plans
+const PER_SEAT_PRICE = 24;
 
+function competitorCost(devs: number): string {
+  return `$${devs * PER_SEAT_PRICE}/mo`;
+}
+
+function monthlyEstimate(prs: number): number {
+  return Math.max(0, prs - FREE_REVIEWS) * estimateCost(AVG_LLM_COST);
+}
+
+function ComparisonTable() {
   return (
     <table className="w-full text-left text-sm">
       <thead>
@@ -614,30 +624,30 @@ function ComparisonTable() {
           <td className="py-2.5 pr-4 text-primer-muted">
             Per-seat tool (5 devs)
           </td>
-          <td className="py-2.5 pr-4">$120/mo</td>
-          <td className="py-2.5 pr-4">$120/mo</td>
-          <td className="py-2.5">$120/mo</td>
+          <td className="py-2.5 pr-4">{competitorCost(5)}</td>
+          <td className="py-2.5 pr-4">{competitorCost(5)}</td>
+          <td className="py-2.5">{competitorCost(5)}</td>
         </tr>
         <tr className="border-b border-border-subtle">
           <td className="py-2.5 pr-4 text-primer-muted">
             Per-seat tool (20 devs)
           </td>
-          <td className="py-2.5 pr-4">$480/mo</td>
-          <td className="py-2.5 pr-4">$480/mo</td>
-          <td className="py-2.5">$480/mo</td>
+          <td className="py-2.5 pr-4">{competitorCost(20)}</td>
+          <td className="py-2.5 pr-4">{competitorCost(20)}</td>
+          <td className="py-2.5">{competitorCost(20)}</td>
         </tr>
         <tr>
           <td className="py-2.5 pr-4 font-medium text-primer-green">
             MergeWatch
           </td>
           <td className="py-2.5 pr-4 font-semibold text-primer-green">
-            ~${mw(50).toFixed(0)}
+            ~${monthlyEstimate(50).toFixed(0)}
           </td>
           <td className="py-2.5 pr-4 font-semibold text-primer-green">
-            ~${mw(200).toFixed(0)}
+            ~${monthlyEstimate(200).toFixed(0)}
           </td>
           <td className="py-2.5 font-semibold text-primer-green">
-            ~${mw(500).toFixed(0)}
+            ~${monthlyEstimate(500).toFixed(0)}
           </td>
         </tr>
       </tbody>
