@@ -322,6 +322,8 @@ export async function handler(
       delta = computeReviewDelta(result.findings, prevComplete.findings);
     }
 
+    const durationMs = Date.now() - new Date(reviewStartedAt).getTime();
+
     const commentBody = formatReviewComment({
       summary: result.summary,
       findings: result.findings,
@@ -343,6 +345,8 @@ export async function handler(
       inputTokens: result.inputTokens,
       outputTokens: result.outputTokens,
       estimatedCostUsd: result.estimatedCostUsd,
+      durationMs,
+      model: modelName,
     });
 
     // Submit as a proper PR review (shows MergeWatch as a reviewer).
@@ -417,7 +421,6 @@ export async function handler(
       : undefined;
 
     const completedAt = new Date().toISOString();
-    const durationMs = new Date(completedAt).getTime() - new Date(reviewStartedAt).getTime();
 
     await reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'complete', {
       commentId,

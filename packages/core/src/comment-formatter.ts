@@ -69,10 +69,11 @@ interface FormatOptions {
   outputTokens?: number;
   /** Estimated cost in USD */
   estimatedCostUsd?: number | null;
+  /** Review wall-clock time in milliseconds */
+  durationMs?: number;
+  /** LLM model name */
+  model?: string;
 }
-
-/** Maximum number of findings to include in the reviewer checklist. */
-const MAX_CHECKLIST_ITEMS = 5;
 
 // ─── Severity display config ───────────────────────────────────────────────
 
@@ -110,19 +111,27 @@ function groupBySeverity(findings: Finding[]): Map<Finding['severity'], Finding[
   return groups;
 }
 
-/** Render a single finding as a markdown list item. */
-function renderFinding(f: Finding, showConfidence: boolean): string {
-  const confidenceBadge = showConfidence && f.confidence != null
-    ? ` \`${f.confidence}%\``
-    : '';
-  let line = `- **\`${f.file}:${f.line}\`** — ${f.title}${confidenceBadge}`;
-  if (f.description) {
-    line += `\n  ${f.description}`;
-  }
-  if (f.suggestion) {
-    line += `\n  > **Suggestion:** ${f.suggestion}`;
-  }
-  return line;
+/** Truncate summary to 2-3 sentences of plain prose. */
+function truncateSummary(summary: string): string {
+  // Strip markdown headings
+  let text = summary.replace(/^#{1,6}\s+.*/gm, '');
+  // Strip bold headings like **Key Changes:**
+  text = text.replace(/\*\*[^*]+:\*\*/g, '');
+  // Strip bullet markers
+  text = text.replace(/^[\s]*[-*]\s+/gm, '');
+  text = text.replace(/^[\s]*\d+\.\s+/gm, '');
+  // Collapse whitespace
+  text = text.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+  // Split on sentence boundaries and take first 2
+  const sentences = text.match(/[^.!?]+[.!?]+/g);
+  if (!sentences) return text;
+  return sentences.slice(0, 2).join(' ').trim();
+}
+
+/** Shorten a file path to last 2 segments. */
+function shortenPath(path: string): string {
+  const parts = path.split('/');
+  return parts.slice(-2).join('/');
 }
 
 const DEPENDENCY_FILE_PATTERNS = [
@@ -170,7 +179,6 @@ export function formatReviewComment(options: FormatOptions): string {
     commentFooter,
     showSummary = true,
     showIssuesTable = true,
-    showConfidence = true,
     diagram,
     diagramCaption,
     showDiagram = true,
@@ -184,6 +192,8 @@ export function formatReviewComment(options: FormatOptions): string {
     inputTokens,
     outputTokens,
     estimatedCostUsd,
+    durationMs,
+    model,
   } = options;
 
   const lines: string[] = [];
@@ -199,7 +209,7 @@ export function formatReviewComment(options: FormatOptions): string {
   }
   lines.push('');
 
-  // 2. Work Done section
+  // 2. Work Done section (stats bar)
   if (workDone && (ux?.showWorkDone !== false)) {
     const parts: string[] = [
       `**${workDone.filesScanned}** file${workDone.filesScanned !== 1 ? 's' : ''} scanned`,
@@ -239,17 +249,7 @@ export function formatReviewComment(options: FormatOptions): string {
     lines.push('');
   }
 
-  // 5. Summary (collapsible)
-  if (summary && showSummary) {
-    lines.push('<details><summary>Summary</summary>');
-    lines.push('');
-    lines.push(summary);
-    lines.push('');
-    lines.push('</details>');
-    lines.push('');
-  }
-
-  // 6. Diagram
+  // 5. Diagram (moved up — appears right after merge score)
   if (diagram && showDiagram) {
     const captionText = diagramCaption ? `**Diagram** \u2014 ${diagramCaption}` : '**Diagram**';
     lines.push(captionText);
@@ -260,7 +260,17 @@ export function formatReviewComment(options: FormatOptions): string {
     lines.push('');
   }
 
-  // 7. Findings OR All Clear message
+  // 6. Summary — inline 2-sentence prose (not collapsible)
+  if (summary && showSummary) {
+    lines.push(truncateSummary(summary));
+    lines.push('');
+  }
+
+  // 7. Action items — critical + warning findings as checkboxes (single appearance)
+  const grouped = groupBySeverity(findings);
+  const actionFindings = findings.filter((f) => f.severity === 'critical' || f.severity === 'warning');
+  const infoFindings = grouped.get('info') ?? [];
+
   if (findings.length === 0) {
     if (ux?.allClearMessage !== false) {
       lines.push('\uD83C\uDF89 **All clear!** No issues found \u2014 this PR looks good to go.');
@@ -270,70 +280,92 @@ export function formatReviewComment(options: FormatOptions): string {
     }
   } else if (!showIssuesTable) {
     lines.push(`${findings.length} issue${findings.length !== 1 ? 's' : ''} found.`);
+  } else if (actionFindings.length > 0) {
+    const useCheckboxes = ux?.reviewerChecklist !== false;
+    for (const f of actionFindings) {
+      const emoji = f.severity === 'critical' ? '\uD83D\uDD34' : '\u26A0\uFE0F';
+      const shortFile = shortenPath(f.file);
+      if (useCheckboxes) {
+        lines.push(`- [ ] \`${shortFile}:${f.line}\` ${emoji} \u2014 ${f.title}`);
+      } else {
+        lines.push(`- \`${shortFile}:${f.line}\` ${emoji} \u2014 ${f.title}`);
+      }
+    }
+    lines.push('');
   } else {
-    const grouped = groupBySeverity(findings);
-
-    // Sort severity groups in critical → warning → info order
-    const sortedSeverities = ([...grouped.entries()] as [Finding['severity'], Finding[]][])
-      .sort(([a], [b]) => SEVERITY_META[a].order - SEVERITY_META[b].order);
-
-    for (const [severity, items] of sortedSeverities) {
-      const { emoji, label } = SEVERITY_META[severity];
-      lines.push(`### ${emoji} ${label} (${items.length})`);
-      for (const item of items) {
-        lines.push(renderFinding(item, showConfidence));
-      }
+    // Only info findings — show "all clear" for action items
+    if (ux?.allClearMessage !== false) {
+      lines.push('\uD83C\uDF89 **All clear!** No issues found \u2014 this PR looks good to go.');
       lines.push('');
+    } else {
+      lines.push('No issues found \u2014 looking good! \u2705');
     }
   }
 
-  // 8. Suppressed count (collapsible)
-  if (suppressedCount && suppressedCount > 0 && (ux?.showSuppressedCount !== false)) {
-    lines.push(`<details><summary>${suppressedCount} additional finding${suppressedCount !== 1 ? 's' : ''} suppressed by deduplication and quality filters</summary>`);
+  // 8. Info drawer — collapsed: info findings + suppressed count
+  const hasInfo = infoFindings.length > 0;
+  const hasSuppressed = (suppressedCount ?? 0) > 0 && (ux?.showSuppressedCount !== false);
+  if (hasInfo || hasSuppressed) {
+    const summaryParts: string[] = [];
+    if (hasInfo) {
+      summaryParts.push(`\uD83D\uDD35 ${infoFindings.length} info`);
+    }
+    if (hasSuppressed) {
+      summaryParts.push(`${suppressedCount} suppressed`);
+    }
+    lines.push(`<details><summary>${summaryParts.join(' \u00B7 ')}</summary>`);
     lines.push('');
-    lines.push('The orchestrator removed duplicate findings and those below the confidence threshold to keep the review focused on high-signal issues.');
-    lines.push('');
+    if (hasInfo) {
+      for (const f of infoFindings) {
+        const shortFile = shortenPath(f.file);
+        lines.push(`- \`${shortFile}:${f.line}\` \u2014 ${f.title}`);
+      }
+      lines.push('');
+    }
+    if (hasSuppressed) {
+      lines.push(`The orchestrator removed ${suppressedCount} duplicate or low-confidence finding${suppressedCount !== 1 ? 's' : ''}.`);
+      lines.push('');
+    }
     lines.push('</details>');
     lines.push('');
   }
 
-  // 9. Reviewer checklist (derived from top critical/warning findings)
-  if (ux?.reviewerChecklist !== false && findings.length > 0) {
-    const checklistFindings = findings
-      .filter((f) => f.severity === 'critical' || f.severity === 'warning')
-      .slice(0, MAX_CHECKLIST_ITEMS);
-
-    if (checklistFindings.length > 0) {
-      lines.push('<details><summary>Reviewer checklist</summary>');
-      lines.push('');
-      for (const f of checklistFindings) {
-        lines.push(`- [ ] ${f.title} (\`${f.file}:${f.line}\`)`);
-      }
-      lines.push('');
-      lines.push('</details>');
-      lines.push('');
-    }
-  }
-
-  // 10. LLM cost (collapsible)
+  // 9. Review details drawer — collapsed: model, time, tokens, cost
   const totalTokens = (inputTokens ?? 0) + (outputTokens ?? 0);
-  if (totalTokens > 0) {
-    const costLine = estimatedCostUsd != null && estimatedCostUsd > 0
-      ? ` · ~$${estimatedCostUsd.toFixed(4)} estimated cost (LLM only)`
-      : '';
-    lines.push(`<details><summary>LLM usage: ${totalTokens.toLocaleString()} tokens${costLine}</summary>`);
-    lines.push('');
-    lines.push(`- **Input tokens:** ${(inputTokens ?? 0).toLocaleString()}`);
-    lines.push(`- **Output tokens:** ${(outputTokens ?? 0).toLocaleString()}`);
+  const hasDetails = totalTokens > 0 || durationMs != null || model;
+  if (hasDetails) {
+    const detailParts: string[] = [];
+    if (totalTokens > 0) {
+      detailParts.push(`${totalTokens.toLocaleString()} tokens`);
+    }
     if (estimatedCostUsd != null && estimatedCostUsd > 0) {
-      lines.push(`- **Estimated cost:** ~$${estimatedCostUsd.toFixed(4)} (LLM only)`);
+      detailParts.push(`~$${estimatedCostUsd.toFixed(4)}`);
+    }
+    if (durationMs != null) {
+      detailParts.push(`${(durationMs / 1000).toFixed(1)}s`);
+    }
+    lines.push(`<details><summary>\u2699\uFE0F Review details${detailParts.length > 0 ? ` \u2014 ${detailParts.join(' \u00B7 ')}` : ''}</summary>`);
+    lines.push('');
+    lines.push('| | |');
+    lines.push('|---|---|');
+    if (model) {
+      lines.push(`| **Model** | ${model} |`);
+    }
+    if (durationMs != null) {
+      lines.push(`| **Review time** | ${(durationMs / 1000).toFixed(1)}s |`);
+    }
+    if (totalTokens > 0) {
+      lines.push(`| **Tokens** | ${(inputTokens ?? 0).toLocaleString()} in · ${(outputTokens ?? 0).toLocaleString()} out · ${totalTokens.toLocaleString()} total |`);
+    }
+    if (estimatedCostUsd != null && estimatedCostUsd > 0) {
+      lines.push(`| **Est. cost** | ~$${estimatedCostUsd.toFixed(4)} (LLM only) |`);
     }
     lines.push('');
     lines.push('</details>');
     lines.push('');
   }
 
-  // 11. Deference footer
+  // 10. Deference footer
   lines.push('---');
   lines.push('*These are flags, not verdicts. You know this codebase.*');
   lines.push('');
