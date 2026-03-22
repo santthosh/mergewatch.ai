@@ -47,6 +47,9 @@ export const reviews = pgTable('reviews', {
   reactions: jsonb('reactions').default({}),
   installationId: text('installation_id'),
   settingsUsed: jsonb('settings_used'),
+  inputTokens: integer('input_tokens'),
+  outputTokens: integer('output_tokens'),
+  estimatedCostUsd: text('estimated_cost_usd'),
 }, (t) => ({
   pk: primaryKey({ columns: [t.repoFullName, t.prNumberCommitSha] }),
   installationIdx: index('reviews_installation_idx').on(t.installationId),

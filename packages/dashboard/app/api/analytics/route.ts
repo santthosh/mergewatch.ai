@@ -100,6 +100,9 @@ export async function GET(req: NextRequest) {
     let totalFindings = 0;
     let mergeScoreSum = 0;
     let mergeScoreCount = 0;
+    // Cost stats
+    let totalCostUsd = 0;
+    let costCount = 0;
     // Status counts
     const statusCounts: Record<string, number> = { complete: 0, failed: 0, skipped: 0, pending: 0, in_progress: 0 };
     // Findings-per-review trend
@@ -151,6 +154,12 @@ export async function GET(req: NextRequest) {
         entry.sum += fc;
         entry.count += 1;
         findingsByDate.set(date, entry);
+      }
+
+      // Cost stats
+      if ((review as any).estimatedCostUsd != null && review.status === "complete") {
+        totalCostUsd += Number((review as any).estimatedCostUsd);
+        costCount += 1;
       }
 
       // Duration stats
@@ -207,6 +216,13 @@ export async function GET(req: NextRequest) {
         }))
         .sort((a, b) => a.date.localeCompare(b.date)),
       mergeScoreDistribution,
+      costStats: {
+        totalCostUsd: Math.round(totalCostUsd * 10000) / 10000,
+        avgCostUsd: costCount > 0
+          ? Math.round((totalCostUsd / costCount) * 10000) / 10000
+          : 0,
+        costCount,
+      },
     };
 
     return NextResponse.json({ analytics, availableRepos: allRepos });

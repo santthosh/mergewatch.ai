@@ -1,4 +1,4 @@
-import type { ILLMProvider } from '@mergewatch/core';
+import type { ILLMProvider, LLMInvokeResult } from '@mergewatch/core';
 
 export class LiteLLMProvider implements ILLMProvider {
   constructor(
@@ -6,7 +6,7 @@ export class LiteLLMProvider implements ILLMProvider {
     private apiKey?: string,
   ) {}
 
-  async invoke(modelId: string, prompt: string, maxTokens = 4096): Promise<string> {
+  async invoke(modelId: string, prompt: string, maxTokens = 4096): Promise<LLMInvokeResult> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -31,6 +31,10 @@ export class LiteLLMProvider implements ILLMProvider {
     }
 
     const data = await response.json() as any;
-    return data.choices[0].message.content;
+    const text = data.choices[0].message.content;
+    const usage = data.usage
+      ? { inputTokens: data.usage.prompt_tokens ?? 0, outputTokens: data.usage.completion_tokens ?? 0 }
+      : undefined;
+    return { text, usage };
   }
 }

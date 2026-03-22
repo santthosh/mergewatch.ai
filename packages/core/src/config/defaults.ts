@@ -78,6 +78,8 @@ export interface MergeWatchConfig {
   customAgents: CustomAgentDef[];
   /** UX configuration for reviewer experience */
   ux: UXConfig;
+  /** Custom pricing overrides (model ID → USD per 1M tokens) for cost estimation */
+  pricing?: Record<string, { inputPer1M: number; outputPer1M: number }>;
 }
 
 export const DEFAULT_CONFIG: MergeWatchConfig = {
@@ -128,6 +130,7 @@ export function mergeConfig(partial: Partial<Omit<MergeWatchConfig, 'agents' | '
       ...(partial.agents ?? {}),
     },
     customAgents: partial.customAgents ?? DEFAULT_CONFIG.customAgents,
+    pricing: partial.pricing ?? DEFAULT_CONFIG.pricing,
     ux: {
       ...DEFAULT_UX_CONFIG,
       ...(partial.ux ?? {}),

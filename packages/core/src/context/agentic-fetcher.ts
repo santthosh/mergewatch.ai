@@ -10,6 +10,7 @@
 
 import type { Octokit } from '@octokit/rest';
 import type { ILLMProvider } from '../llm/types.js';
+import { normalizeLLMResult } from '../llm/types.js';
 import { fetchFileContents } from './file-fetcher.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -133,7 +134,7 @@ export async function invokeWithFileFetching(
   for (let round = 0; round < fetchOptions.maxRounds; round++) {
     let response: string;
     try {
-      response = await llm.invoke(modelId, currentPrompt, maxTokens);
+      response = normalizeLLMResult(await llm.invoke(modelId, currentPrompt, maxTokens)).text;
     } catch (err) {
       console.warn('LLM invocation failed during agentic file fetching, falling back to no-context analysis:', err);
       // Fall back to a simple invoke without file fetching context
@@ -157,7 +158,7 @@ export async function invokeWithFileFetching(
       // Model requested files we already have — re-invoke without file request instruction
       // to force analysis output
       const forcePrompt = currentPrompt + '\n\nAll requested files have already been provided above. Please proceed with your analysis now.';
-      const finalResponse = await llm.invoke(modelId, forcePrompt, maxTokens);
+      const finalResponse = normalizeLLMResult(await llm.invoke(modelId, forcePrompt, maxTokens)).text;
       roundsUsed++;
       return { response: finalResponse, fetchedFiles: allFetchedFiles, roundsUsed };
     }
@@ -170,7 +171,7 @@ export async function invokeWithFileFetching(
     if (remainingKB <= 0) {
       // Budget exhausted — re-invoke asking for analysis
       const budgetPrompt = currentPrompt + '\n\nContext budget exhausted. Please proceed with your analysis using the context already provided.';
-      const finalResponse = await llm.invoke(modelId, budgetPrompt, maxTokens);
+      const finalResponse = normalizeLLMResult(await llm.invoke(modelId, budgetPrompt, maxTokens)).text;
       roundsUsed++;
       return { response: finalResponse, fetchedFiles: allFetchedFiles, roundsUsed };
     }
@@ -194,7 +195,7 @@ export async function invokeWithFileFetching(
       console.warn(`None of the ${newFiles.length} requested file(s) could be fetched: ${newFiles.join(', ')}`);
       // No files fetched — force analysis without additional context
       const noFilesPrompt = currentPrompt + '\n\nThe requested files could not be fetched. Please proceed with your analysis using only the diff.';
-      const finalResponse = await llm.invoke(modelId, noFilesPrompt, maxTokens);
+      const finalResponse = normalizeLLMResult(await llm.invoke(modelId, noFilesPrompt, maxTokens)).text;
       roundsUsed++;
       return { response: finalResponse, fetchedFiles: allFetchedFiles, roundsUsed };
     }
@@ -212,7 +213,7 @@ export async function invokeWithFileFetching(
   }
 
   // Max rounds reached — do a final invoke forcing analysis
-  const finalResponse = await llm.invoke(modelId, currentPrompt, maxTokens);
+  const finalResponse = normalizeLLMResult(await llm.invoke(modelId, currentPrompt, maxTokens)).text;
   roundsUsed++;
   return { response: finalResponse, fetchedFiles: allFetchedFiles, roundsUsed };
 }

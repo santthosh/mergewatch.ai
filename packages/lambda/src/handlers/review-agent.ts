@@ -109,7 +109,8 @@ ${userComment}
 
 Please respond to the developer's comment:`;
 
-    const response = await llm.invoke(modelId, prompt);
+    const rawResponse = await llm.invoke(modelId, prompt);
+    const response = typeof rawResponse === 'string' ? rawResponse : rawResponse.text;
 
     await postReplyComment(octokit, owner, repo, prNumber, response);
 
@@ -287,6 +288,7 @@ export async function handler(
       fileFetchOptions,
       customAgents: runtimeConfig.customAgents,
       tone: runtimeConfig.ux.tone,
+      customPricing: runtimeConfig.pricing,
     }, { llm });
 
     const reviewDetailUrl = `${DASHBOARD_BASE_URL}/dashboard/reviews/${encodeURIComponent(`${repoFullName}:${prNumberCommitSha}`)}`;
@@ -331,6 +333,9 @@ export async function handler(
       delta,
       suppressedCount: result.suppressedCount,
       enabledAgentCount: result.enabledAgentCount,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+      estimatedCostUsd: result.estimatedCostUsd,
     });
 
     // Submit as a proper PR review (shows MergeWatch as a reviewer).
@@ -427,6 +432,9 @@ export async function handler(
       reactions,
       mergeScore: result.mergeScore,
       mergeScoreReason: result.mergeScoreReason || undefined,
+      inputTokens: result.inputTokens || undefined,
+      outputTokens: result.outputTokens || undefined,
+      estimatedCostUsd: result.estimatedCostUsd ?? undefined,
     });
 
     const hasCritical = result.findings.some((f) => f.severity === 'critical');

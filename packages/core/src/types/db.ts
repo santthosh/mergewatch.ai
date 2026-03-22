@@ -313,6 +313,12 @@ export interface ReviewItem {
   reactions?: Record<string, number>;
   /** GitHub App installation ID (stored for dashboard queries). */
   installationId?: string;
+  /** Total input tokens used for this review. */
+  inputTokens?: number;
+  /** Total output tokens used for this review. */
+  outputTokens?: number;
+  /** Estimated cost in USD for this review. Stored as string in Postgres to avoid float precision issues. */
+  estimatedCostUsd?: number;
 }
 
 /** A single finding stored on a ReviewItem (matches comment-formatter Finding). */
