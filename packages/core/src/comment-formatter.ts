@@ -297,6 +297,8 @@ export function formatReviewComment(options: FormatOptions): string {
   } else if (!showIssuesTable) {
     lines.push(`${findings.length} issue${findings.length !== 1 ? 's' : ''} found.`);
   } else if (actionFindings.length > 0) {
+    lines.push('#### Requires your attention');
+    lines.push('');
     const useCheckboxes = ux?.reviewerChecklist !== false;
     for (const f of actionFindings) {
       const emoji = f.severity === 'critical' ? '\uD83D\uDD34' : '\u26A0\uFE0F';
