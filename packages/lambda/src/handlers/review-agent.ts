@@ -49,6 +49,7 @@ import { buildWorkDoneSection, computeReviewDelta } from '@mergewatch/core';
 import { DynamoInstallationStore } from '@mergewatch/storage-dynamo';
 import { DynamoReviewStore } from '@mergewatch/storage-dynamo';
 import { BedrockLLMProvider, SUPPORTED_MODELS } from '@mergewatch/llm-bedrock';
+import { isSaas, billingCheck, recordReview, postBlockedCheckRun, ensureBillingIssue, updateBillingFields } from '@mergewatch/billing';
 import { SSMGitHubAuthProvider } from '../github-auth-ssm.js';
 
 // -- Singletons (re-used across warm invocations) ----------------------------
@@ -192,6 +193,28 @@ export async function handler(
       statusCode: 200,
       body: JSON.stringify({ message: 'Skipped', reason: skipReason }),
     };
+  }
+
+  // ── Billing gate (SaaS only) ────
+  if (isSaas()) {
+    const billing = await billingCheck(dynamodb, INSTALLATIONS_TABLE, String(installationId));
+    if (billing.status === 'block') {
+      console.log(`Billing blocked for installation ${installationId}`);
+
+      await postBlockedCheckRun(octokit, owner, repo, headSha);
+
+      if (billing.firstBlock) {
+        await ensureBillingIssue(octokit, owner, repo, String(installationId), dynamodb, INSTALLATIONS_TABLE);
+        await updateBillingFields(dynamodb, INSTALLATIONS_TABLE, String(installationId), {
+          blockedAt: new Date().toISOString(),
+        });
+      }
+
+      return {
+        statusCode: 402,
+        body: JSON.stringify({ message: 'Billing: credits required' }),
+      };
+    }
   }
 
   // Atomically claim this review — prevents duplicate processing
@@ -469,6 +492,15 @@ export async function handler(
       outputTokens: result.outputTokens || undefined,
       estimatedCostUsd: result.estimatedCostUsd ?? undefined,
     });
+
+    // ── Record billing (SaaS only) ────
+    if (isSaas() && result.estimatedCostUsd != null) {
+      try {
+        await recordReview(dynamodb, INSTALLATIONS_TABLE, String(installationId), result.estimatedCostUsd);
+      } catch (err) {
+        console.warn('Failed to record billing for review:', err);
+      }
+    }
 
     const hasCritical = criticalCount > 0;
     const checkConclusion = hasCritical ? 'failure' as const : 'success' as const;

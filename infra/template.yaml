@@ -55,6 +55,15 @@ Parameters:
     Default: us.anthropic.claude-sonnet-4-20250514-v1:0
     Description: Default Amazon Bedrock model ID for PR reviews
 
+  # Deployment mode: 'saas' enables billing enforcement, 'self-hosted' disables it.
+  DeploymentMode:
+    Type: String
+    Default: self-hosted
+    AllowedValues:
+      - self-hosted
+      - saas
+    Description: Deployment mode (saas enables billing, self-hosted disables it)
+
   # Base URL for the MergeWatch dashboard. Used to generate links in PR comments.
   DashboardBaseUrl:
     Type: String
@@ -80,6 +89,9 @@ Globals:
       Variables:
         # The deployment stage — used for conditional logic in application code
         STAGE: !Ref Stage
+
+        # Deployment mode — 'saas' enables billing enforcement
+        DEPLOYMENT_MODE: !Ref DeploymentMode
 
         # DynamoDB table names — injected so Lambda code doesn't hardcode them
         INSTALLATIONS_TABLE: !Ref InstallationsTable

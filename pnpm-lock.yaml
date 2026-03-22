@@ -21,6 +21,19 @@ importers:
         specifier: ^4.1.1
         version: 4.1.1(@types/node@20.19.37)(vite@8.0.2(@types/node@20.19.37)(esbuild@0.27.3)(jiti@1.21.7)(tsx@4.21.0))
 
+  packages/billing:
+    dependencies:
+      '@aws-sdk/lib-dynamodb':
+        specifier: ^3.721.0
+        version: 3.1006.0(@aws-sdk/client-dynamodb@3.1006.0)
+      '@mergewatch/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
   packages/core:
     dependencies:
       '@octokit/auth-app':
@@ -121,6 +134,9 @@ importers:
       '@aws-sdk/lib-dynamodb':
         specifier: ^3.721.0
         version: 3.1006.0(@aws-sdk/client-dynamodb@3.1006.0)
+      '@mergewatch/billing':
+        specifier: workspace:*
+        version: link:../billing
       '@mergewatch/core':
         specifier: workspace:*
         version: link:../core

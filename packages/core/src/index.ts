@@ -119,6 +119,7 @@ export type {
   RepoConfig,
   InstallationItem,
   InstallationSettings,
+  BillingFields,
   ReviewItem,
   ReviewStatus,
   ReviewFinding,
