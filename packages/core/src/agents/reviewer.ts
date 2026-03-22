@@ -19,6 +19,7 @@ import {
   STYLE_REVIEWER_PROMPT,
   SUMMARY_PROMPT,
   DIAGRAM_PROMPT,
+  PREVIOUS_DIAGRAM_PLACEHOLDER,
   ERROR_HANDLING_REVIEWER_PROMPT,
   TEST_COVERAGE_REVIEWER_PROMPT,
   COMMENT_ACCURACY_REVIEWER_PROMPT,
@@ -209,8 +210,27 @@ export async function runDiagramAgent(
   context: ReviewContext,
   modelId: string,
   llm: ILLMProvider,
+  previousDiagram?: string,
 ): Promise<DiagramResult> {
-  const prompt = buildPrompt(DIAGRAM_PROMPT, diff, context, false);
+  // Inject previous diagram for consistency or strip the placeholder.
+  // When previousDiagram exists and is non-empty, replaces PREVIOUS_DIAGRAM_PLACEHOLDER
+  // with consistency guidance; otherwise strips it from the prompt.
+  let diagramPrompt = DIAGRAM_PROMPT;
+  if (previousDiagram && previousDiagram.trim()) {
+    diagramPrompt = diagramPrompt.replace(
+      PREVIOUS_DIAGRAM_PLACEHOLDER,
+      `IMPORTANT — Consistency with previous review:
+A previous review of this PR produced the diagram below. Maintain the same node IDs, naming conventions, diagram type, and overall layout. Only update nodes/edges that reflect actual changes in the new diff. Do not reorganise or rename unchanged elements.
+
+Previous diagram:
+\`\`\`mermaid
+${previousDiagram}
+\`\`\``,
+    );
+  } else {
+    diagramPrompt = diagramPrompt.replace(PREVIOUS_DIAGRAM_PLACEHOLDER, '');
+  }
+  const prompt = buildPrompt(diagramPrompt, diff, context, false);
   const raw = normalizeLLMResult(await llm.invoke(modelId, prompt)).text;
   return parseDiagramResponse(raw);
 }
@@ -459,6 +479,8 @@ export interface ReviewPipelineOptions {
   tone?: UXConfig['tone'];
   /** Custom pricing overrides for cost estimation */
   customPricing?: Record<string, { inputPer1M: number; outputPer1M: number }>;
+  /** Previous diagram from an earlier review of this PR, used for layout consistency */
+  previousDiagram?: string;
 }
 
 export interface ReviewPipelineResult {
@@ -500,6 +522,7 @@ export async function runReviewPipeline(
     customAgents = [],
     tone,
     customPricing,
+    previousDiagram,
   } = options;
 
   // Wrap the LLM provider to track token usage across all agents
@@ -535,7 +558,7 @@ export async function runReviewPipeline(
       ? runSummaryAgent(diff, context, lightModelId, llm)
       : Promise.resolve(''),
     enabledAgents.diagram
-      ? runDiagramAgent(diff, context, lightModelId, llm)
+      ? runDiagramAgent(diff, context, lightModelId, llm, previousDiagram)
       : Promise.resolve({ diagram: '', caption: '' } as DiagramResult),
   ]);
 

@@ -269,6 +269,20 @@ export async function handler(
         }
       : undefined;
 
+    // Fetch previous reviews before pipeline (used for diagram consistency + delta computation)
+    let prevReviews: ReviewItem[] = [];
+    let prevComplete: ReviewItem | undefined;
+    try {
+      prevReviews = await reviewStore.queryByPR(repoFullName, `${prNumber}#`, 5);
+      prevComplete = prevReviews.find(
+        (r) => r.status === 'complete' && r.prNumberCommitSha !== prNumberCommitSha && r.findings && r.findings.length > 0,
+      );
+    } catch (err) {
+      console.warn('Failed to fetch previous reviews:', err);
+    }
+
+    const previousDiagram = typeof prevComplete?.diagramText === 'string' ? prevComplete.diagramText : undefined;
+
     const result = await runReviewPipeline({
       diff,
       context: {
@@ -289,6 +303,7 @@ export async function handler(
       customAgents: runtimeConfig.customAgents,
       tone: runtimeConfig.ux.tone,
       customPricing: runtimeConfig.pricing,
+      previousDiagram,
     }, { llm });
 
     const reviewDetailUrl = `${DASHBOARD_BASE_URL}/dashboard/reviews/${encodeURIComponent(`${repoFullName}:${prNumberCommitSha}`)}`;
@@ -301,18 +316,10 @@ export async function handler(
       result.enabledAgentCount,
     );
 
-    // Compute delta from previous review (if any)
+    // Compute delta from previous review (reusing prevComplete fetched earlier)
     let delta: ReviewDelta | null = null;
-    try {
-      const prevReviews = await reviewStore.queryByPR(repoFullName, `${prNumber}#`, 5);
-      const prevComplete = prevReviews.find(
-        (r) => r.status === 'complete' && r.prNumberCommitSha !== prNumberCommitSha && r.findings,
-      );
-      if (prevComplete?.findings) {
-        delta = computeReviewDelta(result.findings, prevComplete.findings);
-      }
-    } catch (err) {
-      console.warn('Failed to compute review delta:', err);
+    if (prevComplete?.findings) {
+      delta = computeReviewDelta(result.findings, prevComplete.findings);
     }
 
     const commentBody = formatReviewComment({
