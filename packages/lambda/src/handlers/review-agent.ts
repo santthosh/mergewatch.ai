@@ -49,7 +49,7 @@ import { buildWorkDoneSection, computeReviewDelta } from '@mergewatch/core';
 import { DynamoInstallationStore } from '@mergewatch/storage-dynamo';
 import { DynamoReviewStore } from '@mergewatch/storage-dynamo';
 import { BedrockLLMProvider, SUPPORTED_MODELS } from '@mergewatch/llm-bedrock';
-import { isSaas, billingCheck, recordReview, postBlockedCheckRun, ensureBillingIssue, updateBillingFields } from '@mergewatch/billing';
+import { isSaas, billingCheck, recordReview, postBlockedCheckRun, ensureBillingIssue, updateBillingFields, getStripe } from '@mergewatch/billing';
 import { SSMGitHubAuthProvider } from '../github-auth-ssm.js';
 
 // -- Singletons (re-used across warm invocations) ----------------------------
@@ -499,10 +499,11 @@ export async function handler(
     // the review comment is already posted — crashing would retry the entire
     // review pipeline which is worse than a missed billing record.
     if (isSaas() && result.estimatedCostUsd != null) {
+      const stripe = process.env.STRIPE_SECRET_KEY ? getStripe() : undefined;
       let billingRecorded = false;
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          await recordReview(dynamodb, INSTALLATIONS_TABLE, String(installationId), result.estimatedCostUsd);
+          await recordReview(dynamodb, INSTALLATIONS_TABLE, String(installationId), result.estimatedCostUsd, stripe);
           billingRecorded = true;
           break;
         } catch (err) {
