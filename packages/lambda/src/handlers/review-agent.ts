@@ -275,7 +275,7 @@ export async function handler(
     try {
       prevReviews = await reviewStore.queryByPR(repoFullName, `${prNumber}#`, 5);
       prevComplete = prevReviews.find(
-        (r) => r.status === 'complete' && r.prNumberCommitSha !== prNumberCommitSha && r.findings,
+        (r) => r.status === 'complete' && r.prNumberCommitSha !== prNumberCommitSha && r.findings && r.findings.length > 0,
       );
     } catch (err) {
       console.warn('Failed to fetch previous reviews:', err);

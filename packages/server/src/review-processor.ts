@@ -90,7 +90,7 @@ export async function processReviewJob(
       return [] as Awaited<ReturnType<typeof deps.reviewStore.queryByPR>>;
     });
     prevComplete = prevReviewsResult.find(
-      (r) => r.status === 'complete' && r.prNumberCommitSha !== prNumberCommitSha && r.findings,
+      (r) => r.status === 'complete' && r.prNumberCommitSha !== prNumberCommitSha && r.findings && r.findings.length > 0,
     );
 
     const previousDiagram = typeof prevComplete?.diagramText === 'string' ? prevComplete.diagramText : undefined;

@@ -153,7 +153,7 @@ Return a JSON object:
 }`;
 
 // ─── Diagram agent ────────────────────────────────────────────────────────
-// Replaced with consistency guidance when previousDiagram exists, otherwise stripped
+// Placeholder used in DIAGRAM_PROMPT; see runDiagramAgent() in reviewer.ts for replacement logic
 export const PREVIOUS_DIAGRAM_PLACEHOLDER = '{{PREVIOUS_DIAGRAM}}';
 
 export const DIAGRAM_PROMPT = `You are a senior software engineer performing an automated code review.

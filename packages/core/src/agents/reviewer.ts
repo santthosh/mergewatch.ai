@@ -212,7 +212,9 @@ export async function runDiagramAgent(
   llm: ILLMProvider,
   previousDiagram?: string,
 ): Promise<DiagramResult> {
-  // Inject previous diagram for consistency or strip the placeholder
+  // Inject previous diagram for consistency or strip the placeholder.
+  // When previousDiagram exists and is non-empty, replaces PREVIOUS_DIAGRAM_PLACEHOLDER
+  // with consistency guidance; otherwise strips it from the prompt.
   let diagramPrompt = DIAGRAM_PROMPT;
   if (previousDiagram && previousDiagram.trim()) {
     diagramPrompt = diagramPrompt.replace(
