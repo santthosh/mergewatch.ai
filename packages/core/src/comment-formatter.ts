@@ -63,6 +63,12 @@ interface FormatOptions {
   suppressedCount?: number;
   /** Number of enabled agents that ran */
   enabledAgentCount?: number;
+  /** Total input tokens used */
+  inputTokens?: number;
+  /** Total output tokens used */
+  outputTokens?: number;
+  /** Estimated cost in USD */
+  estimatedCostUsd?: number | null;
 }
 
 /** Maximum number of findings to include in the reviewer checklist. */
@@ -175,6 +181,9 @@ export function formatReviewComment(options: FormatOptions): string {
     workDone,
     delta,
     suppressedCount,
+    inputTokens,
+    outputTokens,
+    estimatedCostUsd,
   } = options;
 
   const lines: string[] = [];
@@ -306,7 +315,25 @@ export function formatReviewComment(options: FormatOptions): string {
     }
   }
 
-  // 10. Deference footer
+  // 10. LLM cost (collapsible)
+  const totalTokens = (inputTokens ?? 0) + (outputTokens ?? 0);
+  if (totalTokens > 0) {
+    const costLine = estimatedCostUsd != null && estimatedCostUsd > 0
+      ? ` · ~$${estimatedCostUsd.toFixed(4)} estimated cost (LLM only)`
+      : '';
+    lines.push(`<details><summary>LLM usage: ${totalTokens.toLocaleString()} tokens${costLine}</summary>`);
+    lines.push('');
+    lines.push(`- **Input tokens:** ${(inputTokens ?? 0).toLocaleString()}`);
+    lines.push(`- **Output tokens:** ${(outputTokens ?? 0).toLocaleString()}`);
+    if (estimatedCostUsd != null && estimatedCostUsd > 0) {
+      lines.push(`- **Estimated cost:** ~$${estimatedCostUsd.toFixed(4)} (LLM only)`);
+    }
+    lines.push('');
+    lines.push('</details>');
+    lines.push('');
+  }
+
+  // 11. Deference footer
   lines.push('---');
   lines.push('*These are flags, not verdicts. You know this codebase.*');
   lines.push('');

@@ -16,7 +16,7 @@ import {
   BedrockRuntimeClient,
   InvokeModelCommand,
 } from '@aws-sdk/client-bedrock-runtime';
-import type { ILLMProvider } from '@mergewatch/core';
+import type { ILLMProvider, LLMInvokeResult, TokenUsage } from '@mergewatch/core';
 
 // ─── Supported model IDs ───────────────────────────────────────────────────
 export const SUPPORTED_MODELS = {
@@ -83,17 +83,26 @@ function buildRequestBody(modelId: string, prompt: string, maxTokens: number): M
 
 // ─── Response parsers per model family ─────────────────────────────────────
 
-function parseAnthropicResponse(raw: string): string {
-  const parsed = JSON.parse(raw);
-  return parsed.content?.[0]?.text ?? '';
+interface ParsedResponse {
+  text: string;
+  usage?: TokenUsage;
 }
 
-function parseTitanResponse(raw: string): string {
+function parseAnthropicResponse(raw: string): ParsedResponse {
   const parsed = JSON.parse(raw);
-  return parsed.results?.[0]?.outputText ?? '';
+  const text = parsed.content?.[0]?.text ?? '';
+  const usage: TokenUsage | undefined = parsed.usage
+    ? { inputTokens: parsed.usage.input_tokens ?? 0, outputTokens: parsed.usage.output_tokens ?? 0 }
+    : undefined;
+  return { text, usage };
 }
 
-function parseResponse(modelId: string, raw: string): string {
+function parseTitanResponse(raw: string): ParsedResponse {
+  const parsed = JSON.parse(raw);
+  return { text: parsed.results?.[0]?.outputText ?? '' };
+}
+
+function parseResponse(modelId: string, raw: string): ParsedResponse {
   if (isAnthropicModel(modelId)) return parseAnthropicResponse(raw);
   if (isTitanModel(modelId)) return parseTitanResponse(raw);
   return parseAnthropicResponse(raw);
@@ -110,7 +119,7 @@ export class BedrockLLMProvider implements ILLMProvider {
     });
   }
 
-  async invoke(modelId: string, prompt: string, maxTokens = 4096): Promise<string> {
+  async invoke(modelId: string, prompt: string, maxTokens = 4096): Promise<LLMInvokeResult> {
     const { body, contentType, accept } = buildRequestBody(modelId, prompt, maxTokens);
 
     const command = new InvokeModelCommand({
@@ -122,6 +131,7 @@ export class BedrockLLMProvider implements ILLMProvider {
 
     const response = await this.client.send(command);
     const rawResponse = new TextDecoder().decode(response.body);
-    return parseResponse(modelId, rawResponse);
+    const parsed = parseResponse(modelId, rawResponse);
+    return { text: parsed.text, usage: parsed.usage };
   }
 }

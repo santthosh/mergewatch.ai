@@ -111,6 +111,7 @@ export async function processReviewJob(
         fileFetchOptions,
         customAgents: config.customAgents,
         tone: config.ux.tone,
+        customPricing: config.pricing,
       },
       { llm: deps.llm },
     );
@@ -160,6 +161,9 @@ export async function processReviewJob(
       delta,
       suppressedCount: result.suppressedCount,
       enabledAgentCount: result.enabledAgentCount,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+      estimatedCostUsd: result.estimatedCostUsd,
     });
 
     // Submit as a proper PR review (shows MergeWatch as a reviewer).
@@ -220,6 +224,9 @@ export async function processReviewJob(
       mergeScore: result.mergeScore,
       mergeScoreReason: result.mergeScoreReason,
       findings: result.findings as any,
+      inputTokens: result.inputTokens || undefined,
+      outputTokens: result.outputTokens || undefined,
+      estimatedCostUsd: result.estimatedCostUsd ?? undefined,
     });
 
     // Create check run

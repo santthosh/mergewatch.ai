@@ -11,6 +11,8 @@
  */
 
 import type { ILLMProvider } from '../llm/types.js';
+import { normalizeLLMResult } from '../llm/types.js';
+import { TokenAccumulator, TrackingLLMProvider } from '../llm/token-accumulator.js';
 import {
   SECURITY_REVIEWER_PROMPT,
   BUG_REVIEWER_PROMPT,
@@ -131,7 +133,7 @@ async function invokeAgent(
     }
     return result.response;
   }
-  return llm.invoke(modelId, prompt);
+  return normalizeLLMResult(await llm.invoke(modelId, prompt)).text;
 }
 
 // ─── Individual agents ─────────────────────────────────────────────────────
@@ -209,7 +211,7 @@ export async function runDiagramAgent(
   llm: ILLMProvider,
 ): Promise<DiagramResult> {
   const prompt = buildPrompt(DIAGRAM_PROMPT, diff, context, false);
-  const raw = await llm.invoke(modelId, prompt);
+  const raw = normalizeLLMResult(await llm.invoke(modelId, prompt)).text;
   return parseDiagramResponse(raw);
 }
 
@@ -354,7 +356,7 @@ export async function runSummaryAgent(
   llm: ILLMProvider,
 ): Promise<string> {
   const prompt = buildPrompt(SUMMARY_PROMPT, diff, context, false);
-  const raw = await llm.invoke(modelId, prompt);
+  const raw = normalizeLLMResult(await llm.invoke(modelId, prompt)).text;
   const parsed = safeParseJson<{ summary: string }>(raw, { summary: '' });
   return parsed.summary;
 }
@@ -418,7 +420,7 @@ export async function runOrchestratorAgent(
     .replace('MAX_FINDINGS_PLACEHOLDER', String(maxFindings))
     + `\n\n--- Findings from all agents ---\n${JSON.stringify(allFindings, null, 2)}`;
 
-  const raw = await llm.invoke(modelId, prompt);
+  const raw = normalizeLLMResult(await llm.invoke(modelId, prompt)).text;
   const parsed = safeParseJson<{ findings: OrchestratedFinding[]; mergeScore?: number; mergeScoreReason?: string }>(
     raw,
     { findings: [] },
@@ -455,6 +457,8 @@ export interface ReviewPipelineOptions {
   customAgents?: CustomAgentDef[];
   /** Tone for review findings */
   tone?: UXConfig['tone'];
+  /** Custom pricing overrides for cost estimation */
+  customPricing?: Record<string, { inputPer1M: number; outputPer1M: number }>;
 }
 
 export interface ReviewPipelineResult {
@@ -468,6 +472,12 @@ export interface ReviewPipelineResult {
   suppressedCount: number;
   /** Number of enabled agents that ran */
   enabledAgentCount: number;
+  /** Total input tokens used across all LLM invocations */
+  inputTokens: number;
+  /** Total output tokens used across all LLM invocations */
+  outputTokens: number;
+  /** Estimated cost in USD (null if model pricing is unknown) */
+  estimatedCostUsd: number | null;
 }
 
 /**
@@ -489,8 +499,12 @@ export async function runReviewPipeline(
     fileFetchOptions,
     customAgents = [],
     tone,
+    customPricing,
   } = options;
-  const { llm } = deps;
+
+  // Wrap the LLM provider to track token usage across all agents
+  const accumulator = new TokenAccumulator();
+  const llm = new TrackingLLMProvider(deps.llm, accumulator);
 
   // Launch all enabled agents in parallel
   // Note: summary and diagram agents don't get file fetching (they benefit less from deep context)
@@ -582,5 +596,8 @@ export async function runReviewPipeline(
     mergeScoreReason: orchestratorResult.mergeScoreReason,
     suppressedCount: Math.max(0, totalRawFindings - orchestratorResult.findings.length),
     enabledAgentCount,
+    inputTokens: accumulator.totalInputTokens,
+    outputTokens: accumulator.totalOutputTokens,
+    estimatedCostUsd: accumulator.estimateTotalCost(customPricing),
   };
 }

@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { ILLMProvider } from '@mergewatch/core';
+import type { ILLMProvider, LLMInvokeResult } from '@mergewatch/core';
 
 export class AnthropicLLMProvider implements ILLMProvider {
   private client: Anthropic;
@@ -8,7 +8,7 @@ export class AnthropicLLMProvider implements ILLMProvider {
     this.client = new Anthropic({ apiKey });
   }
 
-  async invoke(modelId: string, prompt: string, maxTokens = 4096): Promise<string> {
+  async invoke(modelId: string, prompt: string, maxTokens = 4096): Promise<LLMInvokeResult> {
     const response = await this.client.messages.create({
       model: modelId,
       max_tokens: maxTokens,
@@ -18,6 +18,12 @@ export class AnthropicLLMProvider implements ILLMProvider {
     if (block.type !== 'text') {
       throw new Error(`Unexpected response type: ${block.type}`);
     }
-    return block.text;
+    return {
+      text: block.text,
+      usage: {
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      },
+    };
   }
 }
