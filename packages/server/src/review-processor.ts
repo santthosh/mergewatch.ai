@@ -169,6 +169,8 @@ export async function processReviewJob(
       inputTokens: result.inputTokens,
       outputTokens: result.outputTokens,
       estimatedCostUsd: result.estimatedCostUsd,
+      durationMs,
+      model: config.model,
     });
 
     // Submit as a proper PR review (shows MergeWatch as a reviewer).

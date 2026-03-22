@@ -141,15 +141,17 @@ FILE_REQUEST_PLACEHOLDER`;
 // ─── Summary agent ─────────────────────────────────────────────────────────
 export const SUMMARY_PROMPT = `${SHARED_PREAMBLE}
 
-Write a brief, helpful summary of the pull request based on the diff and context provided.
-Cover:
-1. What the PR does (1-2 sentences)
-2. Key changes by area / file group
-3. Any risks or areas that deserve manual attention
+Write a 2-3 sentence prose summary of the pull request based on the diff and context provided.
+
+Rules:
+- Maximum 3 sentences of plain prose. No bullet lists, no subheadings, no markdown formatting.
+- Sentence 1: What the PR does and why.
+- Sentence 2-3: The most important thing a reviewer should know (key risk, architectural change, or scope).
+- Do NOT include a "Key Changes" section or file-by-file breakdown. The diagram handles structure.
 
 Return a JSON object:
 {
-  "summary": "Markdown-formatted summary text (use bullet lists)."
+  "summary": "Plain prose summary text, 2-3 sentences max."
 }`;
 
 // ─── Diagram agent ────────────────────────────────────────────────────────
