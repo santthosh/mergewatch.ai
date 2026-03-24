@@ -419,6 +419,16 @@ export function buildInlineComments(
     }));
 }
 
+const INLINE_TITLE_REGEX = /\*\*🔴 (.+?)\*\*/;
+
+/**
+ * Extract the plain finding title from an inline comment body.
+ * Returns the title string, or empty string if the format doesn't match.
+ */
+export function extractInlineCommentTitle(body: string): string {
+  return body.match(INLINE_TITLE_REGEX)?.[1] ?? '';
+}
+
 /**
  * Dismiss any existing bot reviews on a PR so they don't conflict
  * with a new review on a later commit.

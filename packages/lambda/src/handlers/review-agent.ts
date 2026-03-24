@@ -34,6 +34,7 @@ import {
   buildIssueCommentUrl,
   formatPRReviewVerdict,
   buildInlineComments,
+  extractInlineCommentTitle,
   fetchRepoConfig,
 } from '@mergewatch/core';
 import type {
@@ -379,6 +380,10 @@ export async function handler(
       commentId = await postReviewComment(octokit, owner, repo, prNumber, commentBody);
     }
 
+    if (!commentId) {
+      throw new Error('Failed to create or update issue comment');
+    }
+
     // ── Step B: Build inline comments for critical findings ──────────────
     let inlineComments = buildInlineComments(result.findings, prContext.files);
 
@@ -388,11 +393,9 @@ export async function handler(
         (prevComplete.findings as Array<{ file: string; line: number; title: string }>)
           .map((f) => `${f.file}:${f.line}:${f.title}`),
       );
-      inlineComments = inlineComments.filter((c) => {
-        const titleMatch = c.body.match(/\*\*🔴 (.+?)\*\*/);
-        const title = titleMatch?.[1] ?? '';
-        return !prevKeys.has(`${c.path}:${c.line}:${title}`);
-      });
+      inlineComments = inlineComments.filter(
+        (c) => !prevKeys.has(`${c.path}:${c.line}:${extractInlineCommentTitle(c.body)}`),
+      );
     }
 
     // ── Step C: Submit PR review with verdict + inline comments ──────────

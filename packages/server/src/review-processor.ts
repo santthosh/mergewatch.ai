@@ -5,7 +5,7 @@ import {
   formatReviewComment, runReviewPipeline, shouldSkipPR,
   DEFAULT_CONFIG, mergeConfig,
   BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
-  buildIssueCommentUrl, formatPRReviewVerdict, buildInlineComments,
+  buildIssueCommentUrl, formatPRReviewVerdict, buildInlineComments, extractInlineCommentTitle,
   fetchRepoConfig,
   buildWorkDoneSection, computeReviewDelta,
 } from '@mergewatch/core';
@@ -190,6 +190,10 @@ export async function processReviewJob(
       commentId = await postReviewComment(octokit, owner, repo, prNumber, comment);
     }
 
+    if (!commentId) {
+      throw new Error('Failed to create or update issue comment');
+    }
+
     // ── Step B: Build inline comments for critical findings ──────────────
     let inlineComments = buildInlineComments(result.findings, prContext.files);
 
@@ -199,11 +203,9 @@ export async function processReviewJob(
         (prevComplete.findings as Array<{ file: string; line: number; title: string }>)
           .map((f) => `${f.file}:${f.line}:${f.title}`),
       );
-      inlineComments = inlineComments.filter((c) => {
-        const titleMatch = c.body.match(/\*\*🔴 (.+?)\*\*/);
-        const title = titleMatch?.[1] ?? '';
-        return !prevKeys.has(`${c.path}:${c.line}:${title}`);
-      });
+      inlineComments = inlineComments.filter(
+        (c) => !prevKeys.has(`${c.path}:${c.line}:${extractInlineCommentTitle(c.body)}`),
+      );
     }
 
     // ── Step C: Submit PR review with verdict + inline comments ──────────

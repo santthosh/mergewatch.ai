@@ -73,6 +73,7 @@ export {
   buildIssueCommentUrl,
   formatPRReviewVerdict,
   buildInlineComments,
+  extractInlineCommentTitle,
   fetchRepoConfig,
 } from './github/client.js';
 
