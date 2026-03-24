@@ -27,6 +27,7 @@ export {
   runDiagramAgent,
   runOrchestratorAgent,
   runCustomAgent,
+  isValidMermaidDiagram,
 } from './agents/reviewer.js';
 export type {
   AgentFinding,

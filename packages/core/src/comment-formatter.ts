@@ -7,6 +7,7 @@
 
 import type { UXConfig } from './config/defaults.js';
 import type { ReviewDelta } from './review-delta.js';
+import { isValidMermaidDiagram } from './agents/reviewer.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -266,7 +267,7 @@ export function formatReviewComment(options: FormatOptions): string {
   }
 
   // 5. Diagram (moved up — appears right after merge score)
-  if (diagram && showDiagram) {
+  if (diagram && showDiagram && isValidMermaidDiagram(diagram)) {
     const captionText = diagramCaption ? `**Diagram** \u2014 ${diagramCaption}` : '**Diagram**';
     lines.push(captionText);
     lines.push('');

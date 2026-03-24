@@ -303,6 +303,29 @@ function sanitizeMermaidOutput(diagram: string): string {
   return sanitized.join('\n');
 }
 
+/** Known Mermaid diagram type keywords. */
+const MERMAID_DIAGRAM_TYPES = new Set([
+  'flowchart', 'graph', 'sequencediagram', 'classdiagram', 'statediagram',
+  'erdiagram', 'gantt', 'pie', 'gitgraph', 'journey', 'mindmap',
+  'timeline', 'quadrantchart', 'sankey', 'xychart', 'block',
+]);
+
+/** Check whether a string looks like a valid Mermaid diagram. */
+export function isValidMermaidDiagram(diagram: string): boolean {
+  if (!diagram || !diagram.trim()) return false;
+
+  const lines = diagram.trim().split('\n');
+  // Find the first non-empty, non-comment line (% and %% are both Mermaid comments)
+  const firstMeaningful = lines.find(
+    (l) => l.trim() && !l.trim().startsWith('%'),
+  );
+  if (!firstMeaningful) return false;
+
+  // Extract the first word and check against known diagram types
+  const firstWord = firstMeaningful.trim().split(/[\s-]/)[0];
+  return MERMAID_DIAGRAM_TYPES.has(firstWord.toLowerCase());
+}
+
 /** Parse raw Mermaid response: extract caption from leading %% comment. */
 function parseDiagramResponse(raw: string): DiagramResult {
   let cleaned = raw.trim();
@@ -320,6 +343,13 @@ function parseDiagramResponse(raw: string): DiagramResult {
     lines.shift();
   }
   const diagram = sanitizeMermaidOutput(lines.join('\n').trim());
+
+  // Reject output that isn't a valid Mermaid diagram (e.g. LLM hallucination,
+  // PGP keys, prose, or other non-diagram content)
+  if (!isValidMermaidDiagram(diagram)) {
+    return { diagram: '', caption: '' };
+  }
+
   return { diagram, caption };
 }
 
