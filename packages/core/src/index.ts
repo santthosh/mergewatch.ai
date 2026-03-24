@@ -70,6 +70,9 @@ export {
   mergeScoreToReviewEvent,
   submitPRReview,
   dismissStaleReviews,
+  buildIssueCommentUrl,
+  formatPRReviewVerdict,
+  buildInlineComments,
   fetchRepoConfig,
 } from './github/client.js';
 

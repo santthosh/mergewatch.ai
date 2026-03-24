@@ -31,6 +31,9 @@ import {
   submitPRReview,
   dismissStaleReviews,
   mergeScoreToReviewEvent,
+  buildIssueCommentUrl,
+  formatPRReviewVerdict,
+  buildInlineComments,
   fetchRepoConfig,
 } from '@mergewatch/core';
 import type {
@@ -349,34 +352,19 @@ export async function handler(
       model: modelName,
     });
 
-    // Submit as a proper PR review (shows MergeWatch as a reviewer).
-    // Only fall back to an issue comment if the PR review API fails.
+    // ── Step A: Upsert issue comment (full review — primary artifact) ──────
     const reviewEvent = mergeScoreToReviewEvent(result.mergeScore);
     let commentId: number | undefined;
-    let prReviewSucceeded = false;
 
-    try {
-      await dismissStaleReviews(octokit, owner, repo, prNumber);
-      await submitPRReview(octokit, owner, repo, prNumber, `${BOT_COMMENT_MARKER}\n${commentBody}`, reviewEvent);
-      prReviewSucceeded = true;
-    } catch (err) {
-      console.warn('Failed to submit PR review, falling back to issue comment:', err);
-    }
-
-    // Clean up any legacy issue comment from before PR reviews were used
+    // Look up existing comment: job payload → DynamoDB → API scan
     let targetCommentId = existingCommentId;
 
     if (!targetCommentId) {
-      try {
-        const prevReviews = await reviewStore.queryByPR(repoFullName, `${prNumber}#`, 5);
-        for (const item of prevReviews) {
-          if (item.commentId && item.prNumberCommitSha !== prNumberCommitSha) {
-            targetCommentId = item.commentId as number;
-            break;
-          }
+      for (const item of prevReviews) {
+        if (item.commentId && item.prNumberCommitSha !== prNumberCommitSha) {
+          targetCommentId = item.commentId as number;
+          break;
         }
-      } catch (err) {
-        console.warn('Failed to look up previous review comment ID from DynamoDB:', err);
       }
     }
 
@@ -384,22 +372,48 @@ export async function handler(
       targetCommentId = (await findExistingBotComment(octokit, owner, repo, prNumber)) ?? undefined;
     }
 
-    if (prReviewSucceeded) {
-      // PR review posted successfully — delete any legacy issue comment to avoid duplicates
-      if (targetCommentId) {
-        try {
-          await octokit.issues.deleteComment({ owner, repo, comment_id: targetCommentId });
-        } catch (err) {
-          console.warn('Failed to delete legacy issue comment:', err);
-        }
-      }
+    if (targetCommentId) {
+      await updateReviewComment(octokit, owner, repo, targetCommentId, commentBody);
+      commentId = targetCommentId;
     } else {
-      // PR review failed — fall back to issue comment
-      if (targetCommentId) {
-        await updateReviewComment(octokit, owner, repo, targetCommentId, commentBody);
-        commentId = targetCommentId;
-      } else {
-        commentId = await postReviewComment(octokit, owner, repo, prNumber, commentBody);
+      commentId = await postReviewComment(octokit, owner, repo, prNumber, commentBody);
+    }
+
+    // ── Step B: Build inline comments for critical findings ──────────────
+    let inlineComments = buildInlineComments(result.findings, prContext.files);
+
+    // Filter out carried-over findings (same file+line+title as previous review)
+    if (prevComplete?.findings && inlineComments.length > 0) {
+      const prevKeys = new Set(
+        (prevComplete.findings as Array<{ file: string; line: number; title: string }>)
+          .map((f) => `${f.file}:${f.line}:${f.title}`),
+      );
+      inlineComments = inlineComments.filter(
+        (c) => !prevKeys.has(`${c.path}:${c.line}:${c.body.split('\n')[0]}`),
+      );
+    }
+
+    // ── Step C: Submit PR review with verdict + inline comments ──────────
+    const issueCommentUrl = buildIssueCommentUrl(owner, repo, prNumber, commentId);
+    const criticalCount = result.findings.filter((f) => f.severity === 'critical').length;
+    const warningCount = result.findings.filter((f) => f.severity === 'warning').length;
+    const infoCount = result.findings.filter((f) => f.severity === 'info').length;
+    const verdictBody = formatPRReviewVerdict(
+      result.mergeScore,
+      result.mergeScoreReason || undefined,
+      { critical: criticalCount, warning: warningCount, info: infoCount },
+      issueCommentUrl,
+    );
+
+    try {
+      await dismissStaleReviews(octokit, owner, repo, prNumber);
+      await submitPRReview(octokit, owner, repo, prNumber, verdictBody, reviewEvent, inlineComments);
+    } catch (err) {
+      console.warn('PR review with inline comments failed, retrying without inline comments:', err);
+      try {
+        await submitPRReview(octokit, owner, repo, prNumber, verdictBody, reviewEvent);
+      } catch (retryErr) {
+        console.warn('PR review (verdict only) also failed — issue comment has the full review:', retryErr);
       }
     }
 
@@ -447,12 +461,9 @@ export async function handler(
       estimatedCostUsd: result.estimatedCostUsd ?? undefined,
     });
 
-    const hasCritical = result.findings.some((f) => f.severity === 'critical');
+    const hasCritical = criticalCount > 0;
     const checkConclusion = hasCritical ? 'failure' as const : 'success' as const;
     const findingSummaryParts: string[] = [];
-    const criticalCount = result.findings.filter((f) => f.severity === 'critical').length;
-    const warningCount = result.findings.filter((f) => f.severity === 'warning').length;
-    const infoCount = result.findings.filter((f) => f.severity === 'info').length;
     if (criticalCount) findingSummaryParts.push(`${criticalCount} critical`);
     if (warningCount) findingSummaryParts.push(`${warningCount} warning`);
     if (infoCount) findingSummaryParts.push(`${infoCount} info`);
