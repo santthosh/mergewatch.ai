@@ -79,6 +79,7 @@ function buildPrompt(systemPrompt: string, diff: string, context: ReviewContext,
     : tonedPrompt.replace('FILE_REQUEST_PLACEHOLDER', '');
 
   const contextBlock = [
+    `Current date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
     `Repository: ${context.owner}/${context.repo}`,
     `PR #${context.prNumber}`,
     context.prTitle ? `Title: ${context.prTitle}` : '',
