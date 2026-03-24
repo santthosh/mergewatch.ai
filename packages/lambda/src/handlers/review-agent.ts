@@ -328,6 +328,10 @@ export async function handler(
 
     const durationMs = Date.now() - new Date(reviewStartedAt).getTime();
 
+    // Compute cumulative cost across all reviews on this PR
+    const prevCost = prevReviews.reduce((sum, r) => sum + (r.estimatedCostUsd ?? 0), 0);
+    const cumulativeCostUsd = (result.estimatedCostUsd ?? 0) + prevCost;
+
     const commentBody = formatReviewComment({
       summary: result.summary,
       findings: result.findings,
@@ -349,6 +353,7 @@ export async function handler(
       inputTokens: result.inputTokens,
       outputTokens: result.outputTokens,
       estimatedCostUsd: result.estimatedCostUsd,
+      cumulativeCostUsd: cumulativeCostUsd > 0 ? cumulativeCostUsd : undefined,
       durationMs,
       model: modelName,
     });

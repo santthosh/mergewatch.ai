@@ -68,8 +68,10 @@ interface FormatOptions {
   inputTokens?: number;
   /** Total output tokens used */
   outputTokens?: number;
-  /** Estimated cost in USD */
+  /** Estimated cost in USD for this run */
   estimatedCostUsd?: number | null;
+  /** Cumulative cost in USD across all reviews on this PR */
+  cumulativeCostUsd?: number | null;
   /** Review wall-clock time in milliseconds */
   durationMs?: number;
   /** LLM model name */
@@ -209,6 +211,7 @@ export function formatReviewComment(options: FormatOptions): string {
     inputTokens,
     outputTokens,
     estimatedCostUsd,
+    cumulativeCostUsd,
     durationMs,
     model,
   } = options;
@@ -367,7 +370,9 @@ export function formatReviewComment(options: FormatOptions): string {
     if (totalTokens > 0) {
       detailParts.push(`${totalTokens.toLocaleString()} tokens`);
     }
-    if (estimatedCostUsd != null && estimatedCostUsd > 0) {
+    if (cumulativeCostUsd != null && cumulativeCostUsd > 0) {
+      detailParts.push(`~$${cumulativeCostUsd.toFixed(4)}`);
+    } else if (estimatedCostUsd != null && estimatedCostUsd > 0) {
       detailParts.push(`~$${estimatedCostUsd.toFixed(4)}`);
     }
     if (durationMs != null) {
@@ -387,7 +392,11 @@ export function formatReviewComment(options: FormatOptions): string {
       lines.push(`| **Tokens** | ${(inputTokens ?? 0).toLocaleString()} in · ${(outputTokens ?? 0).toLocaleString()} out · ${totalTokens.toLocaleString()} total |`);
     }
     if (estimatedCostUsd != null && estimatedCostUsd > 0) {
-      lines.push(`| **Est. cost** | ~$${estimatedCostUsd.toFixed(4)} (LLM only) |`);
+      if (cumulativeCostUsd != null && cumulativeCostUsd > estimatedCostUsd) {
+        lines.push(`| **Est. cost** | ~$${estimatedCostUsd.toFixed(4)} this run · ~$${cumulativeCostUsd.toFixed(4)} total for PR (LLM only) |`);
+      } else {
+        lines.push(`| **Est. cost** | ~$${estimatedCostUsd.toFixed(4)} (LLM only) |`);
+      }
     }
     if (hasSuppressed) {
       lines.push(`| **Suppressed** | ${suppressedCount} finding${suppressedCount !== 1 ? 's' : ''} removed by dedup & quality filters |`);

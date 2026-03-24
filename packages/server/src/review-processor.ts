@@ -146,6 +146,10 @@ export async function processReviewJob(
       delta = computeReviewDelta(result.findings, prevComplete.findings);
     }
 
+    // Compute cumulative cost across all reviews on this PR
+    const prevCost = prevReviewsResult.reduce((sum, r) => sum + (r.estimatedCostUsd ?? 0), 0);
+    const cumulativeCostUsd = (result.estimatedCostUsd ?? 0) + prevCost;
+
     // Format comment
     const comment = formatReviewComment({
       summary: result.summary,
@@ -170,6 +174,7 @@ export async function processReviewJob(
       inputTokens: result.inputTokens,
       outputTokens: result.outputTokens,
       estimatedCostUsd: result.estimatedCostUsd,
+      cumulativeCostUsd: cumulativeCostUsd > 0 ? cumulativeCostUsd : undefined,
       durationMs,
       model: config.model,
     });
