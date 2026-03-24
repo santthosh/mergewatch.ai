@@ -303,13 +303,12 @@ export function formatReviewComment(options: FormatOptions): string {
   } else if (actionFindings.length > 0) {
     lines.push('#### Requires your attention');
     lines.push('');
-    lines.push('| | Severity | Location | Finding |');
-    lines.push('|---|---|---|---|');
+    lines.push('| | Location | Finding |');
+    lines.push('|---|---|---|');
     for (const f of actionFindings) {
       const emoji = f.severity === 'critical' ? '\uD83D\uDD34' : '\u26A0\uFE0F';
-      const label = f.severity === 'critical' ? 'Critical' : 'Warning';
       const shortFile = shortenPath(f.file);
-      lines.push(`| ${emoji} | ${label} | \`${shortFile}:${f.line}\` | ${f.title} |`);
+      lines.push(`| ${emoji} | \`${shortFile}:${f.line}\` | ${f.title} |`);
     }
     lines.push('');
   } else {
