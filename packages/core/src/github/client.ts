@@ -308,10 +308,10 @@ export function mergeScoreToReviewEvent(
 }
 
 /**
- * Submit a formal PR review using the Pull Request Reviews API.
- *
- * This makes MergeWatch appear as a proper reviewer in GitHub's
- * "Reviewers" section, similar to how Greptile/CodeRabbit appear.
+ * Submit a PR review with a short verdict and optionally batched inline
+ * comments on critical findings. The full review lives in the paired
+ * issue comment. Batching all inline comments in one API call means
+ * GitHub sends only 1 notification.
  */
 export async function submitPRReview(
   octokit: Octokit,
@@ -320,6 +320,7 @@ export async function submitPRReview(
   prNumber: number,
   body: string,
   event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT',
+  comments?: Array<{ path: string; line: number; side: string; body: string }>,
 ): Promise<void> {
   await octokit.pulls.createReview({
     owner,
@@ -327,7 +328,105 @@ export async function submitPRReview(
     pull_number: prNumber,
     body,
     event,
+    ...(comments && comments.length > 0 ? { comments } : {}),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Hybrid review helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the URL to a specific issue comment on a PR.
+ */
+export function buildIssueCommentUrl(
+  owner: string,
+  repo: string,
+  prNumber: number,
+  commentId: number,
+): string {
+  return `https://github.com/${owner}/${repo}/pull/${prNumber}#issuecomment-${commentId}`;
+}
+
+/**
+ * Format a short verdict body for the PR review.
+ * Links back to the full issue comment for details.
+ */
+export function formatPRReviewVerdict(
+  mergeScore: number,
+  mergeScoreReason: string | undefined,
+  findingsCounts: { critical: number; warning: number; info: number },
+  issueCommentUrl: string,
+): string {
+  const scoreLabels: Record<number, string> = {
+    1: 'Critical issues',
+    2: 'Significant concerns',
+    3: 'Some concerns',
+    4: 'Generally safe',
+    5: 'Looks great',
+  };
+  const label = scoreLabels[mergeScore] ?? 'Review complete';
+
+  const scoreEmojis: Record<number, string> = {
+    1: '🔴', 2: '🟠', 3: '🟡', 4: '🟢', 5: '🟢',
+  };
+  const emoji = scoreEmojis[mergeScore] ?? '⚪';
+
+  let oneLiner: string;
+  const total = findingsCounts.critical + findingsCounts.warning + findingsCounts.info;
+  if (total === 0) {
+    oneLiner = 'No issues found.';
+  } else if (findingsCounts.critical > 0) {
+    oneLiner = `Found ${findingsCounts.critical} critical issue${findingsCounts.critical > 1 ? 's' : ''} that need${findingsCounts.critical === 1 ? 's' : ''} attention.`;
+  } else if (findingsCounts.warning > 0) {
+    oneLiner = `${findingsCounts.warning + findingsCounts.info} finding${total > 1 ? 's' : ''} to review.`;
+  } else {
+    oneLiner = `${findingsCounts.info} suggestion${findingsCounts.info > 1 ? 's' : ''} for improvement.`;
+  }
+
+  return `${emoji} **${mergeScore}/5 — ${label}** — [View full review](${issueCommentUrl})\n\n${oneLiner}`;
+}
+
+interface InlineCommentCandidate {
+  file: string;
+  line: number;
+  severity: 'critical' | 'warning' | 'info';
+  title: string;
+  description: string;
+  suggestion: string;
+}
+
+/**
+ * Build inline review comments from critical findings on changed files.
+ *
+ * Only critical-severity findings whose file is in the changed file list
+ * become inline comments. All are batched in a single createReview call
+ * so GitHub sends only one notification.
+ */
+export function buildInlineComments(
+  findings: InlineCommentCandidate[],
+  changedFiles: string[],
+): Array<{ path: string; line: number; side: string; body: string }> {
+  const changedSet = new Set(changedFiles);
+
+  return findings
+    .filter((f) => f.severity === 'critical' && changedSet.has(f.file) && f.line > 0)
+    .map((f) => ({
+      path: f.file,
+      line: f.line,
+      side: 'RIGHT',
+      body: `**🔴 ${f.title}**\n\n${f.description}${f.suggestion ? `\n\n> **Suggestion:** ${f.suggestion}` : ''}`,
+    }));
+}
+
+const INLINE_TITLE_REGEX = /\*\*🔴 (.+?)\*\*/;
+
+/**
+ * Extract the plain finding title from an inline comment body.
+ * Returns the title string, or empty string if the format doesn't match.
+ */
+export function extractInlineCommentTitle(body: string): string {
+  return body.match(INLINE_TITLE_REGEX)?.[1] ?? '';
 }
 
 /**

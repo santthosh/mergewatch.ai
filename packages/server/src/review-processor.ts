@@ -5,6 +5,7 @@ import {
   formatReviewComment, runReviewPipeline, shouldSkipPR,
   DEFAULT_CONFIG, mergeConfig,
   BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
+  buildIssueCommentUrl, formatPRReviewVerdict, buildInlineComments, extractInlineCommentTitle,
   fetchRepoConfig,
   buildWorkDoneSection, computeReviewDelta,
 } from '@mergewatch/core';
@@ -145,6 +146,10 @@ export async function processReviewJob(
       delta = computeReviewDelta(result.findings, prevComplete.findings);
     }
 
+    // Compute cumulative cost across all reviews on this PR
+    const prevCost = prevReviewsResult.reduce((sum, r) => sum + (r.estimatedCostUsd ?? 0), 0);
+    const cumulativeCostUsd = (result.estimatedCostUsd ?? 0) + prevCost;
+
     // Format comment
     const comment = formatReviewComment({
       summary: result.summary,
@@ -169,48 +174,66 @@ export async function processReviewJob(
       inputTokens: result.inputTokens,
       outputTokens: result.outputTokens,
       estimatedCostUsd: result.estimatedCostUsd,
+      cumulativeCostUsd: cumulativeCostUsd > 0 ? cumulativeCostUsd : undefined,
       durationMs,
       model: config.model,
     });
 
-    // Submit as a proper PR review (shows MergeWatch as a reviewer).
-    // Only fall back to an issue comment if the PR review API fails.
+    // ── Step A: Upsert issue comment (full review — primary artifact) ──────
     const reviewEvent = mergeScoreToReviewEvent(result.mergeScore);
     let commentId: number | undefined;
-    let prReviewSucceeded = false;
+
+    // Look up existing comment: job payload → store → API scan
+    let targetCommentId = job.existingCommentId
+      || (prevReviewsResult.find((r) => r.commentId && r.prNumberCommitSha !== prNumberCommitSha)?.commentId as number | undefined)
+      || (await findExistingBotComment(octokit, owner, repo, prNumber)) || undefined;
+
+    if (targetCommentId) {
+      await updateReviewComment(octokit, owner, repo, targetCommentId, comment);
+      commentId = targetCommentId;
+    } else {
+      commentId = await postReviewComment(octokit, owner, repo, prNumber, comment);
+    }
+
+    if (!commentId) {
+      throw new Error('Failed to create or update issue comment');
+    }
+
+    // ── Step B: Build inline comments for critical findings ──────────────
+    let inlineComments = buildInlineComments(result.findings, prContext.files);
+
+    // Filter out carried-over findings (same file+line+title as previous review)
+    if (prevComplete?.findings && inlineComments.length > 0) {
+      const prevKeys = new Set(
+        (prevComplete.findings as Array<{ file: string; line: number; title: string }>)
+          .map((f) => `${f.file}:${f.line}:${f.title}`),
+      );
+      inlineComments = inlineComments.filter(
+        (c) => !prevKeys.has(`${c.path}:${c.line}:${extractInlineCommentTitle(c.body)}`),
+      );
+    }
+
+    // ── Step C: Submit PR review with verdict + inline comments ──────────
+    const issueCommentUrl = buildIssueCommentUrl(owner, repo, prNumber, commentId);
+    const criticalCount = result.findings.filter((f: any) => f.severity === 'critical').length;
+    const warningCount = result.findings.filter((f: any) => f.severity === 'warning').length;
+    const infoCount = result.findings.filter((f: any) => f.severity === 'info').length;
+    const verdictBody = formatPRReviewVerdict(
+      result.mergeScore,
+      result.mergeScoreReason || undefined,
+      { critical: criticalCount, warning: warningCount, info: infoCount },
+      issueCommentUrl,
+    );
 
     try {
       await dismissStaleReviews(octokit, owner, repo, prNumber);
-      await submitPRReview(octokit, owner, repo, prNumber, `${BOT_COMMENT_MARKER}\n${comment}`, reviewEvent);
-      prReviewSucceeded = true;
+      await submitPRReview(octokit, owner, repo, prNumber, verdictBody, reviewEvent, inlineComments);
     } catch (err) {
-      console.warn('Failed to submit PR review, falling back to issue comment:', err);
-    }
-
-    if (prReviewSucceeded) {
-      // PR review posted successfully — delete any legacy issue comment to avoid duplicates
-      const existingComment = job.existingCommentId
-        || await findExistingBotComment(octokit, owner, repo, prNumber);
-      if (existingComment) {
-        try {
-          await octokit.issues.deleteComment({ owner, repo, comment_id: existingComment });
-        } catch (err) {
-          console.warn('Failed to delete legacy issue comment:', err);
-        }
-      }
-    } else {
-      // PR review failed — fall back to issue comment
-      if (job.existingCommentId) {
-        await updateReviewComment(octokit, owner, repo, job.existingCommentId, comment);
-        commentId = job.existingCommentId;
-      } else {
-        const existing = await findExistingBotComment(octokit, owner, repo, prNumber);
-        if (existing) {
-          await updateReviewComment(octokit, owner, repo, existing, comment);
-          commentId = existing;
-        } else {
-          commentId = await postReviewComment(octokit, owner, repo, prNumber, comment);
-        }
+      console.warn('PR review with inline comments failed, retrying without inline comments:', err);
+      try {
+        await submitPRReview(octokit, owner, repo, prNumber, verdictBody, reviewEvent);
+      } catch (retryErr) {
+        console.warn('PR review (verdict only) also failed — issue comment has the full review:', retryErr);
       }
     }
 
@@ -237,7 +260,7 @@ export async function processReviewJob(
     });
 
     // Create check run
-    const hasCritical = result.findings.some((f: any) => f.severity === 'critical');
+    const hasCritical = criticalCount > 0;
     await createCheckRun(octokit, owner, repo, prContext.headBranch || '', {
       status: 'completed',
       conclusion: hasCritical ? 'failure' : 'success',
