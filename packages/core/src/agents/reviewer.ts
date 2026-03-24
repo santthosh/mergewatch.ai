@@ -303,6 +303,23 @@ function sanitizeMermaidOutput(diagram: string): string {
   return sanitized.join('\n');
 }
 
+/** Known Mermaid diagram type keywords (first non-comment line must start with one). */
+const MERMAID_DIAGRAM_TYPES = /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|gitGraph|journey|mindmap|timeline|quadrantChart|sankey|xychart|block)\b/i;
+
+/** Check whether a string looks like a valid Mermaid diagram. */
+export function isValidMermaidDiagram(diagram: string): boolean {
+  if (!diagram || !diagram.trim()) return false;
+
+  const lines = diagram.trim().split('\n');
+  // Find the first non-empty, non-comment line
+  const firstMeaningful = lines.find(
+    (l) => l.trim() && !l.trim().startsWith('%%'),
+  );
+  if (!firstMeaningful) return false;
+
+  return MERMAID_DIAGRAM_TYPES.test(firstMeaningful.trim());
+}
+
 /** Parse raw Mermaid response: extract caption from leading %% comment. */
 function parseDiagramResponse(raw: string): DiagramResult {
   let cleaned = raw.trim();
@@ -320,6 +337,13 @@ function parseDiagramResponse(raw: string): DiagramResult {
     lines.shift();
   }
   const diagram = sanitizeMermaidOutput(lines.join('\n').trim());
+
+  // Reject output that isn't a valid Mermaid diagram (e.g. LLM hallucination,
+  // PGP keys, prose, or other non-diagram content)
+  if (!isValidMermaidDiagram(diagram)) {
+    return { diagram: '', caption: '' };
+  }
+
   return { diagram, caption };
 }
 
