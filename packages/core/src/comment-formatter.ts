@@ -397,8 +397,7 @@ export function formatReviewComment(options: FormatOptions): string {
     lines.push('');
   }
 
-  // 10. Dashboard link + custom footer
-  lines.push('---');
+  // 10. Dashboard link + custom footer — compact, no horizontal rule
   const footerParts: string[] = [];
   if (reviewDetailUrl) {
     footerParts.push(`[View full details](${reviewDetailUrl})`);
@@ -407,7 +406,7 @@ export function formatReviewComment(options: FormatOptions): string {
     footerParts.push(commentFooter);
   }
   if (footerParts.length > 0) {
-    lines.push(footerParts.join(' \u00B7 '));
+    lines.push(`<sub>${footerParts.join(' \u00B7 ')}</sub>`);
   }
 
   return lines.join('\n');
