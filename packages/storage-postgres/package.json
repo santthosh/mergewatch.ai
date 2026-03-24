@@ -6,7 +6,9 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "migrations:generate": "drizzle-kit generate",
+    "migrations:check": "drizzle-kit check"
   },
   "dependencies": {
     "@mergewatch/core": "workspace:*",

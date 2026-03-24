@@ -68,6 +68,10 @@ jobs:
       - name: TypeScript type check
         run: pnpm run typecheck
 
+      - name: Verify Postgres migrations are up to date
+        working-directory: packages/storage-postgres
+        run: pnpm run migrations:check
+
       - name: Setup AWS SAM CLI
         uses: aws-actions/setup-sam@v2
         with:

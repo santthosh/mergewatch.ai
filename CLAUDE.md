@@ -57,6 +57,15 @@ docker-compose up -d           # Start server + Postgres
 cp .env.example .env           # Configure (fill in GitHub App + LLM provider)
 ```
 
+### Postgres Migrations (self-hosted)
+The self-hosted server auto-runs Drizzle migrations on startup. When changing `packages/storage-postgres/src/schema.ts`:
+```bash
+cd packages/storage-postgres
+pnpm run migrations:generate   # Generate migration SQL from schema diff
+# IMPORTANT: Edit the generated SQL in drizzle/ to use IF NOT EXISTS / ADD COLUMN IF NOT EXISTS
+pnpm run migrations:check      # Verify migrations match schema (CI runs this too)
+```
+
 ### Dashboard (from packages/dashboard/)
 ```bash
 cd packages/dashboard && pnpm run dev    # Local dev server (http://localhost:3000)
