@@ -3,7 +3,7 @@ import express from 'express';
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { sql as drizzleSql } from 'drizzle-orm';
-import { PostgresInstallationStore, PostgresReviewStore } from '@mergewatch/storage-postgres';
+import { PostgresInstallationStore, PostgresReviewStore, runMigrations } from '@mergewatch/storage-postgres';
 import { EnvGitHubAuthProvider } from './github-auth-env.js';
 import { createLLMProvider } from './llm-factory.js';
 import { createWebhookHandler } from './webhook-handler.js';
@@ -48,6 +48,11 @@ async function main() {
   // Initialize database
   const sql = postgres(databaseUrl);
   const db = drizzle(sql);
+
+  // Auto-migrate: creates tables if missing, adds new columns on upgrade
+  console.log('Running database migrations...');
+  await runMigrations(db);
+  console.log('Database migrations complete.');
 
   // Initialize providers
   const installationStore = new PostgresInstallationStore(db);
