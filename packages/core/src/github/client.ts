@@ -308,12 +308,10 @@ export function mergeScoreToReviewEvent(
 }
 
 /**
- * Submit a formal PR review using the Pull Request Reviews API.
- *
- * This makes MergeWatch appear as a proper reviewer in GitHub's
- * "Reviewers" section, similar to how Greptile/CodeRabbit appear.
- *
- * Optionally includes inline comments (batched in one API call = 1 notification).
+ * Submit a PR review with a short verdict and optionally batched inline
+ * comments on critical findings. The full review lives in the paired
+ * issue comment. Batching all inline comments in one API call means
+ * GitHub sends only 1 notification.
  */
 export async function submitPRReview(
   octokit: Octokit,

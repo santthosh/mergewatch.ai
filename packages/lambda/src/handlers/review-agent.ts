@@ -388,9 +388,11 @@ export async function handler(
         (prevComplete.findings as Array<{ file: string; line: number; title: string }>)
           .map((f) => `${f.file}:${f.line}:${f.title}`),
       );
-      inlineComments = inlineComments.filter(
-        (c) => !prevKeys.has(`${c.path}:${c.line}:${c.body.split('\n')[0]}`),
-      );
+      inlineComments = inlineComments.filter((c) => {
+        const titleMatch = c.body.match(/\*\*🔴 (.+?)\*\*/);
+        const title = titleMatch?.[1] ?? '';
+        return !prevKeys.has(`${c.path}:${c.line}:${title}`);
+      });
     }
 
     // ── Step C: Submit PR review with verdict + inline comments ──────────
