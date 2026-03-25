@@ -45,9 +45,6 @@ export interface IDashboardInstallationStore {
 
   /** Save installation-level settings. */
   updateSettings(installationId: string, settings: InstallationSettings): Promise<void>;
-
-  /** Toggle a single repo's monitored flag. */
-  updateMonitored(installationId: string, repoFullName: string, monitored: boolean): Promise<void>;
 }
 
 // ─── Review store (dashboard operations) ────────────────────────────────────

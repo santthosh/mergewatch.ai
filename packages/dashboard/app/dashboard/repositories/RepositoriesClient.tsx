@@ -6,11 +6,9 @@ import {
   Search,
   GitBranch,
   Clock,
-  PauseCircle,
   Settings as SettingsIcon,
   Loader2,
 } from "lucide-react";
-import ToggleSwitch from "@/components/ToggleSwitch";
 import RelativeTime from "@/components/RelativeTime";
 
 export interface RepositoryView {
@@ -18,7 +16,6 @@ export interface RepositoryView {
   githubUrl: string;
   language: string | null;
   isPrivate: boolean;
-  enabled: boolean;
   reviewCount: number;
   issueCount: number;
   lastReviewedAt: string | null;
@@ -41,8 +38,6 @@ export default function RepositoriesClient({
 }: RepositoriesClientProps) {
   const [repos, setRepos] = useState<RepositoryView[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [activeCount, setActiveCount] = useState(0);
-  const [pausedCount, setPausedCount] = useState(0);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -74,8 +69,6 @@ export default function RepositoriesClient({
 
         setRepos((prev) => (append ? [...prev, ...incoming] : incoming));
         setTotalCount(data.totalCount ?? 0);
-        if (data.activeCount != null) setActiveCount(data.activeCount);
-        if (data.pausedCount != null) setPausedCount(data.pausedCount);
         setHasMore(data.hasMore ?? false);
         setPage(pageNum);
       } finally {
@@ -136,12 +129,8 @@ export default function RepositoriesClient({
       result = result.filter((r) => r.fullName.toLowerCase().includes(q));
     }
 
-    if (statusFilter === "active") {
-      result = result.filter((r) => r.enabled);
-    } else if (statusFilter === "paused") {
-      result = result.filter((r) => !r.enabled);
-    } else if (statusFilter === "no-reviews") {
-      result = result.filter((r) => r.enabled && r.reviewCount === 0);
+    if (statusFilter === "no-reviews") {
+      result = result.filter((r) => r.reviewCount === 0);
     }
 
     if (languageFilter !== "all") {
@@ -150,48 +139,6 @@ export default function RepositoriesClient({
 
     return result;
   }, [repos, debouncedSearch, statusFilter, languageFilter]);
-
-
-  // Optimistic toggle
-  const handleToggle = useCallback(
-    async (fullName: string, enabled: boolean) => {
-      setRepos((prev) =>
-        prev.map((r) => (r.fullName === fullName ? { ...r, enabled } : r)),
-      );
-      // Optimistically update counts
-      if (enabled) {
-        setActiveCount((c) => c + 1);
-        setPausedCount((c) => c - 1);
-      } else {
-        setActiveCount((c) => c - 1);
-        setPausedCount((c) => c + 1);
-      }
-
-      try {
-        const res = await fetch("/api/repositories", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ installationId, repoFullName: fullName, enabled }),
-        });
-        if (!res.ok) throw new Error("Failed");
-      } catch {
-        setRepos((prev) =>
-          prev.map((r) =>
-            r.fullName === fullName ? { ...r, enabled: !enabled } : r,
-          ),
-        );
-        // Revert counts
-        if (enabled) {
-          setActiveCount((c) => c - 1);
-          setPausedCount((c) => c + 1);
-        } else {
-          setActiveCount((c) => c + 1);
-          setPausedCount((c) => c - 1);
-        }
-      }
-    },
-    [installationId],
-  );
 
   const clearFilters = useCallback(() => {
     setSearch("");
@@ -213,7 +160,7 @@ export default function RepositoriesClient({
         <div>
           <h1 className="text-fg-primary text-xl font-semibold">Repositories</h1>
           <p className="text-fg-tertiary text-sm mt-1">
-            Manage which repos MergeWatch actively reviews.
+            All repositories with MergeWatch installed.
           </p>
         </div>
         {isAdmin && (
@@ -231,18 +178,12 @@ export default function RepositoriesClient({
 
       {/* Summary strip */}
       <div className="flex items-center gap-6 px-4 py-4 border-b border-border-default sm:px-8">
-        {[
-          { value: totalCount, label: "connected" },
-          { value: activeCount, label: "active" },
-          { value: pausedCount, label: "paused" },
-        ].map((stat) => (
-          <div key={stat.label} className="flex items-baseline gap-1.5">
-            <span className="text-fg-primary text-lg font-semibold tabular-nums">
-              {initialLoad ? "–" : stat.value}
-            </span>
-            <span className="text-fg-muted text-sm">{stat.label}</span>
-          </div>
-        ))}
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-fg-primary text-lg font-semibold tabular-nums">
+            {initialLoad ? "–" : totalCount}
+          </span>
+          <span className="text-fg-muted text-sm">connected</span>
+        </div>
       </div>
 
       {/* Filter bar */}
@@ -266,9 +207,7 @@ export default function RepositoriesClient({
           onChange={(e) => setStatusFilter(e.target.value)}
           className="px-3 py-1.5 bg-surface-card-hover border border-[#2a2a2a] rounded-md text-sm text-fg-secondary focus:outline-none focus:border-accent-green/40"
         >
-          <option value="all">All statuses</option>
-          <option value="active">Active</option>
-          <option value="paused">Paused</option>
+          <option value="all">All</option>
           <option value="no-reviews">No reviews yet</option>
         </select>
 
@@ -334,8 +273,6 @@ export default function RepositoriesClient({
               <RepoCard
                 key={repo.fullName}
                 repo={repo}
-                isAdmin={isAdmin}
-                onToggle={handleToggle}
               />
             ))}
           </div>
@@ -369,12 +306,8 @@ export default function RepositoriesClient({
 
 function RepoCard({
   repo,
-  isAdmin,
-  onToggle,
 }: {
   repo: RepositoryView;
-  isAdmin: boolean;
-  onToggle: (fullName: string, enabled: boolean) => void;
 }) {
   return (
     <div className="bg-surface-card-hover border border-border-default rounded-lg p-5 hover:border-[#2a2a2a] transition-colors">
@@ -405,12 +338,6 @@ function RepoCard({
             </span>
           </div>
         </div>
-
-        <ToggleSwitch
-          checked={repo.enabled}
-          disabled={!isAdmin}
-          onChange={(enabled) => onToggle(repo.fullName, enabled)}
-        />
       </div>
 
       {/* Divider */}
@@ -431,28 +358,10 @@ function RepoCard({
 }
 
 // ---------------------------------------------------------------------------
-// RepoStatus — three variants
+// RepoStatus
 // ---------------------------------------------------------------------------
 
 function RepoStatus({ repo }: { repo: RepositoryView }) {
-  if (!repo.enabled) {
-    return (
-      <div className="flex items-center gap-2 py-1">
-        <PauseCircle size={13} className="text-fg-muted" />
-        <span className="text-fg-tertiary text-xs">
-          Paused
-          {repo.lastReviewedAt && (
-            <>
-              {" "}
-              &middot; last reviewed{" "}
-              <RelativeTime date={repo.lastReviewedAt} />
-            </>
-          )}
-        </span>
-      </div>
-    );
-  }
-
   if (repo.reviewCount === 0) {
     return (
       <div className="flex items-center gap-2 py-1">

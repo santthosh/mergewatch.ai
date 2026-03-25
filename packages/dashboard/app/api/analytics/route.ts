@@ -49,8 +49,7 @@ export async function GET(req: NextRequest) {
 
     const store = await getDashboardStore();
 
-    // Get repos the user can actually access via GitHub API, then intersect
-    // with monitored repos from the store.
+    // Get repos the user can actually access via GitHub API.
     const githubAccessible = await Promise.all(
       targetInstallations.map((inst) => fetchAccessibleRepoNames(accessToken, inst.id)),
     );
@@ -59,23 +58,11 @@ export async function GET(req: NextRequest) {
       set.forEach((name) => userRepoNames.add(name));
     }
 
-    const accessibleRepos = new Set<string>();
-    const storeItemLists = await Promise.all(
-      targetInstallations.map((inst) => store.installations.listByInstallation(String(inst.id))),
-    );
-    for (const items of storeItemLists) {
-      for (const item of items) {
-        if (item.monitored === true && userRepoNames.has(item.repoFullName)) {
-          accessibleRepos.add(item.repoFullName);
-        }
-      }
-    }
-
-    if (accessibleRepos.size === 0) {
+    if (userRepoNames.size === 0) {
       return NextResponse.json({ analytics: null, availableRepos: [] });
     }
 
-    const allRepos = Array.from(accessibleRepos).sort();
+    const allRepos = Array.from(userRepoNames).sort();
     const targetRepos = repoParam
       ? allRepos.filter((r) => r === repoParam)
       : allRepos;

@@ -125,11 +125,7 @@ export interface InstallationItem {
    */
   modelId?: string;
 
-  /**
-   * Whether this repo is monitored (reviewed) by MergeWatch.
-   * Set via the dashboard's repository management UI.
-   * Repos with monitored=true have PRs reviewed; others are paused.
-   */
+  /** Deprecated — retained for backward compatibility. The pipeline reviews all installed repos regardless of this flag. */
   monitored?: boolean;
 }
 
