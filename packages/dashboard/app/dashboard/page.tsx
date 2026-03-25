@@ -65,7 +65,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     if (err instanceof TokenExpiredError) {
       redirect("/signout");
     }
-    // Other errors — show empty state
+    console.error("[dashboard] failed to fetch accessible repos:", err);
   }
 
   // Get per-repo stats, filter to repos with reviews, sort by last reviewed

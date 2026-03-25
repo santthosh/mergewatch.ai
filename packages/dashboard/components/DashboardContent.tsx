@@ -41,8 +41,8 @@ export default function DashboardContent({
           }));
           setReviews(mapped);
         }
-      } catch {
-        // Silently ignore — reviews section will show empty state
+      } catch (err) {
+        console.error("[dashboard] failed to fetch reviews:", err);
       } finally {
         if (!cancelled) setLoadingReviews(false);
       }

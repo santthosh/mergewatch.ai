@@ -12,10 +12,10 @@ interface AccountInfo {
 }
 
 /**
- * Onboarding — a friendly guided flow for new users.
+ * Onboarding — guided flow for new users.
  *
- * Step 1: Install the GitHub App on accounts/orgs — shows install status
- * Step 2: Done — redirect to dashboard
+ * Step 1: Install the GitHub App on accounts/orgs
+ * Step 2: Success — redirect to dashboard
  */
 export default function Onboarding() {
   const router = useRouter();
