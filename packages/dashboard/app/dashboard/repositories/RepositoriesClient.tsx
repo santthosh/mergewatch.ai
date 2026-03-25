@@ -358,7 +358,7 @@ function RepoCard({
 }
 
 // ---------------------------------------------------------------------------
-// RepoStatus — two variants (has reviews / no reviews)
+// RepoStatus
 // ---------------------------------------------------------------------------
 
 function RepoStatus({ repo }: { repo: RepositoryView }) {
