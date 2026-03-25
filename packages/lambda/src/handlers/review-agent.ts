@@ -156,8 +156,7 @@ export async function handler(
   // ── Handle "review" / "summary" modes ──────────────────────────────────
 
   const prContext = await getPRContext(octokit, owner, repo, prNumber);
-  const prDetails = await octokit.pulls.get({ owner, repo, pull_number: prNumber });
-  const headSha = prDetails.data.head.sha;
+  const headSha = prContext.headSha;
   const shortSha = headSha.slice(0, 7);
   const prNumberCommitSha = `${prNumber}#${shortSha}`;
 
@@ -173,10 +172,10 @@ export async function handler(
       createdAt: new Date().toISOString(),
       completedAt: new Date().toISOString(),
       prTitle: prContext.title,
-      prAuthor: prDetails.data.user?.login,
-      prAuthorAvatar: prDetails.data.user?.avatar_url,
-      headBranch: prDetails.data.head.ref,
-      baseBranch: prDetails.data.base.ref,
+      prAuthor: prContext.prAuthor,
+      prAuthorAvatar: prContext.prAuthorAvatar,
+      headBranch: prContext.headBranch,
+      baseBranch: prContext.baseBranch,
       installationId: String(installationId),
       skipReason,
     };
@@ -203,10 +202,10 @@ export async function handler(
     status: 'in_progress',
     createdAt: reviewStartedAt,
     prTitle: prContext.title,
-    prAuthor: prDetails.data.user?.login,
-    prAuthorAvatar: prDetails.data.user?.avatar_url,
-    headBranch: prDetails.data.head.ref,
-    baseBranch: prDetails.data.base.ref,
+    prAuthor: prContext.prAuthor,
+    prAuthorAvatar: prContext.prAuthorAvatar,
+    headBranch: prContext.headBranch,
+    baseBranch: prContext.baseBranch,
     installationId: String(installationId),
   };
   const claimed = await reviewStore.claimReview(reviewRecord);

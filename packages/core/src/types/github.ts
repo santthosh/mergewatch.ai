@@ -168,6 +168,12 @@ export interface PRContext {
   description: string | null;
   baseBranch: string;
   headBranch: string;
+  /** Full SHA of the head commit */
+  headSha: string;
+  /** PR author login */
+  prAuthor?: string;
+  /** PR author avatar URL */
+  prAuthorAvatar?: string;
   files: string[];
   /** Total lines added across all files */
   totalAdditions: number;

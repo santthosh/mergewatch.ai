@@ -25,7 +25,8 @@ export async function processReviewJob(
   const diff = await getPRDiff(octokit, owner, repo, prNumber);
 
   // Generate review key
-  const shortSha = prContext.headBranch?.slice(0, 7) || 'unknown';
+  const headSha = prContext.headSha;
+  const shortSha = headSha.slice(0, 7);
   const prNumberCommitSha = `${prNumber}#${shortSha}`;
 
   // Atomically claim this review — prevents duplicate processing
@@ -72,7 +73,7 @@ export async function processReviewJob(
 
   try {
     // Build agentic file fetch options (agents will request files they need)
-    const ref = prContext.headBranch || 'HEAD';
+    const ref = headSha;
     const fileFetchOptions: FileFetchOptions | undefined = config.codebaseAwareness
       ? {
           octokit,
@@ -261,7 +262,7 @@ export async function processReviewJob(
 
     // Create check run
     const hasCritical = criticalCount > 0;
-    await createCheckRun(octokit, owner, repo, prContext.headBranch || '', {
+    await createCheckRun(octokit, owner, repo, headSha, {
       status: 'completed',
       conclusion: hasCritical ? 'failure' : 'success',
       title: `Score: ${result.mergeScore}/5`,
