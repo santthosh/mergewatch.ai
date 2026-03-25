@@ -4,12 +4,12 @@ import RelativeTime from "./RelativeTime";
 
 export default function RepoCard({
   repoFullName,
-  installedAt,
+  lastReviewedAt,
   reviewCount,
   loading,
 }: {
   repoFullName: string;
-  installedAt: string;
+  lastReviewedAt: string;
   reviewCount: number;
   loading?: boolean;
 }) {
@@ -24,9 +24,11 @@ export default function RepoCard({
         >
           {repoFullName}
         </a>
-        <p className="mt-0.5 text-xs text-fg-tertiary">
-          Connected <RelativeTime date={installedAt} />
-        </p>
+        {lastReviewedAt && (
+          <p className="mt-0.5 text-xs text-fg-tertiary">
+            Last reviewed <RelativeTime date={lastReviewedAt} />
+          </p>
+        )}
       </div>
 
       <div className="ml-3 flex flex-shrink-0 items-center gap-2">

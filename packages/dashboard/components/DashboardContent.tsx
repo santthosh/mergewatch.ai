@@ -68,7 +68,7 @@ export default function DashboardContent({
         </div>
       </div>
 
-      {/* Active repos */}
+      {/* Repos with review activity */}
       <section className="px-4 py-6 sm:px-8 sm:py-8">
         <h2 className="text-[11px] font-semibold uppercase tracking-widest text-fg-muted pb-3">
           Active Repositories
@@ -93,7 +93,7 @@ export default function DashboardContent({
               <RepoCard
                 key={repo.repoFullName}
                 repoFullName={repo.repoFullName}
-                installedAt={repo.lastReviewedAt ?? ""}
+                lastReviewedAt={repo.lastReviewedAt ?? ""}
                 reviewCount={repo.reviewCount}
               />
             ))}
