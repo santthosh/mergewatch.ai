@@ -3,7 +3,6 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getDashboardStore } from "@/lib/store";
 import {
   fetchUserInstallations,
   fetchAccessibleRepoNames,
@@ -43,21 +42,13 @@ export default async function ReviewsPage({ searchParams }: ReviewsPageProps) {
 
   const installationId = String(activeInstallation.id);
 
-  // Get monitored repo names for the filter dropdown, scoped to repos
-  // the user can actually access via GitHub (not all repos in the installation)
-  const store = await getDashboardStore();
+  // Get repo names for the filter dropdown, scoped to repos
+  // the user can actually access via GitHub
   const repos: string[] = [];
 
   try {
-    const [userRepoNames, items] = await Promise.all([
-      fetchAccessibleRepoNames(accessToken, activeInstallation.id),
-      store.installations.listByInstallation(installationId),
-    ]);
-    for (const item of items) {
-      if (item.monitored === true && userRepoNames.has(item.repoFullName)) {
-        repos.push(item.repoFullName);
-      }
-    }
+    const userRepoNames = await fetchAccessibleRepoNames(accessToken, activeInstallation.id);
+    userRepoNames.forEach((name) => repos.push(name));
   } catch (err) {
     if (err instanceof TokenExpiredError) {
       redirect("/signout");

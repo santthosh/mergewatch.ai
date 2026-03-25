@@ -81,20 +81,6 @@ class DynamoDashboardInstallationStore implements IDashboardInstallationStore {
     );
   }
 
-  async updateMonitored(
-    installationId: string,
-    repoFullName: string,
-    monitored: boolean,
-  ): Promise<void> {
-    await this.client.send(
-      new UpdateCommand({
-        TableName: this.tableName,
-        Key: { installationId, repoFullName },
-        UpdateExpression: 'SET monitored = :m',
-        ExpressionAttributeValues: { ':m': monitored },
-      }),
-    );
-  }
 }
 
 // ─── Review store ───────────────────────────────────────────────────────────

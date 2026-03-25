@@ -45,9 +45,9 @@ export async function GET(req: NextRequest) {
 
     const store = await getDashboardStore();
 
-    // Get repos the user can actually access via GitHub API, then intersect
-    // with monitored repos from the store. The GitHub API only returns repos
-    // visible to the authenticated user, preventing cross-repo data leaks.
+    // Get repos the user can actually access via GitHub API.
+    // The GitHub API only returns repos visible to the authenticated user,
+    // preventing cross-repo data leaks.
     const githubAccessible = await Promise.all(
       targetInstallations.map((inst) => fetchAccessibleRepoNames(accessToken, inst.id)),
     );
@@ -56,27 +56,15 @@ export async function GET(req: NextRequest) {
       set.forEach((name) => userRepoNames.add(name));
     }
 
-    const accessibleRepos = new Set<string>();
-    const storeItemLists = await Promise.all(
-      targetInstallations.map((inst) => store.installations.listByInstallation(String(inst.id))),
-    );
-    for (const items of storeItemLists) {
-      for (const item of items) {
-        if (item.monitored === true && userRepoNames.has(item.repoFullName)) {
-          accessibleRepos.add(item.repoFullName);
-        }
-      }
-    }
-
-    if (accessibleRepos.size === 0) {
+    if (userRepoNames.size === 0) {
       return NextResponse.json({ reviews: [], nextCursor: null, stats: { total: 0, completed: 0, findings: 0 } });
     }
 
-    if (repoFilter && !accessibleRepos.has(repoFilter)) {
+    if (repoFilter && !userRepoNames.has(repoFilter)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const targetRepos = repoFilter ? [repoFilter] : Array.from(accessibleRepos);
+    const targetRepos = repoFilter ? [repoFilter] : Array.from(userRepoNames);
 
     // Fetch stats and reviews in parallel
     const [stats, result] = await Promise.all([

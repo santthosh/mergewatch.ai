@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import RepoPicker, { type AvailableRepo } from "./RepoPicker";
 import Spinner from "./Spinner";
 
 interface AccountInfo {
@@ -16,12 +15,11 @@ interface AccountInfo {
  * Onboarding — a friendly guided flow for new users.
  *
  * Step 1: Install the GitHub App on accounts/orgs — shows install status
- * Step 2: Search and select repos to monitor
- * Step 3: Done — redirect to dashboard
+ * Step 2: Done — redirect to dashboard
  */
 export default function Onboarding() {
   const router = useRouter();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2>(1);
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -31,9 +29,6 @@ export default function Onboarding() {
   const appUrl =
     process.env.NEXT_PUBLIC_GITHUB_APP_URL ??
     "https://github.com/apps/mergewatch-ai/installations/new";
-
-  // Derive app slug from install URL for per-org install links
-  const appSlug = appUrl.replace(/\/installations\/new$/, "").split("/apps/")[1] ?? "";
 
   /** Fetch accounts and their install status */
   const fetchAccounts = useCallback(async () => {
@@ -46,13 +41,13 @@ export default function Onboarding() {
         // Auto-advance if any account has the app installed
         const hasInstall = (data.accounts ?? []).some((a: AccountInfo) => a.installed);
         if (hasInstall) {
-          // Also check if repos exist
           const reposRes = await fetch("/api/repos");
           if (reposRes.ok) {
             const reposData = await reposRes.json();
             if ((reposData.repos ?? []).length > 0) {
               pollingRef.current = false;
               setStep(2);
+              setTimeout(() => router.push("/dashboard"), 1500);
               return;
             }
           }
@@ -63,7 +58,7 @@ export default function Onboarding() {
     } finally {
       setLoadingAccounts(false);
     }
-  }, []);
+  }, [router]);
 
   // Fetch accounts on mount and poll
   useEffect(() => {
@@ -91,51 +86,12 @@ export default function Onboarding() {
       if ((data.repos ?? []).length > 0) {
         pollingRef.current = false;
         setStep(2);
+        setTimeout(() => router.push("/dashboard"), 1500);
       } else {
         setError("No repositories found yet. Install the app on at least one account above, then try again.");
       }
     } catch {
       setError("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSave(selected: AvailableRepo[]) {
-    setError("");
-    setLoading(true);
-
-    // Group selected repos by installationId
-    const byInstallation = new Map<string, { repoFullName: string }[]>();
-    for (const repo of selected) {
-      const list = byInstallation.get(repo.installationId) ?? [];
-      list.push({ repoFullName: repo.repoFullName });
-      byInstallation.set(repo.installationId, list);
-    }
-
-    try {
-      // Persist monitoring for each installation
-      const results = await Promise.all(
-        Array.from(byInstallation.entries()).map(([installationId, repos]) =>
-          fetch("/api/repos/monitored", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ installationId, repos }),
-          }),
-        ),
-      );
-
-      const failed = results.some((r) => !r.ok);
-      if (failed) {
-        setError("Failed to save some repositories. Please try again.");
-        setLoading(false);
-        return;
-      }
-
-      setStep(3);
-      setTimeout(() => router.push("/dashboard"), 1500);
-    } catch {
-      setError("Something went wrong saving your selections. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -147,7 +103,7 @@ export default function Onboarding() {
     <div className="mx-auto max-w-xl px-6 py-16">
       {/* Step indicators */}
       <div className="mb-10 flex items-center justify-center gap-2">
-        {[1, 2, 3].map((s) => (
+        {[1, 2].map((s) => (
           <div
             key={s}
             className={`h-2 w-8 rounded-full transition ${
@@ -254,26 +210,6 @@ export default function Onboarding() {
       )}
 
       {step === 2 && (
-        <div>
-          <h2 className="mb-2 text-2xl font-bold text-center">
-            Pick your repositories
-          </h2>
-          <p className="mb-6 text-center text-sm text-primer-muted">
-            Search and select the repositories you want MergeWatch to review.
-            You can always change this later from your dashboard.
-          </p>
-          <RepoPicker
-            monitoredNames={new Set()}
-            onSave={handleSave}
-            saveLabel="Enable MergeWatch"
-          />
-          {error && (
-            <p className="mt-4 text-center text-sm text-red-400">{error}</p>
-          )}
-        </div>
-      )}
-
-      {step === 3 && (
         <div className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primer-green/20">
             <svg
@@ -292,7 +228,7 @@ export default function Onboarding() {
           </div>
           <h2 className="text-2xl font-bold">You&apos;re all set!</h2>
           <p className="mt-2 text-sm text-primer-muted">
-            MergeWatch is now monitoring your selected repositories.
+            MergeWatch will now review PRs on all repos it has access to.
             Taking you to your dashboard...
           </p>
         </div>

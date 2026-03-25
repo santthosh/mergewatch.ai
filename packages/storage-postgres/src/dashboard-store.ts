@@ -121,25 +121,6 @@ class PostgresDashboardInstallationStore implements IDashboardInstallationStore 
       });
   }
 
-  async updateMonitored(
-    installationId: string,
-    repoFullName: string,
-    monitored: boolean,
-  ): Promise<void> {
-    await this.db
-      .insert(installations)
-      .values({
-        installationId,
-        repoFullName,
-        installedAt: new Date().toISOString(),
-        config: {},
-        monitored,
-      })
-      .onConflictDoUpdate({
-        target: [installations.installationId, installations.repoFullName],
-        set: { monitored },
-      });
-  }
 }
 
 // ─── Review store ───────────────────────────────────────────────────────────

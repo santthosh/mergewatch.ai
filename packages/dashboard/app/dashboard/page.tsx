@@ -4,10 +4,9 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getDashboardStore } from "@/lib/store";
-import type { InstallationItem } from "@mergewatch/core";
 import {
   fetchUserInstallations,
-  checkInstallationAdmin,
+  fetchAccessibleRepoNames,
   TokenExpiredError,
 } from "@/lib/github-repos";
 import DashboardContent from "@/components/DashboardContent";
@@ -17,10 +16,7 @@ interface DashboardPageProps {
 }
 
 /**
- * Dashboard page — shows monitored repos from the selected installation and recent reviews.
- *
- * "Monitored" means the repo has a record in the store with monitored=true.
- * Admins can manage which repos are monitored via the RepoPicker.
+ * Dashboard page — shows repos with recent review activity, sorted by last review.
  */
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const session = await getServerSession(authOptions);
@@ -58,32 +54,41 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   const installationId = String(activeInstallation.id);
 
-  // Parallelize admin check and store query (both independent of each other)
   const store = await getDashboardStore();
 
-  const [isAdmin, monitoredItems] = await Promise.all([
-    checkInstallationAdmin(accessToken, activeInstallation),
-    store.installations.listByInstallation(installationId).catch((): InstallationItem[] => []),
-  ]);
+  // Fetch accessible repo names from GitHub
+  let repoNames: string[] = [];
+  try {
+    const repoSet = await fetchAccessibleRepoNames(accessToken, activeInstallation.id);
+    repoNames = Array.from(repoSet);
+  } catch (err) {
+    if (err instanceof TokenExpiredError) {
+      redirect("/signout");
+    }
+    // Other errors — show empty state
+  }
 
-  const monitoredItemsList = monitoredItems.filter((item) => item.monitored === true);
-  const monitoredNames = new Set(monitoredItemsList.map((item) => item.repoFullName));
+  // Get per-repo stats, filter to repos with reviews, sort by last reviewed
+  const statsMap = repoNames.length > 0
+    ? await store.reviews.getRepoStats(repoNames)
+    : new Map();
 
-  // Build repos list from monitored store items (reviews are fetched client-side via /api/reviews)
-  const repos = monitoredItemsList
-    .sort((a, b) => a.repoFullName.localeCompare(b.repoFullName))
-    .map((item) => ({
-      repoFullName: item.repoFullName,
-      installedAt: item.installedAt || new Date().toISOString(),
-      reviewCount: 0,
-    }));
+  const repos = Array.from(statsMap.entries())
+    .map(([repoFullName, stats]) => ({
+      repoFullName,
+      reviewCount: stats.reviewCount,
+      lastReviewedAt: stats.lastReviewedAt,
+    }))
+    .sort((a, b) => {
+      const aDate = a.lastReviewedAt ?? "";
+      const bDate = b.lastReviewedAt ?? "";
+      return bDate.localeCompare(aDate);
+    });
 
   return (
     <DashboardContent
       repos={repos}
-      isAdmin={isAdmin}
       installationId={installationId}
-      monitoredNames={Array.from(monitoredNames)}
     />
   );
 }
