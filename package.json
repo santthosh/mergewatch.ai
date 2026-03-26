@@ -2,7 +2,7 @@
   "name": "mergewatch",
   "version": "0.1.0",
   "private": true,
-  "description": "AI-powered GitHub PR review tool \u2014 runs in your AWS account via Amazon Bedrock",
+  "description": "AI-powered GitHub PR review tool — runs in your AWS account via Amazon Bedrock",
   "license": "AGPL-3.0",
   "packageManager": "pnpm@10.23.0",
   "engines": {
@@ -22,11 +22,15 @@
     "web:dev": "cd packages/dashboard && npm run dev",
     "web:build": "cd packages/dashboard && npm run build",
     "logs:webhook": "sam logs --name mergewatch-webhook-prod --tail --stack-name mergewatch",
-    "logs:agent": "sam logs --name mergewatch-review-agent-prod --tail --stack-name mergewatch"
+    "logs:agent": "sam logs --name mergewatch-review-agent-prod --tail --stack-name mergewatch",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test -- --coverage"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.1",
     "turbo": "^2.3.0",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.1"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

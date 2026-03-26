@@ -13,13 +13,13 @@ export interface WebhookDeps {
   dashboardBaseUrl: string;
 }
 
-function verifySignature(payload: string, signature: string, secret: string): boolean {
+export function verifySignature(payload: string, signature: string, secret: string): boolean {
   const expected = 'sha256=' + createHmac('sha256', secret).update(payload).digest('hex');
   if (expected.length !== signature.length) return false;
   return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
 }
 
-function parseReviewMode(body: string): { mode: ReviewMode; userComment?: string } {
+export function parseReviewMode(body: string): { mode: ReviewMode; userComment?: string } {
   const lower = body.toLowerCase().trim();
   if (lower.includes('@mergewatch review')) return { mode: 'review' };
   if (lower.includes('@mergewatch summary')) return { mode: 'summary' };
