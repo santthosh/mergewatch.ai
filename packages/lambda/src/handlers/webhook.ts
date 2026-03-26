@@ -41,7 +41,7 @@ const authProvider = new SSMGitHubAuthProvider();
 /**
  * Verify the `X-Hub-Signature-256` header against the raw request body.
  */
-function verifySignature(
+export function verifySignature(
   secret: string,
   body: string,
   signatureHeader: string | undefined
@@ -66,7 +66,7 @@ function verifySignature(
 /**
  * Determine the review mode from an `@mergewatch` mention in a comment body.
  */
-function parseReviewMode(commentBody: string): ReviewMode | null {
+export function parseReviewMode(commentBody: string): ReviewMode | null {
   if (!/@mergewatch/i.test(commentBody)) return null;
 
   if (/@mergewatch\s+review\b/i.test(commentBody)) return "review";

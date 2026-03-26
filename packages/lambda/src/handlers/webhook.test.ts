@@ -1,0 +1,76 @@
+import { describe, it, expect } from 'vitest';
+import { createHmac } from 'node:crypto';
+import { verifySignature, parseReviewMode } from './webhook.js';
+
+// ---------------------------------------------------------------------------
+// verifySignature
+// ---------------------------------------------------------------------------
+
+describe('verifySignature', () => {
+  const secret = 'test-webhook-secret';
+
+  function sign(body: string): string {
+    return 'sha256=' + createHmac('sha256', secret).update(body).digest('hex');
+  }
+
+  it('returns true for a valid HMAC-SHA256 signature', () => {
+    const body = '{"action":"opened"}';
+    expect(verifySignature(secret, body, sign(body))).toBe(true);
+  });
+
+  it('returns false when signature header is undefined', () => {
+    expect(verifySignature(secret, '{}', undefined)).toBe(false);
+  });
+
+  it('returns false when signature header is empty string', () => {
+    expect(verifySignature(secret, '{}', '')).toBe(false);
+  });
+
+  it('returns false for a wrong signature', () => {
+    expect(verifySignature(secret, '{}', 'sha256=deadbeef')).toBe(false);
+  });
+
+  it('returns false when body has been tampered with', () => {
+    const original = '{"action":"opened"}';
+    const tampered = '{"action":"closed"}';
+    expect(verifySignature(secret, tampered, sign(original))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseReviewMode
+// ---------------------------------------------------------------------------
+
+describe('parseReviewMode', () => {
+  it('returns "review" for "@mergewatch review"', () => {
+    expect(parseReviewMode('@mergewatch review')).toBe('review');
+  });
+
+  it('returns "summary" for "@mergewatch summary"', () => {
+    expect(parseReviewMode('@mergewatch summary')).toBe('summary');
+  });
+
+  it('returns "review" for bare "@mergewatch" at end of string', () => {
+    expect(parseReviewMode('@mergewatch')).toBe('review');
+  });
+
+  it('returns "respond" for "@mergewatch" followed by arbitrary text', () => {
+    expect(parseReviewMode('Hey @mergewatch can you explain this?')).toBe('respond');
+  });
+
+  it('returns null when @mergewatch is not mentioned', () => {
+    expect(parseReviewMode('This is a regular comment')).toBeNull();
+  });
+
+  it('is case-insensitive for @MergeWatch', () => {
+    expect(parseReviewMode('@MergeWatch review')).toBe('review');
+  });
+
+  it('is case-insensitive for @MERGEWATCH', () => {
+    expect(parseReviewMode('@MERGEWATCH summary')).toBe('summary');
+  });
+
+  it('returns "review" for "@mergewatch" on its own line in a multi-line comment', () => {
+    expect(parseReviewMode('Please review this\n@mergewatch\nThanks')).toBe('review');
+  });
+});

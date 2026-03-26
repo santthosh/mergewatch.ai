@@ -1,0 +1,247 @@
+import { describe, it, expect } from 'vitest';
+import {
+  mergeScoreToReviewEvent,
+  buildIssueCommentUrl,
+  buildInlineComments,
+  formatPRReviewVerdict,
+  extractInlineCommentTitle,
+  BOT_COMMENT_MARKER,
+} from './client.js';
+
+// ---------------------------------------------------------------------------
+// mergeScoreToReviewEvent
+// ---------------------------------------------------------------------------
+
+describe('mergeScoreToReviewEvent', () => {
+  it('returns APPROVE for score 5', () => {
+    expect(mergeScoreToReviewEvent(5)).toBe('APPROVE');
+  });
+
+  it('returns APPROVE for score 4', () => {
+    expect(mergeScoreToReviewEvent(4)).toBe('APPROVE');
+  });
+
+  it('returns COMMENT for score 3', () => {
+    expect(mergeScoreToReviewEvent(3)).toBe('COMMENT');
+  });
+
+  it('returns REQUEST_CHANGES for score 2', () => {
+    expect(mergeScoreToReviewEvent(2)).toBe('REQUEST_CHANGES');
+  });
+
+  it('returns REQUEST_CHANGES for score 1', () => {
+    expect(mergeScoreToReviewEvent(1)).toBe('REQUEST_CHANGES');
+  });
+
+  it('returns APPROVE for scores above 5', () => {
+    expect(mergeScoreToReviewEvent(6)).toBe('APPROVE');
+  });
+
+  it('returns REQUEST_CHANGES for scores below 1', () => {
+    expect(mergeScoreToReviewEvent(0)).toBe('REQUEST_CHANGES');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildIssueCommentUrl
+// ---------------------------------------------------------------------------
+
+describe('buildIssueCommentUrl', () => {
+  it('builds the correct URL', () => {
+    const url = buildIssueCommentUrl('acme', 'widget', 42, 123456);
+    expect(url).toBe('https://github.com/acme/widget/pull/42#issuecomment-123456');
+  });
+
+  it('handles special characters in owner/repo', () => {
+    const url = buildIssueCommentUrl('my-org', 'my-repo.js', 1, 1);
+    expect(url).toBe('https://github.com/my-org/my-repo.js/pull/1#issuecomment-1');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildInlineComments
+// ---------------------------------------------------------------------------
+
+describe('buildInlineComments', () => {
+  const changedFiles = ['src/app.ts', 'src/utils.ts', 'README.md'];
+
+  it('includes critical findings on changed files', () => {
+    const findings = [
+      { file: 'src/app.ts', line: 10, severity: 'critical' as const, title: 'SQL Injection', description: 'User input used directly in query', suggestion: 'Use parameterized queries' },
+    ];
+    const result = buildInlineComments(findings, changedFiles);
+    expect(result).toHaveLength(1);
+    expect(result[0].path).toBe('src/app.ts');
+    expect(result[0].line).toBe(10);
+    expect(result[0].side).toBe('RIGHT');
+  });
+
+  it('excludes non-critical findings (warning)', () => {
+    const findings = [
+      { file: 'src/app.ts', line: 10, severity: 'warning' as const, title: 'Naming', description: 'Bad name', suggestion: '' },
+    ];
+    const result = buildInlineComments(findings, changedFiles);
+    expect(result).toHaveLength(0);
+  });
+
+  it('excludes non-critical findings (info)', () => {
+    const findings = [
+      { file: 'src/app.ts', line: 10, severity: 'info' as const, title: 'Tip', description: 'Consider this', suggestion: '' },
+    ];
+    const result = buildInlineComments(findings, changedFiles);
+    expect(result).toHaveLength(0);
+  });
+
+  it('excludes findings on files not in changed list', () => {
+    const findings = [
+      { file: 'src/other.ts', line: 5, severity: 'critical' as const, title: 'Bug', description: 'Oops', suggestion: '' },
+    ];
+    const result = buildInlineComments(findings, changedFiles);
+    expect(result).toHaveLength(0);
+  });
+
+  it('excludes findings with line=0', () => {
+    const findings = [
+      { file: 'src/app.ts', line: 0, severity: 'critical' as const, title: 'Bug', description: 'Oops', suggestion: '' },
+    ];
+    const result = buildInlineComments(findings, changedFiles);
+    expect(result).toHaveLength(0);
+  });
+
+  it('excludes findings with negative line numbers', () => {
+    const findings = [
+      { file: 'src/app.ts', line: -1, severity: 'critical' as const, title: 'Bug', description: 'Oops', suggestion: '' },
+    ];
+    const result = buildInlineComments(findings, changedFiles);
+    expect(result).toHaveLength(0);
+  });
+
+  it('handles multiple eligible findings', () => {
+    const findings = [
+      { file: 'src/app.ts', line: 10, severity: 'critical' as const, title: 'A', description: 'desc', suggestion: '' },
+      { file: 'src/utils.ts', line: 20, severity: 'critical' as const, title: 'B', description: 'desc', suggestion: '' },
+    ];
+    const result = buildInlineComments(findings, changedFiles);
+    expect(result).toHaveLength(2);
+  });
+
+  it('formats comment body with title and description', () => {
+    const findings = [
+      { file: 'src/app.ts', line: 10, severity: 'critical' as const, title: 'SQL Injection', description: 'Unsafe query', suggestion: '' },
+    ];
+    const result = buildInlineComments(findings, changedFiles);
+    expect(result[0].body).toContain('SQL Injection');
+    expect(result[0].body).toContain('Unsafe query');
+  });
+
+  it('includes suggestion in comment body when present', () => {
+    const findings = [
+      { file: 'src/app.ts', line: 10, severity: 'critical' as const, title: 'Bug', description: 'Bad', suggestion: 'Fix it' },
+    ];
+    const result = buildInlineComments(findings, changedFiles);
+    expect(result[0].body).toContain('Suggestion');
+    expect(result[0].body).toContain('Fix it');
+  });
+
+  it('omits suggestion section when suggestion is empty', () => {
+    const findings = [
+      { file: 'src/app.ts', line: 10, severity: 'critical' as const, title: 'Bug', description: 'Bad', suggestion: '' },
+    ];
+    const result = buildInlineComments(findings, changedFiles);
+    expect(result[0].body).not.toContain('Suggestion');
+  });
+
+  it('returns empty array for empty findings', () => {
+    expect(buildInlineComments([], changedFiles)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatPRReviewVerdict
+// ---------------------------------------------------------------------------
+
+describe('formatPRReviewVerdict', () => {
+  const url = 'https://github.com/o/r/pull/1#issuecomment-1';
+
+  it('shows positive message for high score with no findings', () => {
+    const result = formatPRReviewVerdict(5, 'Clean code', { critical: 0, warning: 0, info: 0 }, url);
+    expect(result).toContain('5/5');
+    expect(result).toContain('Looks great');
+    expect(result).toContain('No issues found');
+    expect(result).toContain(url);
+  });
+
+  it('shows critical warning for low score with critical findings', () => {
+    const result = formatPRReviewVerdict(1, 'Issues found', { critical: 3, warning: 0, info: 0 }, url);
+    expect(result).toContain('1/5');
+    expect(result).toContain('Critical issues');
+    expect(result).toContain('3 critical issues');
+  });
+
+  it('pluralizes single critical finding correctly', () => {
+    const result = formatPRReviewVerdict(2, 'Issue found', { critical: 1, warning: 0, info: 0 }, url);
+    expect(result).toContain('1 critical issue');
+    expect(result).toContain('needs');
+    expect(result).not.toContain('issues that need');
+  });
+
+  it('includes link to issue comment', () => {
+    const result = formatPRReviewVerdict(4, 'LGTM', { critical: 0, warning: 0, info: 0 }, url);
+    expect(result).toContain(`[View full review](${url})`);
+  });
+
+  it('shows warning count when no critical findings', () => {
+    const result = formatPRReviewVerdict(3, 'Some warnings', { critical: 0, warning: 2, info: 1 }, url);
+    expect(result).toContain('3 findings to review');
+  });
+
+  it('shows info suggestions when only info findings', () => {
+    const result = formatPRReviewVerdict(4, 'Minor things', { critical: 0, warning: 0, info: 2 }, url);
+    expect(result).toContain('2 suggestions for improvement');
+  });
+
+  it('shows singular suggestion for 1 info finding', () => {
+    const result = formatPRReviewVerdict(4, 'Minor', { critical: 0, warning: 0, info: 1 }, url);
+    expect(result).toContain('1 suggestion for improvement');
+    expect(result).not.toContain('suggestions');
+  });
+
+  it('handles unknown score gracefully', () => {
+    const result = formatPRReviewVerdict(99, 'Unknown', { critical: 0, warning: 0, info: 0 }, url);
+    expect(result).toContain('Review complete');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractInlineCommentTitle
+// ---------------------------------------------------------------------------
+
+describe('extractInlineCommentTitle', () => {
+  it('extracts title from formatted inline comment', () => {
+    const body = '**\u{1F534} SQL Injection**\n\nUser input used in query';
+    expect(extractInlineCommentTitle(body)).toBe('SQL Injection');
+  });
+
+  it('returns empty string for unrelated text', () => {
+    expect(extractInlineCommentTitle('just some random text')).toBe('');
+  });
+
+  it('returns empty string for empty input', () => {
+    expect(extractInlineCommentTitle('')).toBe('');
+  });
+
+  it('extracts title with special characters', () => {
+    const body = '**\u{1F534} Use `parameterized` queries (SQL)**\n\nDescription here';
+    expect(extractInlineCommentTitle(body)).toBe('Use `parameterized` queries (SQL)');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BOT_COMMENT_MARKER
+// ---------------------------------------------------------------------------
+
+describe('BOT_COMMENT_MARKER', () => {
+  it('is an HTML comment', () => {
+    expect(BOT_COMMENT_MARKER).toMatch(/^<!--.*-->$/);
+  });
+});
