@@ -31,11 +31,12 @@ export class DynamoReviewStore implements IReviewStore {
           TableName: this.tableName,
           Item: { ...review, status: 'in_progress' },
           ConditionExpression:
-            'attribute_not_exists(repoFullName) OR #s IN (:failed, :skipped)',
+            'attribute_not_exists(repoFullName) OR #s IN (:failed, :skipped, :complete)',
           ExpressionAttributeNames: { '#s': 'status' },
           ExpressionAttributeValues: {
             ':failed': 'failed',
             ':skipped': 'skipped',
+            ':complete': 'complete',
           },
         }),
       );

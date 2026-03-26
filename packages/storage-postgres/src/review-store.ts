@@ -77,7 +77,7 @@ export class PostgresReviewStore implements IReviewStore {
       )
       ON CONFLICT (repo_full_name, pr_number_commit_sha)
       DO UPDATE SET status = 'in_progress', created_at = ${review.createdAt}
-      WHERE reviews.status IN ('failed', 'skipped')
+      WHERE reviews.status IN ('failed', 'skipped', 'complete')
       RETURNING repo_full_name
     `);
     return (result as any[]).length > 0;
