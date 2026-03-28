@@ -272,9 +272,9 @@ Resources:
 
       Environment:
         Variables:
-          STRIPE_SECRET_KEY: !Sub '{{resolve:ssm:/mergewatch/${Stage}/stripe-secret-key}}'
-          STRIPE_WEBHOOK_SECRET: !Sub '{{resolve:ssm:/mergewatch/${Stage}/stripe-webhook-secret}}'
-          BILLING_API_SECRET: !Sub '{{resolve:ssm:/mergewatch/${Stage}/billing-api-secret}}'
+          STRIPE_SECRET_KEY: !Sub '{{resolve:ssm-secure:/mergewatch/${Stage}/stripe-secret-key}}'
+          STRIPE_WEBHOOK_SECRET: !Sub '{{resolve:ssm-secure:/mergewatch/${Stage}/stripe-webhook-secret}}'
+          BILLING_API_SECRET: !Sub '{{resolve:ssm-secure:/mergewatch/${Stage}/billing-api-secret}}'
 
       Events:
         BillingPost:

@@ -30,7 +30,7 @@ set -euo pipefail
 
 # --- Configuration ---
 STAGE="${1:-prod}"
-REGION="${AWS_DEFAULT_REGION:-us-east-1}"
+REGION="${AWS_DEFAULT_REGION:-us-west-2}"
 
 # Derive the stack name to look up the Amplify App ID
 STACK_NAME="mergewatch"

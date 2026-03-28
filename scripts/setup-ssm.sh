@@ -31,7 +31,7 @@ set -euo pipefail
 
 # --- Configuration ---
 STAGE="${1:-prod}"
-REGION="${AWS_DEFAULT_REGION:-us-east-1}"
+REGION="${AWS_DEFAULT_REGION:-us-west-2}"
 
 # SSM parameter paths (must match the paths in template.yaml)
 APP_ID_PARAM="/mergewatch/${STAGE}/github-app-id"
