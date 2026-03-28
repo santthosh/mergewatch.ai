@@ -80,7 +80,10 @@ export async function ensureBillingIssue(
     });
     issueNumber = issue.data.number;
   } catch (err) {
-    console.error(`[billing] Failed to create billing issue for ${owner}/${repo}:`, err);
+    // Non-fatal: the review is already blocked (402 returned regardless).
+    // Since blockIssueNumber is never stored on failure, the next blocked
+    // review will see firstBlock=true again and retry issue creation — self-healing.
+    console.error(`[billing] NOTIFY_FAILED: could not create billing issue for ${owner}/${repo} install=${installationId}:`, err);
     return;
   }
 
