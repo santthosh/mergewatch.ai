@@ -1,25 +1,24 @@
 /**
  * Lazy-initialized Stripe client.
  *
- * Reads STRIPE_SECRET_KEY from environment (set via SSM in Lambda).
- * The client is created on first use and cached for the lifetime of
- * the Lambda container.
+ * Reads the Stripe secret key from SSM Parameter Store at first use
+ * and caches the client for the lifetime of the Lambda container.
+ *
+ * Falls back to STRIPE_SECRET_KEY env var for local development / tests.
  */
 
 import Stripe from 'stripe';
+import { getStripeSecretKey } from './ssm';
 
 let cachedStripe: Stripe | undefined;
 
-/** Get or create the singleton Stripe client. */
-export function getStripe(): Stripe {
+/** Get or create the singleton Stripe client (async — fetches key from SSM on first call). */
+export async function getStripe(): Promise<Stripe> {
   if (cachedStripe) return cachedStripe;
 
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) {
-    throw new Error('STRIPE_SECRET_KEY environment variable is not set');
-  }
+  // Prefer env var (local dev / tests), fall back to SSM (Lambda)
+  const key = process.env.STRIPE_SECRET_KEY || await getStripeSecretKey();
 
   cachedStripe = new Stripe(key);
-
   return cachedStripe;
 }

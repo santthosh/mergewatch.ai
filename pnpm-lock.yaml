@@ -23,6 +23,9 @@ importers:
 
   packages/billing:
     dependencies:
+      '@aws-sdk/client-ssm':
+        specifier: ^3.721.0
+        version: 3.1006.0
       '@aws-sdk/lib-dynamodb':
         specifier: ^3.721.0
         version: 3.1006.0(@aws-sdk/client-dynamodb@3.1006.0)

@@ -37,6 +37,9 @@ export { postBlockedCheckRun, ensureBillingIssue, closeBillingIssue } from './bl
 // ─── Stripe client ──────────────────────────────────────────────────────────
 export { getStripe } from './stripe-client';
 
+// ─── SSM secrets ────────────────────────────────────────────────────────────
+export { getStripeSecretKey, getStripeWebhookSecret, getBillingApiSecret } from './ssm';
+
 // ─── Checkout & top-up ──────────────────────────────────────────────────────
 export { ensureStripeCustomer, createSetupSession, createTopUp } from './checkout';
 
