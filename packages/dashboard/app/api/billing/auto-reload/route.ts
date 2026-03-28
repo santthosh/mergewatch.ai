@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { fetchUserInstallations, checkInstallationAdmin, TokenExpiredError } from "@/lib/github-repos";
 
 const BILLING_API_URL = process.env.BILLING_API_URL;
+const BILLING_API_SECRET = process.env.BILLING_API_SECRET;
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -36,9 +37,12 @@ export async function POST(req: NextRequest) {
 
   const res = await fetch(`${BILLING_API_URL}/auto-reload`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(BILLING_API_SECRET ? { Authorization: `Bearer ${BILLING_API_SECRET}` } : {}),
+    },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   return NextResponse.json(data, { status: res.status });
 }
