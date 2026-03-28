@@ -102,13 +102,13 @@ async function handleWebhook(event: APIGatewayProxyEventV2): Promise<APIGatewayP
   const sig = event.headers['stripe-signature'];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-  if (!sig || !webhookSecret) {
-    return json(400, { error: 'Missing stripe-signature header or webhook secret' });
+  if (!sig || !webhookSecret || !event.body) {
+    return json(400, { error: 'Missing stripe-signature header, webhook secret, or request body' });
   }
 
   let stripeEvent;
   try {
-    stripeEvent = stripe.webhooks.constructEvent(event.body ?? '', sig, webhookSecret);
+    stripeEvent = stripe.webhooks.constructEvent(event.body, sig, webhookSecret);
   } catch (err) {
     console.error('Stripe webhook signature verification failed:', err);
     return json(400, { error: 'Invalid signature' });
