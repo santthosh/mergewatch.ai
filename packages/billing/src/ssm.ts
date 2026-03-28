@@ -32,19 +32,20 @@ async function getSSMParameter(name: string): Promise<string> {
   return value;
 }
 
-const stage = process.env.STAGE;
-if (!stage) {
-  console.warn('[billing/ssm] STAGE env var not set — SSM lookups will fail');
+function getStage(): string {
+  const s = process.env.STAGE;
+  if (!s) throw new Error('STAGE environment variable is required for SSM parameter lookups');
+  return s;
 }
 
 export async function getStripeSecretKey(): Promise<string> {
-  return getSSMParameter(`/mergewatch/${stage}/stripe-secret-key`);
+  return getSSMParameter(`/mergewatch/${getStage()}/stripe-secret-key`);
 }
 
 export async function getStripeWebhookSecret(): Promise<string> {
-  return getSSMParameter(`/mergewatch/${stage}/stripe-webhook-secret`);
+  return getSSMParameter(`/mergewatch/${getStage()}/stripe-webhook-secret`);
 }
 
 export async function getBillingApiSecret(): Promise<string> {
-  return getSSMParameter(`/mergewatch/${stage}/billing-api-secret`);
+  return getSSMParameter(`/mergewatch/${getStage()}/billing-api-secret`);
 }
