@@ -121,9 +121,14 @@ async function handleWebhook(event: APIGatewayProxyEventV2): Promise<APIGatewayP
     return json(400, { error: 'Missing stripe-signature header, webhook secret, or request body' });
   }
 
+  // API Gateway HttpApi may base64-encode the body
+  const rawBody = event.isBase64Encoded
+    ? Buffer.from(event.body, 'base64').toString('utf-8')
+    : event.body;
+
   let stripeEvent;
   try {
-    stripeEvent = stripe.webhooks.constructEvent(event.body, sig, webhookSecret);
+    stripeEvent = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
   } catch (err) {
     console.error('Stripe webhook signature verification failed:', err);
     return json(400, { error: 'Invalid signature' });
@@ -132,7 +137,8 @@ async function handleWebhook(event: APIGatewayProxyEventV2): Promise<APIGatewayP
   switch (stripeEvent.type) {
     case 'customer.updated': {
       // Sync balance from Stripe to DynamoDB
-      const customer = stripeEvent.data.object;
+      const customer = stripeEvent.data.object as any;
+      if (!customer) break;
       const installationId = customer.metadata?.mergewatchInstallationId;
       if (installationId) {
         // Stripe balance is negative for credits, we store as positive cents
@@ -143,7 +149,8 @@ async function handleWebhook(event: APIGatewayProxyEventV2): Promise<APIGatewayP
     }
 
     case 'payment_intent.succeeded': {
-      const pi = stripeEvent.data.object;
+      const pi = stripeEvent.data.object as any;
+      if (!pi) break;
       const installationId = pi.metadata?.mergewatchInstallationId;
       if (installationId && pi.metadata?.type === 'auto-reload') {
         await updateBillingFields(dynamodb, INSTALLATIONS_TABLE, installationId, {
@@ -154,7 +161,8 @@ async function handleWebhook(event: APIGatewayProxyEventV2): Promise<APIGatewayP
     }
 
     case 'payment_intent.payment_failed': {
-      const pi = stripeEvent.data.object;
+      const pi = stripeEvent.data.object as any;
+      if (!pi) break;
       const installationId = pi.metadata?.mergewatchInstallationId;
       if (installationId && pi.metadata?.type === 'auto-reload') {
         await updateBillingFields(dynamodb, INSTALLATIONS_TABLE, installationId, {
