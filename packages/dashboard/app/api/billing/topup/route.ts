@@ -47,6 +47,12 @@ export async function POST(req: NextRequest) {
     },
     body: JSON.stringify({ installationId, amountCents }),
   });
-  const data = await res.json().catch(() => ({}));
-  return NextResponse.json(data, { status: res.status });
+  const data = await res.json().catch((err: unknown) => {
+    console.error("[billing/topup] Failed to parse billing API response:", err);
+    return { error: "Invalid response from billing service" };
+  });
+  if (!res.ok && !data.error) {
+    return NextResponse.json({ error: "Billing service error" }, { status: res.status });
+  }
+  return NextResponse.json(data, { status: res.ok ? 200 : res.status });
 }
