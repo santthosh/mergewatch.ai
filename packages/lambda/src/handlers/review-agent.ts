@@ -500,7 +500,9 @@ export async function handler(
     // review pipeline which is worse than a missed billing record.
     if (isSaas() && result.estimatedCostUsd != null) {
       let stripe;
-      try { stripe = await getStripe(); } catch { /* Stripe not configured — skip balance debit */ }
+      try { stripe = await getStripe(); } catch (err) {
+        console.warn('[billing] Stripe not configured, skipping balance debit:', err instanceof Error ? err.message : err);
+      }
       let billingRecorded = false;
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {

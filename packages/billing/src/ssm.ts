@@ -14,9 +14,14 @@ const cache: Record<string, string> = {};
 async function getSSMParameter(name: string): Promise<string> {
   if (cache[name]) return cache[name];
 
-  const response = await ssm.send(
-    new GetParameterCommand({ Name: name, WithDecryption: true }),
-  );
+  let response;
+  try {
+    response = await ssm.send(
+      new GetParameterCommand({ Name: name, WithDecryption: true }),
+    );
+  } catch (err) {
+    throw new Error(`Failed to fetch SSM parameter "${name}": ${err instanceof Error ? err.message : err}`);
+  }
 
   const value = response.Parameter?.Value;
   if (!value) {
@@ -27,7 +32,10 @@ async function getSSMParameter(name: string): Promise<string> {
   return value;
 }
 
-const stage = process.env.STAGE ?? 'prod';
+const stage = process.env.STAGE;
+if (!stage) {
+  console.warn('[billing/ssm] STAGE env var not set — SSM lookups will fail');
+}
 
 export async function getStripeSecretKey(): Promise<string> {
   return getSSMParameter(`/mergewatch/${stage}/stripe-secret-key`);

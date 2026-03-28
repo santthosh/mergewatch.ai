@@ -61,8 +61,14 @@ async function verifyBillingAuth(event: APIGatewayProxyEventV2): Promise<boolean
   let secret: string;
   try {
     secret = await getBillingApiSecret();
-  } catch {
-    console.warn('[billing] BILLING_API_SECRET not found in SSM — rejecting all non-webhook requests');
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('not found or empty')) {
+      console.warn('[billing] BILLING_API_SECRET not configured in SSM — rejecting request');
+    } else {
+      // Transient SSM failure — log as error so it's alertable
+      console.error('[billing] SSM_FAILURE: could not fetch BILLING_API_SECRET:', err);
+    }
     return false;
   }
   const authHeader = event.headers['authorization'] ?? '';
@@ -122,8 +128,9 @@ async function handleWebhook(event: APIGatewayProxyEventV2): Promise<APIGatewayP
   let webhookSecret: string | undefined;
   try {
     webhookSecret = await getStripeWebhookSecret();
-  } catch {
-    // SSM fetch failed — will be caught by the null check below
+  } catch (err) {
+    console.error('[billing] Failed to fetch webhook secret from SSM:', err);
+    return json(500, { error: 'Billing configuration error' });
   }
 
   if (!sig || !webhookSecret || !event.body) {
