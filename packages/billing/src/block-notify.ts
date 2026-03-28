@@ -57,7 +57,7 @@ export async function ensureBillingIssue(
     }));
   } catch (err: unknown) {
     if ((err as { name?: string }).name === 'ConditionalCheckFailedException') {
-      // Issue already filed — nothing to do
+      console.log(`[billing] Billing issue already claimed by another process for install=${installationId}`);
       return;
     }
     throw err;

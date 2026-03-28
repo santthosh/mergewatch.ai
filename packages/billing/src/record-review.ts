@@ -9,7 +9,7 @@ import { getBillingFields, incrementFreeReviewsUsed, deductBalance } from './dyn
  * - Free tier: atomically increment freeReviewsUsed
  * - Paid tier: atomically deduct totalCents from balanceCents
  *
- * Stripe balance deduction will be wired in Phase 2.
+ * Stripe balance sync and auto-reload will be wired in Phase 2.
  */
 export async function recordReview(
   client: DynamoDBDocumentClient,

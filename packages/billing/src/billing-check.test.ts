@@ -90,4 +90,9 @@ describe('billingCheck', () => {
     const result = await billingCheck(client, table, installationId);
     expect(result.status).toBe('block');
   });
+
+  it('throws when getBillingFields fails (DynamoDB error)', async () => {
+    mockGetFields.mockRejectedValue(new Error('DynamoDB timeout'));
+    await expect(billingCheck(client, table, installationId)).rejects.toThrow('DynamoDB timeout');
+  });
 });
