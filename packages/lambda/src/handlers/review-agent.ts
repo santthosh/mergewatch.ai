@@ -503,7 +503,7 @@ export async function handler(
       let billingRecorded = false;
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          await recordReview(dynamodb, INSTALLATIONS_TABLE, String(installationId), result.estimatedCostUsd, stripe);
+          await recordReview(dynamodb, INSTALLATIONS_TABLE, String(installationId), result.estimatedCostUsd, prNumberCommitSha, stripe);
           billingRecorded = true;
           break;
         } catch (err) {

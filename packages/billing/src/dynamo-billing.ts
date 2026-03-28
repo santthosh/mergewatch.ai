@@ -71,6 +71,42 @@ export async function deductBalance(
   }));
 }
 
+/**
+ * Atomically deduct balance AND record usage stats in a single DynamoDB call.
+ * Fails with ConditionalCheckFailedException if insufficient balance.
+ */
+export async function deductBalanceAndRecordUsage(
+  client: DynamoDBDocumentClient,
+  table: string,
+  installationId: string,
+  params: {
+    amountCents: number;
+    totalBilledCents: number;
+    prCount: number;
+    billingPeriod: string;
+    prTimestamps: string[];
+  },
+): Promise<void> {
+  await client.send(new UpdateCommand({
+    TableName: table,
+    Key: { installationId, repoFullName: SETTINGS_SK },
+    UpdateExpression:
+      'SET balanceCents = balanceCents - :amount, '
+      + 'totalBilledCents = :totalBilled, '
+      + 'prCount = :prCount, '
+      + 'billingPeriod = :period, '
+      + 'prTimestamps = :timestamps',
+    ConditionExpression: 'attribute_exists(balanceCents) AND balanceCents >= :amount',
+    ExpressionAttributeValues: {
+      ':amount': params.amountCents,
+      ':totalBilled': params.totalBilledCents,
+      ':prCount': params.prCount,
+      ':period': params.billingPeriod,
+      ':timestamps': params.prTimestamps,
+    },
+  }));
+}
+
 /** Generic update of billing fields on the #SETTINGS row. */
 export async function updateBillingFields(
   client: DynamoDBDocumentClient,
