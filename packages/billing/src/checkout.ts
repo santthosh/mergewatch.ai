@@ -28,9 +28,16 @@ export async function ensureStripeCustomer(
     },
   });
 
-  await updateBillingFields(client, table, installationId, {
-    stripeCustomerId: customer.id,
-  });
+  try {
+    await updateBillingFields(client, table, installationId, {
+      stripeCustomerId: customer.id,
+    });
+  } catch (err) {
+    // Stripe customer created but DynamoDB write failed — log for reconciliation.
+    // Next call will create a duplicate customer unless this is resolved.
+    console.error(`[billing] ORPHANED_CUSTOMER: Stripe customer ${customer.id} created for install=${installationId} but DynamoDB write failed:`, err);
+    throw err;
+  }
 
   return customer.id;
 }
@@ -98,23 +105,35 @@ export async function createTopUp(
     { idempotencyKey },
   );
 
-  // Credit the Stripe Customer Balance (negative = credit to customer)
-  await stripe.customers.createBalanceTransaction(customerId, {
-    amount: -amountCents,
-    currency: 'usd',
-    description: `MergeWatch credit top-up ($${(amountCents / 100).toFixed(2)})`,
-    metadata: {
-      mergewatchInstallationId: installationId,
-      paymentIntentId: paymentIntent.id,
-    },
-  });
+  // Credit the Stripe Customer Balance and update DynamoDB.
+  // If either fails after payment succeeds, log for reconciliation.
+  // The customer.updated webhook will eventually sync the Stripe balance to DynamoDB.
+  try {
+    await stripe.customers.createBalanceTransaction(customerId, {
+      amount: -amountCents,
+      currency: 'usd',
+      description: `MergeWatch credit top-up ($${(amountCents / 100).toFixed(2)})`,
+      metadata: {
+        mergewatchInstallationId: installationId,
+        paymentIntentId: paymentIntent.id,
+      },
+    });
+  } catch (err) {
+    console.error(`[billing] TOPUP_PARTIAL_FAILURE: payment ${paymentIntent.id} succeeded but Stripe balance credit failed for install=${installationId} amount=${amountCents}c:`, err);
+    throw err;
+  }
 
   // Update DynamoDB balance
   const newBalanceCents = (fields.balanceCents ?? 0) + amountCents;
-  await updateBillingFields(client, table, installationId, {
-    balanceCents: newBalanceCents,
-    blockedAt: undefined,
-  });
+  try {
+    await updateBillingFields(client, table, installationId, {
+      balanceCents: newBalanceCents,
+      blockedAt: undefined,
+    });
+  } catch (err) {
+    console.error(`[billing] TOPUP_PARTIAL_FAILURE: payment ${paymentIntent.id} + Stripe credit succeeded but DynamoDB update failed for install=${installationId}. customer.updated webhook will reconcile.`, err);
+    throw err;
+  }
 
   return { paymentIntentId: paymentIntent.id, newBalanceCents };
 }

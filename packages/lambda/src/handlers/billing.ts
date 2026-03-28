@@ -31,6 +31,7 @@ const INSTALLATIONS_TABLE = process.env.INSTALLATIONS_TABLE ?? 'mergewatch-insta
 const DASHBOARD_BASE_URL = process.env.DASHBOARD_BASE_URL ?? 'https://mergewatch.ai';
 
 const authProvider = new SSMGitHubAuthProvider();
+const BILLING_API_SECRET = process.env.BILLING_API_SECRET;
 
 // -- Helpers ------------------------------------------------------------------
 
@@ -48,6 +49,20 @@ function redirect(url: string): APIGatewayProxyResultV2 {
     headers: { Location: url },
     body: '',
   };
+}
+
+/**
+ * Verify the request carries a valid Bearer token matching BILLING_API_SECRET.
+ * This ensures only the dashboard proxy (which adds the token after NextAuth + GitHub
+ * admin checks) can call billing endpoints. Webhook route uses Stripe signature instead.
+ */
+function verifyBillingAuth(event: APIGatewayProxyEventV2): boolean {
+  if (!BILLING_API_SECRET) {
+    console.warn('[billing] BILLING_API_SECRET not set — rejecting all non-webhook requests');
+    return false;
+  }
+  const authHeader = event.headers['authorization'] ?? '';
+  return authHeader === `Bearer ${BILLING_API_SECRET}`;
 }
 
 // -- Route handlers -----------------------------------------------------------
@@ -221,20 +236,27 @@ export async function handler(
       }
     }
 
-    if (method === 'POST' && path.endsWith('/setup')) {
-      return await handleSetup(body);
+    // Webhook uses Stripe signature auth; success is a harmless redirect.
+    // All other routes require Bearer token from the dashboard proxy.
+    if (method === 'POST' && path.endsWith('/webhook')) {
+      return await handleWebhook(event);
     }
 
     if (method === 'GET' && path.endsWith('/success')) {
       return await handleSuccess();
     }
 
-    if (method === 'POST' && path.endsWith('/topup')) {
-      return await handleTopUp(body);
+    // Auth gate — only the dashboard proxy should reach these
+    if (!verifyBillingAuth(event)) {
+      return json(401, { error: 'Unauthorized' });
     }
 
-    if (method === 'POST' && path.endsWith('/webhook')) {
-      return await handleWebhook(event);
+    if (method === 'POST' && path.endsWith('/setup')) {
+      return await handleSetup(body);
+    }
+
+    if (method === 'POST' && path.endsWith('/topup')) {
+      return await handleTopUp(body);
     }
 
     if (method === 'GET' && path.endsWith('/status')) {

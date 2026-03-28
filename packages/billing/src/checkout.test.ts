@@ -36,7 +36,7 @@ function createMockStripe(overrides: Record<string, any> = {}) {
 }
 
 describe('ensureStripeCustomer', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => { vi.resetAllMocks(); });
 
   it('returns existing customer ID if already stored', async () => {
     mockGetFields.mockResolvedValue({ stripeCustomerId: 'cus_existing' });
@@ -61,6 +61,19 @@ describe('ensureStripeCustomer', () => {
     expect(mockUpdateFields).toHaveBeenCalledWith(client, table, installationId, {
       stripeCustomerId: 'cus_new_123',
     });
+  });
+
+  it('throws and logs when Stripe succeeds but DynamoDB write fails', async () => {
+    mockGetFields.mockResolvedValue({});
+    mockUpdateFields.mockRejectedValue(new Error('DynamoDB write failed'));
+    const stripe = createMockStripe();
+
+    await expect(
+      ensureStripeCustomer(stripe, client, table, installationId),
+    ).rejects.toThrow('DynamoDB write failed');
+
+    // Stripe customer was created (call happened before DynamoDB error)
+    expect(stripe.customers.create).toHaveBeenCalled();
   });
 });
 
@@ -93,7 +106,7 @@ describe('createSetupSession', () => {
 });
 
 describe('createTopUp', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => { vi.resetAllMocks(); });
 
   it('charges card, credits balance, and updates DynamoDB', async () => {
     mockGetFields.mockResolvedValue({ stripeCustomerId: 'cus_123', balanceCents: 500 });
@@ -145,5 +158,37 @@ describe('createTopUp', () => {
     const result = await createTopUp(stripe, client, table, installationId, 2500);
 
     expect(result.newBalanceCents).toBe(2500); // 0 + 2500
+  });
+
+  it('throws when Stripe balance credit fails after payment succeeds', async () => {
+    mockGetFields.mockResolvedValue({ stripeCustomerId: 'cus_123', balanceCents: 500 });
+    const stripe = createMockStripe({
+      customers: {
+        createBalanceTransaction: vi.fn().mockRejectedValue(new Error('Stripe balance error')),
+      },
+    });
+
+    await expect(
+      createTopUp(stripe, client, table, installationId, 1000),
+    ).rejects.toThrow('Stripe balance error');
+
+    // Payment was created (happened before the failure)
+    expect(stripe.paymentIntents.create).toHaveBeenCalled();
+    // DynamoDB was NOT updated (failed before reaching it)
+    expect(mockUpdateFields).not.toHaveBeenCalled();
+  });
+
+  it('throws when DynamoDB update fails after payment + credit succeed', async () => {
+    mockGetFields.mockResolvedValue({ stripeCustomerId: 'cus_123', balanceCents: 500 });
+    mockUpdateFields.mockRejectedValue(new Error('DynamoDB timeout'));
+    const stripe = createMockStripe();
+
+    await expect(
+      createTopUp(stripe, client, table, installationId, 1000),
+    ).rejects.toThrow('DynamoDB timeout');
+
+    // Both Stripe calls succeeded
+    expect(stripe.paymentIntents.create).toHaveBeenCalled();
+    expect(stripe.customers.createBalanceTransaction).toHaveBeenCalled();
   });
 });
