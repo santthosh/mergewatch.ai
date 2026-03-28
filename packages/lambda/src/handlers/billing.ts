@@ -266,9 +266,6 @@ export async function handler(
     return json(404, { error: 'Not found' });
   } catch (err) {
     console.error('Billing handler error:', err);
-    return json(500, {
-      error: 'Internal server error',
-      message: err instanceof Error ? err.message : String(err),
-    });
+    return json(500, { error: 'Internal server error' });
   }
 }
