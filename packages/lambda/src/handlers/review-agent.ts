@@ -499,7 +499,8 @@ export async function handler(
     // the review comment is already posted — crashing would retry the entire
     // review pipeline which is worse than a missed billing record.
     if (isSaas() && result.estimatedCostUsd != null) {
-      const stripe = process.env.STRIPE_SECRET_KEY ? getStripe() : undefined;
+      let stripe;
+      try { stripe = await getStripe(); } catch { /* Stripe not configured — skip balance debit */ }
       let billingRecorded = false;
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {

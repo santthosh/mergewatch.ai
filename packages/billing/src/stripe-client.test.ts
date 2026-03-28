@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 
-// Mock the stripe module so we don't need a real API key
-vi.mock('stripe', () => {
-  return {
-    default: vi.fn(function (this: any, key: string) { this.key = key; }),
-  };
-});
+// Mock stripe module
+vi.mock('stripe', () => ({
+  default: vi.fn(function (this: any, key: string) { this.key = key; }),
+}));
+
+// Mock SSM module
+vi.mock('./ssm', () => ({
+  getStripeSecretKey: vi.fn().mockResolvedValue('sk_test_from_ssm'),
+}));
 
 describe('getStripe', () => {
   beforeEach(() => {
-    // Clear module cache so each test gets a fresh singleton
     vi.resetModules();
   });
 
@@ -17,25 +19,27 @@ describe('getStripe', () => {
     vi.unstubAllEnvs();
   });
 
-  it('throws when STRIPE_SECRET_KEY is not set', async () => {
-    vi.stubEnv('STRIPE_SECRET_KEY', '');
+  it('uses env var when STRIPE_SECRET_KEY is set', async () => {
+    vi.stubEnv('STRIPE_SECRET_KEY', 'sk_test_env');
     const { getStripe } = await import('./stripe-client');
-    expect(() => getStripe()).toThrow('STRIPE_SECRET_KEY');
+    const stripe = await getStripe();
+    expect(stripe).toBeDefined();
+    expect((stripe as any).key).toBe('sk_test_env');
   });
 
-  it('returns a Stripe instance when key is set', async () => {
-    vi.stubEnv('STRIPE_SECRET_KEY', 'sk_test_123');
+  it('falls back to SSM when env var is not set', async () => {
+    vi.stubEnv('STRIPE_SECRET_KEY', '');
     const { getStripe } = await import('./stripe-client');
-    const stripe = getStripe();
+    const stripe = await getStripe();
     expect(stripe).toBeDefined();
-    expect((stripe as any).key).toBe('sk_test_123');
+    expect((stripe as any).key).toBe('sk_test_from_ssm');
   });
 
   it('returns the same cached instance on subsequent calls', async () => {
-    vi.stubEnv('STRIPE_SECRET_KEY', 'sk_test_123');
+    vi.stubEnv('STRIPE_SECRET_KEY', 'sk_test_cached');
     const { getStripe } = await import('./stripe-client');
-    const first = getStripe();
-    const second = getStripe();
+    const first = await getStripe();
+    const second = await getStripe();
     expect(first).toBe(second);
   });
 });

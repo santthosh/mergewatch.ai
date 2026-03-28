@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@mergewatch/core": "workspace:*",
+    "@aws-sdk/client-ssm": "^3.721.0",
     "@aws-sdk/lib-dynamodb": "^3.721.0",
     "stripe": "^17.7.0"
   },

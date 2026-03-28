@@ -21,6 +21,8 @@ import {
   updateBillingFields,
   closeBillingIssue,
   FREE_REVIEW_LIMIT,
+  getStripeWebhookSecret,
+  getBillingApiSecret,
 } from '@mergewatch/billing';
 import { SSMGitHubAuthProvider } from '../github-auth-ssm.js';
 
@@ -31,7 +33,6 @@ const INSTALLATIONS_TABLE = process.env.INSTALLATIONS_TABLE ?? 'mergewatch-insta
 const DASHBOARD_BASE_URL = process.env.DASHBOARD_BASE_URL ?? 'https://mergewatch.ai';
 
 const authProvider = new SSMGitHubAuthProvider();
-const BILLING_API_SECRET = process.env.BILLING_API_SECRET;
 
 // -- Helpers ------------------------------------------------------------------
 
@@ -56,13 +57,16 @@ function redirect(url: string): APIGatewayProxyResultV2 {
  * This ensures only the dashboard proxy (which adds the token after NextAuth + GitHub
  * admin checks) can call billing endpoints. Webhook route uses Stripe signature instead.
  */
-function verifyBillingAuth(event: APIGatewayProxyEventV2): boolean {
-  if (!BILLING_API_SECRET) {
-    console.warn('[billing] BILLING_API_SECRET not set — rejecting all non-webhook requests');
+async function verifyBillingAuth(event: APIGatewayProxyEventV2): Promise<boolean> {
+  let secret: string;
+  try {
+    secret = await getBillingApiSecret();
+  } catch {
+    console.warn('[billing] BILLING_API_SECRET not found in SSM — rejecting all non-webhook requests');
     return false;
   }
   const authHeader = event.headers['authorization'] ?? '';
-  return authHeader === `Bearer ${BILLING_API_SECRET}`;
+  return authHeader === `Bearer ${secret}`;
 }
 
 // -- Route handlers -----------------------------------------------------------
@@ -73,7 +77,7 @@ async function handleSetup(body: Record<string, unknown>): Promise<APIGatewayPro
     return json(400, { error: 'installationId is required' });
   }
 
-  const stripe = getStripe();
+  const stripe = await getStripe();
   const customerId = await ensureStripeCustomer(stripe, dynamodb, INSTALLATIONS_TABLE, installationId);
   const returnUrl = `${DASHBOARD_BASE_URL}/dashboard/billing`;
   const checkoutUrl = await createSetupSession(stripe, customerId, returnUrl);
@@ -93,7 +97,7 @@ async function handleTopUp(body: Record<string, unknown>): Promise<APIGatewayPro
     return json(400, { error: 'installationId and amountCents (>= 100) are required' });
   }
 
-  const stripe = getStripe();
+  const stripe = await getStripe();
   const { paymentIntentId, newBalanceCents } = await createTopUp(
     stripe, dynamodb, INSTALLATIONS_TABLE, installationId, amountCents,
   );
@@ -113,9 +117,14 @@ async function handleTopUp(body: Record<string, unknown>): Promise<APIGatewayPro
 }
 
 async function handleWebhook(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
-  const stripe = getStripe();
+  const stripe = await getStripe();
   const sig = event.headers['stripe-signature'];
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  let webhookSecret: string | undefined;
+  try {
+    webhookSecret = await getStripeWebhookSecret();
+  } catch {
+    // SSM fetch failed — will be caught by the null check below
+  }
 
   if (!sig || !webhookSecret || !event.body) {
     return json(400, { error: 'Missing stripe-signature header, webhook secret, or request body' });
@@ -188,7 +197,7 @@ async function handleStatus(event: APIGatewayProxyEventV2): Promise<APIGatewayPr
 
   const fields = await getBillingFields(dynamodb, INSTALLATIONS_TABLE, installationId);
 
-  const stripe = getStripe();
+  const stripe = await getStripe();
   let hasPaymentMethod = false;
 
   if (fields.stripeCustomerId) {
@@ -279,7 +288,7 @@ export async function handler(
     }
 
     // Auth gate — only the dashboard proxy should reach these
-    if (!verifyBillingAuth(event)) {
+    if (!(await verifyBillingAuth(event))) {
       return json(401, { error: 'Unauthorized' });
     }
 
