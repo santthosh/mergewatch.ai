@@ -88,6 +88,16 @@ async function handleSetup(body: Record<string, unknown>): Promise<APIGatewayPro
   const returnUrl = `${DASHBOARD_BASE_URL}/dashboard/billing`;
   const checkoutUrl = await createSetupSession(stripe, customerId, returnUrl);
 
+  // Enable auto-reload by default on first card setup ($25 reload when balance < $5)
+  const fields = await getBillingFields(dynamodb, INSTALLATIONS_TABLE, installationId);
+  if (!fields.autoReloadEnabled) {
+    await updateBillingFields(dynamodb, INSTALLATIONS_TABLE, installationId, {
+      autoReloadEnabled: true,
+      autoReloadThresholdCents: 500,
+      autoReloadAmountCents: 2500,
+    });
+  }
+
   return json(200, { url: checkoutUrl });
 }
 

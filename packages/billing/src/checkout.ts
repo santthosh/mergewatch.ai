@@ -85,6 +85,19 @@ export async function createTopUp(
 
   const customerId = fields.stripeCustomerId;
 
+  // Look up the customer's saved payment method
+  const paymentMethods = await stripe.paymentMethods.list({
+    customer: customerId,
+    type: 'card',
+    limit: 1,
+  });
+
+  if (paymentMethods.data.length === 0) {
+    throw new Error('No payment method on file — complete card setup first');
+  }
+
+  const paymentMethodId = paymentMethods.data[0].id;
+
   // 5-minute idempotency window
   const window = Math.floor(Date.now() / (5 * 60 * 1000));
   const idempotencyKey = `topup-${installationId}-${amountCents}-${window}`;
@@ -93,6 +106,7 @@ export async function createTopUp(
   const paymentIntent = await stripe.paymentIntents.create(
     {
       customer: customerId,
+      payment_method: paymentMethodId,
       amount: amountCents,
       currency: 'usd',
       confirm: true,

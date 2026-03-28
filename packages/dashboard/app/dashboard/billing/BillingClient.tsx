@@ -113,8 +113,9 @@ export default function BillingClient({ installationId, accountLogin, setupCompl
         body: JSON.stringify({
           installationId,
           enabled: newEnabled,
-          thresholdCents: newEnabled ? (status?.autoReloadThresholdCents ?? 100) : undefined,
-          amountCents: newEnabled ? (status?.autoReloadAmountCents ?? 1000) : undefined,
+          // Default: reload $25 when balance drops below $5
+          thresholdCents: newEnabled ? (status?.autoReloadThresholdCents ?? 500) : undefined,
+          amountCents: newEnabled ? (status?.autoReloadAmountCents ?? 2500) : undefined,
         }),
       });
       if (!res.ok) throw new Error("Failed to update auto-reload");
@@ -384,7 +385,7 @@ export default function BillingClient({ installationId, accountLogin, setupCompl
                 </p>
                 {status.autoReloadEnabled && (
                   <p className="text-xs text-fg-tertiary mt-1">
-                    Reload ${((status.autoReloadAmountCents ?? 1000) / 100).toFixed(0)} when balance drops below ${((status.autoReloadThresholdCents ?? 100) / 100).toFixed(2)}
+                    Reload ${((status.autoReloadAmountCents ?? 2500) / 100).toFixed(0)} when balance drops below ${((status.autoReloadThresholdCents ?? 500) / 100).toFixed(2)}
                   </p>
                 )}
               </div>
