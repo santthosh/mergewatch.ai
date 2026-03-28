@@ -58,15 +58,28 @@ export async function maybeAutoReload(
     throw err;
   }
 
-  // Trigger the charge
+  // Trigger the charge — look up the saved payment method
   const amountCents = fields.autoReloadAmountCents;
+  const paymentMethods = await stripe.paymentMethods.list({
+    customer: fields.stripeCustomerId!,
+    type: 'card',
+    limit: 1,
+  });
+
+  if (paymentMethods.data.length === 0) {
+    console.warn(`[billing] Auto-reload skipped for install=${installationId}: no payment method on file`);
+    return false;
+  }
+
+  const paymentMethodId = paymentMethods.data[0].id;
   const window = Math.floor(Date.now() / (5 * 60 * 1000));
   const idempotencyKey = `auto-reload-${installationId}-${amountCents}-${window}`;
 
   try {
     await stripe.paymentIntents.create(
       {
-        customer: fields.stripeCustomerId,
+        customer: fields.stripeCustomerId!,
+        payment_method: paymentMethodId,
         amount: amountCents,
         currency: 'usd',
         confirm: true,

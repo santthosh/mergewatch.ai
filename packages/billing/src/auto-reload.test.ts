@@ -25,6 +25,9 @@ function createMockStripe() {
     customers: {
       createBalanceTransaction: vi.fn().mockResolvedValue({}),
     },
+    paymentMethods: {
+      list: vi.fn().mockResolvedValue({ data: [{ id: 'pm_card_123' }] }),
+    },
   } as any;
 }
 

@@ -32,6 +32,10 @@ function createMockStripe(overrides: Record<string, any> = {}) {
       create: vi.fn().mockResolvedValue({ id: 'pi_123' }),
       ...overrides.paymentIntents,
     },
+    paymentMethods: {
+      list: vi.fn().mockResolvedValue({ data: [{ id: 'pm_card_123' }] }),
+      ...overrides.paymentMethods,
+    },
   } as any;
 }
 
