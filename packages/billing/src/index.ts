@@ -39,3 +39,6 @@ export { getStripe } from './stripe-client';
 
 // ─── Checkout & top-up ──────────────────────────────────────────────────────
 export { ensureStripeCustomer, createSetupSession, createTopUp } from './checkout';
+
+// ─── Auto-reload ────────────────────────────────────────────────────────────
+export { maybeAutoReload } from './auto-reload';

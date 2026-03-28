@@ -220,6 +220,30 @@ async function handleStatus(event: APIGatewayProxyEventV2): Promise<APIGatewayPr
   });
 }
 
+async function handleAutoReload(body: Record<string, unknown>): Promise<APIGatewayProxyResultV2> {
+  const installationId = body.installationId as string | undefined;
+  const enabled = body.enabled as boolean | undefined;
+  const thresholdCents = body.thresholdCents as number | undefined;
+  const amountCents = body.amountCents as number | undefined;
+
+  if (!installationId || typeof enabled !== 'boolean') {
+    return json(400, { error: 'installationId and enabled are required' });
+  }
+
+  if (enabled && (!thresholdCents || !amountCents || thresholdCents < 100 || amountCents < 500)) {
+    return json(400, { error: 'thresholdCents (>= 100) and amountCents (>= 500) required when enabling' });
+  }
+
+  await updateBillingFields(dynamodb, INSTALLATIONS_TABLE, installationId, {
+    autoReloadEnabled: enabled,
+    autoReloadThresholdCents: enabled ? thresholdCents : undefined,
+    autoReloadAmountCents: enabled ? amountCents : undefined,
+    autoReloadInFlight: false,
+  });
+
+  return json(200, { ok: true });
+}
+
 // -- Main handler (path-based routing) ----------------------------------------
 
 export async function handler(
@@ -269,6 +293,10 @@ export async function handler(
 
     if (method === 'GET' && path.endsWith('/status')) {
       return await handleStatus(event);
+    }
+
+    if (method === 'POST' && path.endsWith('/auto-reload')) {
+      return await handleAutoReload(body);
     }
 
     return json(404, { error: 'Not found' });
