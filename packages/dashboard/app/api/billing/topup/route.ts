@@ -1,0 +1,58 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { fetchUserInstallations, checkInstallationAdmin, TokenExpiredError } from "@/lib/github-repos";
+
+const BILLING_API_URL = process.env.BILLING_API_URL;
+const BILLING_API_SECRET = process.env.BILLING_API_SECRET;
+
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const accessToken = (session as any).accessToken as string | undefined;
+  if (!accessToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await req.json();
+  const installationId = body.installationId as string | undefined;
+  const amountCents = body.amountCents as number | undefined;
+
+  if (!installationId || !amountCents) {
+    return NextResponse.json({ error: "Missing installationId or amountCents" }, { status: 400 });
+  }
+
+  // Verify admin access
+  try {
+    const installations = await fetchUserInstallations(accessToken);
+    const installation = installations.find((i) => String(i.id) === installationId);
+    if (!installation) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const isAdmin = await checkInstallationAdmin(accessToken, installation);
+    if (!isAdmin) return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  } catch (err) {
+    if (err instanceof TokenExpiredError) {
+      return NextResponse.json({ error: "Token expired" }, { status: 401 });
+    }
+    throw err;
+  }
+
+  if (!BILLING_API_URL) {
+    return NextResponse.json({ error: "Billing not configured" }, { status: 503 });
+  }
+
+  const res = await fetch(`${BILLING_API_URL}/topup`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(BILLING_API_SECRET ? { Authorization: `Bearer ${BILLING_API_SECRET}` } : {}),
+    },
+    body: JSON.stringify({ installationId, amountCents }),
+  });
+  const data = await res.json().catch((err: unknown) => {
+    console.error("[billing/topup] Failed to parse billing API response:", err);
+    return { error: "Invalid response from billing service" };
+  });
+  if (!res.ok && !data.error) {
+    return NextResponse.json({ error: "Billing service error" }, { status: res.status });
+  }
+  return NextResponse.json(data, { status: res.ok ? 200 : res.status });
+}
