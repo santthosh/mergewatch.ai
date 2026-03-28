@@ -29,6 +29,9 @@ importers:
       '@mergewatch/core':
         specifier: workspace:*
         version: link:../core
+      stripe:
+        specifier: ^17.7.0
+        version: 17.7.0
     devDependencies:
       typescript:
         specifier: ^5.7.3
@@ -3061,6 +3064,10 @@ packages:
 
   stringify-entities@4.0.4:
     resolution: {integrity: sha512-IwfBptatlO+QCJUo19AqvrPNqlVMpW9YEL2LIVY+Rpv2qsjCGxaDLNRgeGsQWJhfItebuJhsGSLjaBbNSQ+ieg==}
+
+  stripe@17.7.0:
+    resolution: {integrity: sha512-aT2BU9KkizY9SATf14WhhYVv2uOapBWX0OFWF4xvcj1mPaNotlSc2CsxpS4DS46ZueSppmCF5BX1sNYBtwBvfw==}
+    engines: {node: '>=12.*'}
 
   strnum@2.2.0:
     resolution: {integrity: sha512-Y7Bj8XyJxnPAORMZj/xltsfo55uOiyHcU2tnAVzHUnSJR/KsEX+9RoDeXEnsXtl/CX4fAcrt64gZ13aGaWPeBg==}
@@ -6481,6 +6488,11 @@ snapshots:
     dependencies:
       character-entities-html4: 2.1.0
       character-entities-legacy: 3.0.0
+
+  stripe@17.7.0:
+    dependencies:
+      '@types/node': 20.19.37
+      qs: 6.14.2
 
   strnum@2.2.0: {}
 

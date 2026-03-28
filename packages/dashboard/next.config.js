@@ -18,6 +18,8 @@ const nextConfig = {
     DYNAMODB_TABLE_REVIEWS: process.env.DYNAMODB_TABLE_REVIEWS,
     GITHUB_APP_SLUG: process.env.GITHUB_APP_SLUG,
     DEPLOYMENT_MODE: process.env.DEPLOYMENT_MODE,
+    BILLING_API_URL: process.env.BILLING_API_URL,
+    BILLING_API_SECRET: process.env.BILLING_API_SECRET,
     DATABASE_URL: process.env.DATABASE_URL,
   },
 

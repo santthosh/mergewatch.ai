@@ -32,3 +32,9 @@ export {
 
 // ─── Block notifications ────────────────────────────────────────────────────
 export { postBlockedCheckRun, ensureBillingIssue, closeBillingIssue } from './block-notify';
+
+// ─── Stripe client ──────────────────────────────────────────────────────────
+export { getStripe } from './stripe-client';
+
+// ─── Checkout & top-up ──────────────────────────────────────────────────────
+export { ensureStripeCustomer, createSetupSession, createTopUp } from './checkout';
