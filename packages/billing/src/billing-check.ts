@@ -27,17 +27,23 @@ export async function billingCheck(
 ): Promise<BillingCheckResult> {
   const fields = await getBillingFields(client, table, installationId);
 
+  const freeUsed = fields.freeReviewsUsed ?? 0;
+  const balanceCents = fields.balanceCents ?? 0;
+
   // Free tier path
-  if ((fields.freeReviewsUsed ?? 0) < FREE_REVIEW_LIMIT) {
+  if (freeUsed < FREE_REVIEW_LIMIT) {
+    console.log(`[billing] allow install=${installationId} reason=free_tier used=${freeUsed}/${FREE_REVIEW_LIMIT}`);
     return { status: 'allow', firstBlock: false };
   }
 
   // Paid path
-  if ((fields.balanceCents ?? 0) >= MIN_BALANCE_CENTS) {
+  if (balanceCents >= MIN_BALANCE_CENTS) {
+    console.log(`[billing] allow install=${installationId} reason=paid balance=${balanceCents}c`);
     return { status: 'allow', firstBlock: false };
   }
 
   // Blocked
   const firstBlock = !fields.blockedAt;
+  console.log(`[billing] block install=${installationId} balance=${balanceCents}c firstBlock=${firstBlock}`);
   return { status: 'block', firstBlock };
 }

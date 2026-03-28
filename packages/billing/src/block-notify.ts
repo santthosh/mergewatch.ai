@@ -64,22 +64,29 @@ export async function ensureBillingIssue(
   }
 
   // Create the GitHub Issue
-  const issue = await octokit.issues.create({
-    owner,
-    repo,
-    title: 'MergeWatch: reviews paused — credits required',
-    body:
-      'MergeWatch has paused PR reviews for this repository because the installation '
-      + 'has used all free reviews and has no remaining credits.\n\n'
-      + 'To resume reviews, please add credits at '
-      + '[mergewatch.ai/dashboard/billing](https://mergewatch.ai/dashboard/billing).\n\n'
-      + 'This issue will be closed automatically once credits are added.',
-    labels: ['mergewatch'],
-  });
+  let issueNumber: number;
+  try {
+    const issue = await octokit.issues.create({
+      owner,
+      repo,
+      title: 'MergeWatch: reviews paused — credits required',
+      body:
+        'MergeWatch has paused PR reviews for this repository because the installation '
+        + 'has used all free reviews and has no remaining credits.\n\n'
+        + 'To resume reviews, please add credits at '
+        + '[mergewatch.ai/dashboard/billing](https://mergewatch.ai/dashboard/billing).\n\n'
+        + 'This issue will be closed automatically once credits are added.',
+      labels: ['mergewatch'],
+    });
+    issueNumber = issue.data.number;
+  } catch (err) {
+    console.error(`[billing] Failed to create billing issue for ${owner}/${repo}:`, err);
+    return;
+  }
 
   // Store the issue number so we can close it later
   await updateBillingFields(client, table, installationId, {
-    blockIssueNumber: issue.data.number,
+    blockIssueNumber: issueNumber,
     blockIssueRepo: `${owner}/${repo}`,
   });
 }
