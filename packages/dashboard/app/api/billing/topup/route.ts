@@ -47,6 +47,6 @@ export async function POST(req: NextRequest) {
     },
     body: JSON.stringify({ installationId, amountCents }),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   return NextResponse.json(data, { status: res.status });
 }

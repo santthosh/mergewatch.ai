@@ -36,6 +36,6 @@ export async function GET(req: NextRequest) {
   const res = await fetch(`${BILLING_API_URL}/status?installationId=${installationId}`, {
     headers: BILLING_API_SECRET ? { Authorization: `Bearer ${BILLING_API_SECRET}` } : {},
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   return NextResponse.json(data, { status: res.status });
 }

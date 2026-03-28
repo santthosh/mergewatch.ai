@@ -139,7 +139,7 @@ export default function BillingClient({ installationId, accountLogin, setupCompl
 
   // Balance duration estimate
   const dailyCostCents = parseFloat(reviewsPerDay) * avgCostPerReview;
-  const balanceDays = dailyCostCents > 0 ? Math.floor(status.balanceCents / dailyCostCents) : null;
+  const balanceDays = dailyCostCents > 0 && isFinite(dailyCostCents) ? Math.floor(status.balanceCents / dailyCostCents) : null;
 
   return (
     <div className="space-y-6">
@@ -208,7 +208,7 @@ export default function BillingClient({ installationId, accountLogin, setupCompl
               <div className="mt-3 h-2 rounded-full bg-surface-subtle">
                 <div
                   className="h-2 rounded-full bg-accent-green transition-all"
-                  style={{ width: `${((status.freeReviewLimit - status.freeReviewsUsed) / status.freeReviewLimit) * 100}%` }}
+                  style={{ width: `${(status.freeReviewsUsed / status.freeReviewLimit) * 100}%` }}
                 />
               </div>
             </div>
