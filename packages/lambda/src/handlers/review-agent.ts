@@ -494,11 +494,25 @@ export async function handler(
     });
 
     // ── Record billing (SaaS only) ────
+    // Retry once on failure. If both attempts fail, log as ERROR (not warn)
+    // so CloudWatch alarms can catch revenue leaks. We don't throw because
+    // the review comment is already posted — crashing would retry the entire
+    // review pipeline which is worse than a missed billing record.
     if (isSaas() && result.estimatedCostUsd != null) {
-      try {
-        await recordReview(dynamodb, INSTALLATIONS_TABLE, String(installationId), result.estimatedCostUsd);
-      } catch (err) {
-        console.warn('Failed to record billing for review:', err);
+      let billingRecorded = false;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          await recordReview(dynamodb, INSTALLATIONS_TABLE, String(installationId), result.estimatedCostUsd);
+          billingRecorded = true;
+          break;
+        } catch (err) {
+          if (attempt === 1) {
+            console.warn(`[billing] recordReview attempt 1 failed for ${repoFullName}#${prNumber}, retrying:`, err);
+          }
+        }
+      }
+      if (!billingRecorded) {
+        console.error(`[billing] REVENUE LEAK: recordReview failed after 2 attempts for ${repoFullName}#${prNumber} install=${installationId} cost=$${result.estimatedCostUsd}`);
       }
     }
 
