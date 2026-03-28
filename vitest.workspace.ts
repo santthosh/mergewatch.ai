@@ -1,6 +1,7 @@
 import { defineWorkspace } from 'vitest/config';
 
 export default defineWorkspace([
+  'packages/billing',
   'packages/core',
   'packages/lambda',
   'packages/server',

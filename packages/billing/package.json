@@ -6,7 +6,9 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@mergewatch/core": "workspace:*",
