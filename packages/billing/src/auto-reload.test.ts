@@ -116,7 +116,7 @@ describe('maybeAutoReload', () => {
     );
   });
 
-  it('returns false and logs when Stripe charge fails', async () => {
+  it('returns false, logs, and clears mutex when Stripe charge fails', async () => {
     mockGetFields.mockResolvedValue({
       autoReloadEnabled: true,
       autoReloadThresholdCents: 100,
@@ -131,8 +131,8 @@ describe('maybeAutoReload', () => {
     const result = await maybeAutoReload(client, table, stripe, installationId);
 
     expect(result).toBe(false);
-    // Mutex was acquired but charge failed — webhook will clear it
-    expect(client.send).toHaveBeenCalled();
+    // Mutex acquired (1st call) then cleared (2nd call)
+    expect(client.send).toHaveBeenCalledTimes(2);
   });
 
   it('throws on non-ConditionalCheckFailed DynamoDB errors', async () => {

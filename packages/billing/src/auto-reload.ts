@@ -20,7 +20,7 @@ const SETTINGS_SK = '#SETTINGS';
  *   1. autoReloadEnabled is true
  *   2. balanceCents < autoReloadThresholdCents
  *   3. No reload already in flight (mutex)
- *   4. Stripe customer has a saved payment method
+ *   4. Stripe customer ID is configured
  *
  * @returns true if a reload was triggered, false otherwise
  */
@@ -92,8 +92,19 @@ export async function maybeAutoReload(
 
     return true;
   } catch (err) {
-    console.error(`Auto-reload failed for installation ${installationId}:`, err);
-    // Mutex will be cleared by the webhook handler on payment_intent.payment_failed
+    console.error(`[billing] AUTO_RELOAD_FAILED for install=${installationId}:`, err);
+    // Clear the mutex — if the error is pre-Stripe (invalid params, network),
+    // no webhook will fire to clear it, leaving auto-reload stuck forever.
+    try {
+      await client.send(new UpdateCommand({
+        TableName: table,
+        Key: { installationId, repoFullName: SETTINGS_SK },
+        UpdateExpression: 'SET autoReloadInFlight = :f',
+        ExpressionAttributeValues: { ':f': false },
+      }));
+    } catch (clearErr) {
+      console.error(`[billing] Failed to clear auto-reload mutex for install=${installationId}:`, clearErr);
+    }
     return false;
   }
 }
