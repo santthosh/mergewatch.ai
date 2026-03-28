@@ -27,6 +27,7 @@ export {
   getBillingFields,
   incrementFreeReviewsUsed,
   deductBalance,
+  deductBalanceAndRecordUsage,
   updateBillingFields,
 } from './dynamo-billing';
 
