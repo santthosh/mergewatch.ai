@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { fetchUserInstallations, TokenExpiredError } from "@/lib/github-repos";
 
 const BILLING_API_URL = process.env.BILLING_API_URL;
+const BILLING_API_SECRET = process.env.BILLING_API_SECRET;
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -32,7 +33,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Billing not configured" }, { status: 503 });
   }
 
-  const res = await fetch(`${BILLING_API_URL}/status?installationId=${installationId}`);
+  const res = await fetch(`${BILLING_API_URL}/status?installationId=${installationId}`, {
+    headers: BILLING_API_SECRET ? { Authorization: `Bearer ${BILLING_API_SECRET}` } : {},
+  });
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });
 }
