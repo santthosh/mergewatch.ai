@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@mergewatch/core": "workspace:*",
+    "@mergewatch/billing": "workspace:*",
     "@mergewatch/storage-dynamo": "workspace:*",
     "@mergewatch/llm-bedrock": "workspace:*",
     "@aws-sdk/client-dynamodb": "^3.721.0",

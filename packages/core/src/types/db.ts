@@ -330,6 +330,45 @@ export interface ReviewFinding {
 }
 
 // =============================================================================
+// Billing Fields (stored on #SETTINGS sentinel row)
+// =============================================================================
+
+/**
+ * Optional billing fields stored alongside InstallationSettings on the
+ * #SETTINGS sentinel row. These are only populated in SaaS mode.
+ */
+export interface BillingFields {
+  /** Number of free reviews consumed (lifetime). */
+  freeReviewsUsed?: number;
+  /** Stripe customer ID (set after first card setup). */
+  stripeCustomerId?: string;
+  /** Prepaid credit balance in cents. */
+  balanceCents?: number;
+  /** Current billing period (YYYY-MM). */
+  billingPeriod?: string;
+  /** Number of PRs reviewed in the current billing period. */
+  prCount?: number;
+  /** ISO timestamps of recent PR reviews (for pace calculation). */
+  prTimestamps?: string[];
+  /** Total amount billed in cents (lifetime). */
+  totalBilledCents?: number;
+  /** Whether auto-reload is enabled. */
+  autoReloadEnabled?: boolean;
+  /** Balance threshold in cents that triggers auto-reload. */
+  autoReloadThresholdCents?: number;
+  /** Amount in cents to reload when threshold is hit. */
+  autoReloadAmountCents?: number;
+  /** Mutex: true while an auto-reload payment is in flight. */
+  autoReloadInFlight?: boolean;
+  /** ISO timestamp of when the installation was first blocked. */
+  blockedAt?: string;
+  /** GitHub Issue number for the billing block notification. */
+  blockIssueNumber?: number;
+  /** Repo where the billing block issue was filed (owner/repo). */
+  blockIssueRepo?: string;
+}
+
+// =============================================================================
 // Helper Types
 // =============================================================================
 // Utility types for working with DynamoDB items in application code.

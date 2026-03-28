@@ -265,7 +265,7 @@ export async function createCheckRun(
   headSha: string,
   params: {
     status: 'queued' | 'in_progress' | 'completed';
-    conclusion?: 'success' | 'failure' | 'neutral';
+    conclusion?: 'success' | 'failure' | 'neutral' | 'action_required';
     title: string;
     summary: string;
     detailsUrl?: string;

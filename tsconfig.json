@@ -14,6 +14,7 @@
   },
   "references": [
     { "path": "packages/core" },
+    { "path": "packages/billing" },
     { "path": "packages/storage-dynamo" },
     { "path": "packages/llm-bedrock" },
     { "path": "packages/lambda" }

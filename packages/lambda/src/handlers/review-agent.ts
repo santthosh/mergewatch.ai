@@ -49,6 +49,7 @@ import { buildWorkDoneSection, computeReviewDelta } from '@mergewatch/core';
 import { DynamoInstallationStore } from '@mergewatch/storage-dynamo';
 import { DynamoReviewStore } from '@mergewatch/storage-dynamo';
 import { BedrockLLMProvider, SUPPORTED_MODELS } from '@mergewatch/llm-bedrock';
+import { isSaas, billingCheck, recordReview, postBlockedCheckRun, ensureBillingIssue, updateBillingFields } from '@mergewatch/billing';
 import { SSMGitHubAuthProvider } from '../github-auth-ssm.js';
 
 // -- Singletons (re-used across warm invocations) ----------------------------
@@ -192,6 +193,28 @@ export async function handler(
       statusCode: 200,
       body: JSON.stringify({ message: 'Skipped', reason: skipReason }),
     };
+  }
+
+  // ── Billing gate (SaaS only) ────
+  if (isSaas()) {
+    const billing = await billingCheck(dynamodb, INSTALLATIONS_TABLE, String(installationId));
+    if (billing.status === 'block') {
+      console.log(`Billing blocked for installation ${installationId}`);
+
+      await postBlockedCheckRun(octokit, owner, repo, headSha);
+
+      if (billing.firstBlock) {
+        await ensureBillingIssue(octokit, owner, repo, String(installationId), dynamodb, INSTALLATIONS_TABLE);
+        await updateBillingFields(dynamodb, INSTALLATIONS_TABLE, String(installationId), {
+          blockedAt: new Date().toISOString(),
+        });
+      }
+
+      return {
+        statusCode: 402,
+        body: JSON.stringify({ message: 'Billing: credits required' }),
+      };
+    }
   }
 
   // Atomically claim this review — prevents duplicate processing
@@ -469,6 +492,29 @@ export async function handler(
       outputTokens: result.outputTokens || undefined,
       estimatedCostUsd: result.estimatedCostUsd ?? undefined,
     });
+
+    // ── Record billing (SaaS only) ────
+    // Retry once on failure. If both attempts fail, log as ERROR (not warn)
+    // so CloudWatch alarms can catch revenue leaks. We don't throw because
+    // the review comment is already posted — crashing would retry the entire
+    // review pipeline which is worse than a missed billing record.
+    if (isSaas() && result.estimatedCostUsd != null) {
+      let billingRecorded = false;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          await recordReview(dynamodb, INSTALLATIONS_TABLE, String(installationId), result.estimatedCostUsd);
+          billingRecorded = true;
+          break;
+        } catch (err) {
+          if (attempt === 1) {
+            console.warn(`[billing] recordReview attempt 1 failed for ${repoFullName}#${prNumber}, retrying:`, err);
+          }
+        }
+      }
+      if (!billingRecorded) {
+        console.error(`[billing] REVENUE LEAK: recordReview failed after 2 attempts for ${repoFullName}#${prNumber} install=${installationId} cost=$${result.estimatedCostUsd}`);
+      }
+    }
 
     const hasCritical = criticalCount > 0;
     const checkConclusion = hasCritical ? 'failure' as const : 'success' as const;
