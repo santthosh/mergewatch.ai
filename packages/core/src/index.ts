@@ -75,6 +75,7 @@ export {
   buildInlineComments,
   extractInlineCommentTitle,
   fetchRepoConfig,
+  parseRepoConfigYaml,
 } from './github/client.js';
 
 // ─── Comment formatter ──────────────────────────────────────────────────────
@@ -86,8 +87,8 @@ export { computeReviewDelta } from './review-delta.js';
 export type { ReviewDelta } from './review-delta.js';
 
 // ─── Config ─────────────────────────────────────────────────────────────────
-export { DEFAULT_CONFIG, DEFAULT_UX_CONFIG, mergeConfig } from './config/defaults.js';
-export type { MergeWatchConfig, CustomAgentDef, UXConfig } from './config/defaults.js';
+export { DEFAULT_CONFIG, DEFAULT_UX_CONFIG, DEFAULT_RULES_CONFIG, mergeConfig } from './config/defaults.js';
+export type { MergeWatchConfig, CustomAgentDef, UXConfig, RulesConfig } from './config/defaults.js';
 
 // ─── Context (agentic file fetching) ─────────────────────────────────────────
 export { fetchFileContents } from './context/file-fetcher.js';
@@ -95,7 +96,10 @@ export { invokeWithFileFetching, FILE_REQUEST_INSTRUCTION } from './context/agen
 export type { FileFetchOptions, AgenticInvokeResult } from './context/agentic-fetcher.js';
 
 // ─── Skip logic ─────────────────────────────────────────────────────────────
-export { shouldSkipPR, SKIP_PATTERNS } from './skip-logic.js';
+export { shouldSkipPR, shouldSkipByRules, SKIP_PATTERNS } from './skip-logic.js';
+
+// ─── Diff filtering ─────────────────────────────────────────────────────────
+export { filterDiff } from './diff-filter.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type {
@@ -114,6 +118,7 @@ export type {
   PRContext,
   ReviewJobPayload,
 } from './types/github.js';
+export { REVIEW_TRIGGERING_ACTIONS, COMMENT_LOOKUP_ACTIONS } from './types/github.js';
 
 export type {
   RepoConfig,

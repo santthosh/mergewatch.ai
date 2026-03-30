@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import type { Request, Response } from 'express';
 import type { IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider } from '@mergewatch/core';
 import type { ReviewJobPayload, ReviewMode, PullRequestEvent, IssueCommentEvent, InstallationEvent } from '@mergewatch/core';
+import { REVIEW_TRIGGERING_ACTIONS } from '@mergewatch/core';
 import { processReviewJob } from './review-processor.js';
 
 export interface WebhookDeps {
@@ -59,13 +60,7 @@ export function createWebhookHandler(deps: WebhookDeps) {
 
 async function handlePullRequest(payload: PullRequestEvent, deps: WebhookDeps) {
   const { action, pull_request, repository, installation } = payload;
-  if (!installation || (action !== 'opened' && action !== 'synchronize' && action !== 'ready_for_review')) return;
-
-  // Skip draft PRs — they will be reviewed when marked ready
-  if (pull_request.draft) {
-    console.log(`Skipping draft PR: ${repository.full_name}#${pull_request.number}`);
-    return;
-  }
+  if (!installation || !(REVIEW_TRIGGERING_ACTIONS as readonly string[]).includes(action)) return;
 
   const job: ReviewJobPayload = {
     installationId: installation.id,
@@ -73,11 +68,14 @@ async function handlePullRequest(payload: PullRequestEvent, deps: WebhookDeps) {
     repo: repository.name,
     prNumber: pull_request.number,
     mode: 'review',
+    isDraft: pull_request.draft ?? false,
+    prLabels: pull_request.labels?.map((l) => l.name) ?? [],
+    changedFileCount: pull_request.changed_files,
   };
 
   // Process in background
   processReviewJob(job, deps).catch((err) => {
-    console.error(`Review job failed for ${repository.full_name}#${pull_request.number}:`, err);
+    console.error('Review job failed for %s#%d:', repository.full_name, pull_request.number, err);
   });
 }
 
@@ -97,7 +95,7 @@ async function handleIssueComment(payload: IssueCommentEvent, deps: WebhookDeps)
   };
 
   processReviewJob(job, deps).catch((err) => {
-    console.error(`Review job failed for ${repository.full_name}#${issue.number}:`, err);
+    console.error('Review job failed for %s#%d:', repository.full_name, issue.number, err);
   });
 }
 

@@ -16,6 +16,8 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import {
   findExistingBotComment,
+  REVIEW_TRIGGERING_ACTIONS,
+  COMMENT_LOOKUP_ACTIONS,
 } from '@mergewatch/core';
 import type {
   PullRequestEvent,
@@ -140,13 +142,7 @@ async function handlePullRequestEvent(
 ): Promise<void> {
   const { action, pull_request: pr, repository, installation } = event;
 
-  if (action !== "opened" && action !== "synchronize" && action !== "ready_for_review") return;
-
-  // Skip draft PRs — they will be reviewed when marked ready
-  if (pr.draft) {
-    console.log(`Skipping draft PR: ${repository.full_name}#${pr.number}`);
-    return;
-  }
+  if (!(REVIEW_TRIGGERING_ACTIONS as readonly string[]).includes(action)) return;
 
   const installationId = installation?.id;
   if (!installationId) {
@@ -159,7 +155,7 @@ async function handlePullRequestEvent(
   const prNumber = pr.number;
 
   let existingCommentId: number | undefined;
-  if (action === "synchronize" || action === "ready_for_review") {
+  if ((COMMENT_LOOKUP_ACTIONS as readonly string[]).includes(action)) {
     const octokit = await authProvider.getInstallationOctokit(installationId);
     const commentId = await findExistingBotComment(octokit, owner, repo, prNumber);
     if (commentId) {
@@ -174,6 +170,9 @@ async function handlePullRequestEvent(
     prNumber,
     mode: "review",
     existingCommentId,
+    isDraft: pr.draft ?? false,
+    prLabels: pr.labels?.map((l) => l.name) ?? [],
+    changedFileCount: pr.changed_files,
   });
 
   console.log(

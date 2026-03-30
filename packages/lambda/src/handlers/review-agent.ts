@@ -26,6 +26,8 @@ import {
   formatReviewComment,
   mergeConfig,
   shouldSkipPR,
+  shouldSkipByRules,
+  filterDiff,
   RESPOND_PROMPT,
   BOT_COMMENT_MARKER,
   submitPRReview,
@@ -277,6 +279,44 @@ export async function handler(
     const yamlConfig = await fetchRepoConfig(octokit, owner, repo);
     const runtimeConfig = mergeConfig({ ...(yamlConfig ?? {}), ...settingsOverrides });
 
+    // ── Rules-based skip (skipDrafts, maxFiles, ignoreLabels, autoReview, reviewOnMention) ────
+    const rulesSkipReason = shouldSkipByRules(runtimeConfig.rules, {
+      isDraft: event.isDraft,
+      labels: event.prLabels,
+      changedFileCount: event.changedFileCount ?? prContext?.files?.length,
+      mode,
+    });
+    if (rulesSkipReason) {
+      console.log(`Rules skip ${repoFullName}#${prNumber}: ${rulesSkipReason}`);
+
+      await reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', {
+        completedAt: new Date().toISOString(),
+        skipReason: rulesSkipReason,
+      });
+
+      await createCheckRun(octokit, owner, repo, headSha, {
+        status: 'completed',
+        conclusion: 'neutral',
+        title: 'Review skipped',
+        summary: rulesSkipReason,
+      });
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ message: 'Skipped', reason: rulesSkipReason }),
+      };
+    }
+
+    // ── Filter excluded files from the diff ────
+    const allExcludePatterns = [
+      ...runtimeConfig.excludePatterns,
+      ...runtimeConfig.rules.ignorePatterns,
+    ];
+    const { filteredDiff, excludedFiles } = filterDiff(diff, allExcludePatterns);
+    if (excludedFiles.length > 0) {
+      console.log(`Excluded ${excludedFiles.length} file(s) from diff: ${excludedFiles.join(', ')}`);
+    }
+
     const modelId = installation?.modelId ?? DEFAULT_BEDROCK_MODEL_ID;
     const lightModelId = runtimeConfig.lightModel;
 
@@ -310,7 +350,7 @@ export async function handler(
     const previousDiagram = typeof prevComplete?.diagramText === 'string' ? prevComplete.diagramText : undefined;
 
     const result = await runReviewPipeline({
-      diff,
+      diff: filteredDiff,
       context: {
         owner,
         repo,
