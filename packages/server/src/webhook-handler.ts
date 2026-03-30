@@ -61,18 +61,15 @@ async function handlePullRequest(payload: PullRequestEvent, deps: WebhookDeps) {
   const { action, pull_request, repository, installation } = payload;
   if (!installation || (action !== 'opened' && action !== 'synchronize' && action !== 'ready_for_review')) return;
 
-  // Skip draft PRs — they will be reviewed when marked ready
-  if (pull_request.draft) {
-    console.log(`Skipping draft PR: ${repository.full_name}#${pull_request.number}`);
-    return;
-  }
-
   const job: ReviewJobPayload = {
     installationId: installation.id,
     owner: repository.owner.login,
     repo: repository.name,
     prNumber: pull_request.number,
     mode: 'review',
+    isDraft: pull_request.draft ?? false,
+    prLabels: pull_request.labels?.map((l) => l.name) ?? [],
+    changedFileCount: pull_request.changed_files,
   };
 
   // Process in background

@@ -9,6 +9,7 @@
  */
 
 import { minimatch } from 'minimatch';
+import type { RulesConfig } from './config/defaults.js';
 
 /**
  * File patterns that indicate a trivial PR not worth reviewing.
@@ -82,6 +83,45 @@ export function shouldSkipPR(files: string[]): string | null {
     if (reasons.length === 0) reasons.push('generated/trivial files');
 
     return `Only ${reasons.join(' + ')} changed`;
+  }
+
+  return null;
+}
+
+/**
+ * Check whether a PR should be skipped based on the rules config.
+ * Returns a skip reason string if skipped, or null if the PR should be reviewed.
+ */
+export function shouldSkipByRules(
+  rules: RulesConfig,
+  pr: { isDraft?: boolean; labels?: string[]; changedFileCount?: number; mode?: string },
+): string | null {
+  // mode='review' means auto-triggered (on open/synchronize).
+  // mode='summary' or 'respond' means triggered by an @mergewatch mention.
+  const isAutoTriggered = pr.mode === 'review';
+
+  if (!rules.autoReview && isAutoTriggered) {
+    return 'Automatic reviews disabled — use @mergewatch to trigger manually';
+  }
+
+  if (!rules.reviewOnMention && !isAutoTriggered) {
+    return 'Mention-triggered reviews disabled via reviewOnMention: false';
+  }
+
+  if (rules.skipDrafts && pr.isDraft) {
+    return 'Draft PR — set rules.skipDrafts: false to review drafts';
+  }
+
+  if (pr.changedFileCount != null && pr.changedFileCount > rules.maxFiles) {
+    return `PR has ${pr.changedFileCount} changed files (max: ${rules.maxFiles})`;
+  }
+
+  if (pr.labels && rules.ignoreLabels.length > 0) {
+    const ignoreLabelSet = new Set(rules.ignoreLabels.map((l) => l.toLowerCase()));
+    const matchedLabel = pr.labels.find((l) => ignoreLabelSet.has(l.toLowerCase()));
+    if (matchedLabel) {
+      return `PR has label "${matchedLabel}" which is in ignoreLabels`;
+    }
   }
 
   return null;

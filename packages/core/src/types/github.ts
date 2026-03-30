@@ -52,6 +52,8 @@ export interface GitHubPullRequest {
   user: GitHubUser;
   /** Whether the pull request is a draft. */
   draft?: boolean;
+  /** Labels applied to the pull request. */
+  labels?: Array<{ name: string }>;
   /** ISO-8601 timestamps. */
   created_at: string;
   updated_at: string;
@@ -192,6 +194,12 @@ export interface ReviewJobPayload {
   mode: ReviewMode;
   /** If we already found an existing bot comment, pass its ID so the agent can update it. */
   existingCommentId?: number;
+  /** Whether the PR is a draft (passed from webhook for config-aware skip logic). */
+  isDraft?: boolean;
+  /** GitHub labels on the PR (passed from webhook for config-aware skip logic). */
+  prLabels?: string[];
+  /** Number of changed files in the PR (passed from webhook for config-aware skip logic). */
+  changedFileCount?: number;
   /** For "respond" mode: the user's comment body that triggered the response. */
   userComment?: string;
   /** For "respond" mode: the login of the user who commented. */
