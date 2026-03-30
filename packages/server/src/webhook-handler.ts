@@ -75,7 +75,7 @@ async function handlePullRequest(payload: PullRequestEvent, deps: WebhookDeps) {
 
   // Process in background
   processReviewJob(job, deps).catch((err) => {
-    console.error(`Review job failed for ${repository.full_name}#${pull_request.number}:`, err);
+    console.error('Review job failed for %s#%d:', repository.full_name, pull_request.number, err);
   });
 }
 
@@ -95,7 +95,7 @@ async function handleIssueComment(payload: IssueCommentEvent, deps: WebhookDeps)
   };
 
   processReviewJob(job, deps).catch((err) => {
-    console.error(`Review job failed for ${repository.full_name}#${issue.number}:`, err);
+    console.error('Review job failed for %s#%d:', repository.full_name, issue.number, err);
   });
 }
 
