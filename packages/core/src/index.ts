@@ -97,6 +97,9 @@ export type { FileFetchOptions, AgenticInvokeResult } from './context/agentic-fe
 // ─── Skip logic ─────────────────────────────────────────────────────────────
 export { shouldSkipPR, shouldSkipByRules, SKIP_PATTERNS } from './skip-logic.js';
 
+// ─── Diff filtering ─────────────────────────────────────────────────────────
+export { filterDiff } from './diff-filter.js';
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type {
   GitHubUser,
