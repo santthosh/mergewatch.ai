@@ -40,6 +40,30 @@ export const DEFAULT_UX_CONFIG: UXConfig = {
   commentHeader: '',
 };
 
+export interface RulesConfig {
+  /** Maximum number of changed files before skipping review */
+  maxFiles: number;
+  /** Glob patterns for files to ignore during review */
+  ignorePatterns: string[];
+  /** Whether to automatically review PRs on open/synchronize */
+  autoReview: boolean;
+  /** Whether to run review when mentioned in a PR comment */
+  reviewOnMention: boolean;
+  /** Whether to skip draft pull requests */
+  skipDrafts: boolean;
+  /** GitHub labels that cause a PR to be skipped */
+  ignoreLabels: string[];
+}
+
+export const DEFAULT_RULES_CONFIG: RulesConfig = {
+  maxFiles: 50,
+  ignorePatterns: ['*.lock', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'dist/**', 'node_modules/**'],
+  autoReview: true,
+  reviewOnMention: true,
+  skipDrafts: true,
+  ignoreLabels: ['skip-review'],
+};
+
 export interface MergeWatchConfig {
   /** Primary model used for review agents */
   model: string;
@@ -78,6 +102,8 @@ export interface MergeWatchConfig {
   customAgents: CustomAgentDef[];
   /** UX configuration for reviewer experience */
   ux: UXConfig;
+  /** Rules controlling when and what gets reviewed */
+  rules: RulesConfig;
   /** Custom pricing overrides (model ID → USD per 1M tokens) for cost estimation */
   pricing?: Record<string, { inputPer1M: number; outputPer1M: number }>;
 }
@@ -115,13 +141,14 @@ export const DEFAULT_CONFIG: MergeWatchConfig = {
   maxContextKB: 256,
   customAgents: [],
   ux: { ...DEFAULT_UX_CONFIG },
+  rules: { ...DEFAULT_RULES_CONFIG },
 };
 
 /**
  * Merges a partial user config (from .mergewatch.yml / DynamoDB) with defaults.
  * Only defined fields in the partial override the defaults.
  */
-export function mergeConfig(partial: Partial<Omit<MergeWatchConfig, 'agents' | 'ux'>> & { agents?: Partial<MergeWatchConfig['agents']>; ux?: Partial<UXConfig> }): MergeWatchConfig {
+export function mergeConfig(partial: Partial<Omit<MergeWatchConfig, 'agents' | 'ux' | 'rules'>> & { agents?: Partial<MergeWatchConfig['agents']>; ux?: Partial<UXConfig>; rules?: Partial<RulesConfig> }): MergeWatchConfig {
   return {
     ...DEFAULT_CONFIG,
     ...partial,
@@ -134,6 +161,10 @@ export function mergeConfig(partial: Partial<Omit<MergeWatchConfig, 'agents' | '
     ux: {
       ...DEFAULT_UX_CONFIG,
       ...(partial.ux ?? {}),
+    },
+    rules: {
+      ...DEFAULT_RULES_CONFIG,
+      ...(partial.rules ?? {}),
     },
   };
 }
