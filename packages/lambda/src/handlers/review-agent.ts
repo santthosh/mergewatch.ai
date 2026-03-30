@@ -283,7 +283,7 @@ export async function handler(
     const rulesSkipReason = shouldSkipByRules(runtimeConfig.rules, {
       isDraft: event.isDraft,
       labels: event.prLabels,
-      changedFileCount: event.changedFileCount ?? prContext.files.length,
+      changedFileCount: event.changedFileCount ?? prContext?.files?.length ?? 0,
       mode,
     });
     if (rulesSkipReason) {

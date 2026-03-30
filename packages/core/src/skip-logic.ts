@@ -96,13 +96,15 @@ export function shouldSkipByRules(
   rules: RulesConfig,
   pr: { isDraft?: boolean; labels?: string[]; changedFileCount?: number; mode?: string },
 ): string | null {
-  // autoReview: false skips automatic reviews but not @mention-triggered ones
-  if (!rules.autoReview && pr.mode === 'review') {
+  // mode='review' means auto-triggered (on open/synchronize).
+  // mode='summary' or 'respond' means triggered by an @mergewatch mention.
+  const isAutoTriggered = pr.mode === 'review';
+
+  if (!rules.autoReview && isAutoTriggered) {
     return 'Automatic reviews disabled — use @mergewatch to trigger manually';
   }
 
-  // reviewOnMention: false skips @mention-triggered reviews
-  if (!rules.reviewOnMention && pr.mode !== 'review') {
+  if (!rules.reviewOnMention && !isAutoTriggered) {
     return 'Mention-triggered reviews disabled via reviewOnMention: false';
   }
 

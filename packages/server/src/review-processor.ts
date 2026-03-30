@@ -74,7 +74,7 @@ export async function processReviewJob(
   const rulesSkipReason = shouldSkipByRules(config.rules, {
     isDraft: job.isDraft,
     labels: job.prLabels,
-    changedFileCount: job.changedFileCount ?? prContext.files.length,
+    changedFileCount: job.changedFileCount ?? prContext?.files?.length ?? 0,
     mode,
   });
   if (rulesSkipReason) {
