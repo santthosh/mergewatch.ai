@@ -101,6 +101,12 @@ export interface GitHubInstallation {
 // Webhook event payloads
 // ---------------------------------------------------------------------------
 
+/** PR actions that trigger a new review. */
+export const REVIEW_TRIGGERING_ACTIONS = ['opened', 'synchronize', 'ready_for_review', 'reopened'] as const;
+
+/** PR actions where we look for an existing bot comment to update (not first-time opens). */
+export const COMMENT_LOOKUP_ACTIONS = ['synchronize', 'ready_for_review', 'reopened'] as const;
+
 /**
  * `pull_request` event.
  * We care about `opened` (new PR) and `synchronize` (new commits pushed).
