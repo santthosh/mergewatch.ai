@@ -69,11 +69,11 @@ export async function processReviewJob(
     ...(modelOverride ? { model: modelOverride, lightModel: modelOverride } : {}),
   });
 
-  // ── Rules-based skip (draft, maxFiles, ignoreLabels) ────
+  // ── Rules-based skip (skipDrafts, maxFiles, ignoreLabels, autoReview, reviewOnMention) ────
   const rulesSkipReason = shouldSkipByRules(config.rules, {
     isDraft: job.isDraft,
     labels: job.prLabels,
-    changedFileCount: job.changedFileCount ?? prContext?.files?.length ?? 0,
+    changedFileCount: job.changedFileCount ?? prContext?.files?.length,
     mode,
   });
   if (rulesSkipReason) {
