@@ -114,6 +114,7 @@ export type {
   PRContext,
   ReviewJobPayload,
 } from './types/github.js';
+export { REVIEW_TRIGGERING_ACTIONS, COMMENT_LOOKUP_ACTIONS } from './types/github.js';
 
 export type {
   RepoConfig,

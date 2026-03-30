@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import type { Request, Response } from 'express';
 import type { IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider } from '@mergewatch/core';
 import type { ReviewJobPayload, ReviewMode, PullRequestEvent, IssueCommentEvent, InstallationEvent } from '@mergewatch/core';
+import { REVIEW_TRIGGERING_ACTIONS } from '@mergewatch/core';
 import { processReviewJob } from './review-processor.js';
 
 export interface WebhookDeps {
@@ -59,7 +60,7 @@ export function createWebhookHandler(deps: WebhookDeps) {
 
 async function handlePullRequest(payload: PullRequestEvent, deps: WebhookDeps) {
   const { action, pull_request, repository, installation } = payload;
-  if (!installation || (action !== 'opened' && action !== 'synchronize' && action !== 'ready_for_review')) return;
+  if (!installation || !(REVIEW_TRIGGERING_ACTIONS as readonly string[]).includes(action)) return;
 
   const job: ReviewJobPayload = {
     installationId: installation.id,

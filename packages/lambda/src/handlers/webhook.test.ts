@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createHmac } from 'node:crypto';
 import { verifySignature, parseReviewMode } from './webhook.js';
+import { REVIEW_TRIGGERING_ACTIONS, COMMENT_LOOKUP_ACTIONS } from '@mergewatch/core';
 
 // ---------------------------------------------------------------------------
 // verifySignature
@@ -72,5 +73,36 @@ describe('parseReviewMode', () => {
 
   it('returns "review" for "@mergewatch" on its own line in a multi-line comment', () => {
     expect(parseReviewMode('Please review this\n@mergewatch\nThanks')).toBe('review');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// REVIEW_TRIGGERING_ACTIONS & COMMENT_LOOKUP_ACTIONS
+// ---------------------------------------------------------------------------
+
+describe('REVIEW_TRIGGERING_ACTIONS', () => {
+  it('includes opened, synchronize, ready_for_review, and reopened', () => {
+    expect(REVIEW_TRIGGERING_ACTIONS).toContain('opened');
+    expect(REVIEW_TRIGGERING_ACTIONS).toContain('synchronize');
+    expect(REVIEW_TRIGGERING_ACTIONS).toContain('ready_for_review');
+    expect(REVIEW_TRIGGERING_ACTIONS).toContain('reopened');
+  });
+
+  it('does not include non-review actions', () => {
+    expect(REVIEW_TRIGGERING_ACTIONS).not.toContain('closed');
+    expect(REVIEW_TRIGGERING_ACTIONS).not.toContain('edited');
+    expect(REVIEW_TRIGGERING_ACTIONS).not.toContain('converted_to_draft');
+  });
+});
+
+describe('COMMENT_LOOKUP_ACTIONS', () => {
+  it('includes actions where existing comments should be looked up', () => {
+    expect(COMMENT_LOOKUP_ACTIONS).toContain('synchronize');
+    expect(COMMENT_LOOKUP_ACTIONS).toContain('ready_for_review');
+    expect(COMMENT_LOOKUP_ACTIONS).toContain('reopened');
+  });
+
+  it('does not include opened (first review creates a new comment)', () => {
+    expect(COMMENT_LOOKUP_ACTIONS).not.toContain('opened');
   });
 });
