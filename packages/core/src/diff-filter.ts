@@ -18,6 +18,7 @@ function splitDiffByFile(diff: string): Array<{ file: string; section: string }>
 
   let match: RegExpExecArray | null;
   const starts: Array<{ file: string; index: number }> = [];
+  headerRegex.lastIndex = 0;
 
   while ((match = headerRegex.exec(diff)) !== null) {
     starts.push({ file: match[2], index: match.index });
