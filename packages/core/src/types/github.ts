@@ -50,6 +50,8 @@ export interface GitHubPullRequest {
   /** The branch being merged *into*. */
   base: GitHubPullRequestRef;
   user: GitHubUser;
+  /** Whether the pull request is a draft. */
+  draft?: boolean;
   /** ISO-8601 timestamps. */
   created_at: string;
   updated_at: string;

@@ -140,7 +140,13 @@ async function handlePullRequestEvent(
 ): Promise<void> {
   const { action, pull_request: pr, repository, installation } = event;
 
-  if (action !== "opened" && action !== "synchronize") return;
+  if (action !== "opened" && action !== "synchronize" && action !== "ready_for_review") return;
+
+  // Skip draft PRs — they will be reviewed when marked ready
+  if (pr.draft) {
+    console.log(`Skipping draft PR: ${repository.full_name}#${pr.number}`);
+    return;
+  }
 
   const installationId = installation?.id;
   if (!installationId) {
@@ -153,7 +159,7 @@ async function handlePullRequestEvent(
   const prNumber = pr.number;
 
   let existingCommentId: number | undefined;
-  if (action === "synchronize") {
+  if (action === "synchronize" || action === "ready_for_review") {
     const octokit = await authProvider.getInstallationOctokit(installationId);
     const commentId = await findExistingBotComment(octokit, owner, repo, prNumber);
     if (commentId) {
