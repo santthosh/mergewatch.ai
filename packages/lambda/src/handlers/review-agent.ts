@@ -279,11 +279,11 @@ export async function handler(
     const yamlConfig = await fetchRepoConfig(octokit, owner, repo);
     const runtimeConfig = mergeConfig({ ...(yamlConfig ?? {}), ...settingsOverrides });
 
-    // ── Rules-based skip (draft, maxFiles, ignoreLabels) ────
+    // ── Rules-based skip (skipDrafts, maxFiles, ignoreLabels, autoReview, reviewOnMention) ────
     const rulesSkipReason = shouldSkipByRules(runtimeConfig.rules, {
       isDraft: event.isDraft,
       labels: event.prLabels,
-      changedFileCount: event.changedFileCount ?? prContext?.files?.length ?? 0,
+      changedFileCount: event.changedFileCount ?? prContext?.files?.length,
       mode,
     });
     if (rulesSkipReason) {
