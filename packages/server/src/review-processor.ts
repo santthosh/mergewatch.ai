@@ -3,6 +3,7 @@ import {
   getPRDiff, getPRContext, addPRReaction, postReviewComment, updateReviewComment,
   findExistingBotComment, getCommentReactions, createCheckRun,
   formatReviewComment, runReviewPipeline, shouldSkipPR, shouldSkipByRules,
+  filterDiff,
   DEFAULT_CONFIG, mergeConfig,
   BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
   buildIssueCommentUrl, formatPRReviewVerdict, buildInlineComments, extractInlineCommentTitle,
@@ -82,6 +83,16 @@ export async function processReviewJob(
     return;
   }
 
+  // ── Filter excluded files from the diff ────
+  const allExcludePatterns = [
+    ...config.excludePatterns,
+    ...config.rules.ignorePatterns,
+  ];
+  const { filteredDiff, excludedFiles } = filterDiff(diff, allExcludePatterns);
+  if (excludedFiles.length > 0) {
+    console.log(`Excluded ${excludedFiles.length} file(s) from diff: ${excludedFiles.join(', ')}`);
+  }
+
   const startTime = Date.now();
 
   try {
@@ -113,7 +124,7 @@ export async function processReviewJob(
     // Run review pipeline
     const result = await runReviewPipeline(
       {
-        diff,
+        diff: filteredDiff,
         context: {
           owner,
           repo,

@@ -27,6 +27,7 @@ import {
   mergeConfig,
   shouldSkipPR,
   shouldSkipByRules,
+  filterDiff,
   RESPOND_PROMPT,
   BOT_COMMENT_MARKER,
   submitPRReview,
@@ -306,6 +307,16 @@ export async function handler(
       };
     }
 
+    // ── Filter excluded files from the diff ────
+    const allExcludePatterns = [
+      ...runtimeConfig.excludePatterns,
+      ...runtimeConfig.rules.ignorePatterns,
+    ];
+    const { filteredDiff, excludedFiles } = filterDiff(diff, allExcludePatterns);
+    if (excludedFiles.length > 0) {
+      console.log(`Excluded ${excludedFiles.length} file(s) from diff: ${excludedFiles.join(', ')}`);
+    }
+
     const modelId = installation?.modelId ?? DEFAULT_BEDROCK_MODEL_ID;
     const lightModelId = runtimeConfig.lightModel;
 
@@ -339,7 +350,7 @@ export async function handler(
     const previousDiagram = typeof prevComplete?.diagramText === 'string' ? prevComplete.diagramText : undefined;
 
     const result = await runReviewPipeline({
-      diff,
+      diff: filteredDiff,
       context: {
         owner,
         repo,
