@@ -59,7 +59,7 @@ export function createWebhookHandler(deps: WebhookDeps) {
 
 async function handlePullRequest(payload: PullRequestEvent, deps: WebhookDeps) {
   const { action, pull_request, repository, installation } = payload;
-  if (!installation || (action !== 'opened' && action !== 'synchronize' && action !== 'ready_for_review')) return;
+  if (!installation || (action !== 'opened' && action !== 'synchronize' && action !== 'ready_for_review' && action !== 'reopened')) return;
 
   const job: ReviewJobPayload = {
     installationId: installation.id,

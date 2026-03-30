@@ -140,7 +140,7 @@ async function handlePullRequestEvent(
 ): Promise<void> {
   const { action, pull_request: pr, repository, installation } = event;
 
-  if (action !== "opened" && action !== "synchronize" && action !== "ready_for_review") return;
+  if (action !== "opened" && action !== "synchronize" && action !== "ready_for_review" && action !== "reopened") return;
 
   const installationId = installation?.id;
   if (!installationId) {
@@ -153,7 +153,7 @@ async function handlePullRequestEvent(
   const prNumber = pr.number;
 
   let existingCommentId: number | undefined;
-  if (action === "synchronize" || action === "ready_for_review") {
+  if (action === "synchronize" || action === "ready_for_review" || action === "reopened") {
     const octokit = await authProvider.getInstallationOctokit(installationId);
     const commentId = await findExistingBotComment(octokit, owner, repo, prNumber);
     if (commentId) {
