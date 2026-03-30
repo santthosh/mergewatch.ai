@@ -2,7 +2,7 @@ import type { ReviewJobPayload, IInstallationStore, IReviewStore, IGitHubAuthPro
 import {
   getPRDiff, getPRContext, addPRReaction, postReviewComment, updateReviewComment,
   findExistingBotComment, getCommentReactions, createCheckRun,
-  formatReviewComment, runReviewPipeline, shouldSkipPR,
+  formatReviewComment, runReviewPipeline, shouldSkipPR, shouldSkipByRules,
   DEFAULT_CONFIG, mergeConfig,
   BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
   buildIssueCommentUrl, formatPRReviewVerdict, buildInlineComments, extractInlineCommentTitle,
@@ -68,6 +68,19 @@ export async function processReviewJob(
     ...(installation?.config || {}),
     ...(modelOverride ? { model: modelOverride, lightModel: modelOverride } : {}),
   });
+
+  // ── Rules-based skip (draft, maxFiles, ignoreLabels) ────
+  const rulesSkipReason = shouldSkipByRules(config.rules, {
+    isDraft: job.isDraft,
+    labels: job.prLabels,
+    changedFileCount: job.changedFileCount ?? prContext.files.length,
+    mode,
+  });
+  if (rulesSkipReason) {
+    await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { skipReason: rulesSkipReason });
+    console.log(`Rules skip ${repoFullName}#${prNumber}: ${rulesSkipReason}`);
+    return;
+  }
 
   const startTime = Date.now();
 

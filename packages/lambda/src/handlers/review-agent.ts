@@ -26,6 +26,7 @@ import {
   formatReviewComment,
   mergeConfig,
   shouldSkipPR,
+  shouldSkipByRules,
   RESPOND_PROMPT,
   BOT_COMMENT_MARKER,
   submitPRReview,
@@ -276,6 +277,34 @@ export async function handler(
 
     const yamlConfig = await fetchRepoConfig(octokit, owner, repo);
     const runtimeConfig = mergeConfig({ ...(yamlConfig ?? {}), ...settingsOverrides });
+
+    // ── Rules-based skip (draft, maxFiles, ignoreLabels) ────
+    const rulesSkipReason = shouldSkipByRules(runtimeConfig.rules, {
+      isDraft: event.isDraft,
+      labels: event.prLabels,
+      changedFileCount: event.changedFileCount ?? prContext.files.length,
+      mode,
+    });
+    if (rulesSkipReason) {
+      console.log(`Rules skip ${repoFullName}#${prNumber}: ${rulesSkipReason}`);
+
+      await reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', {
+        completedAt: new Date().toISOString(),
+        skipReason: rulesSkipReason,
+      });
+
+      await createCheckRun(octokit, owner, repo, headSha, {
+        status: 'completed',
+        conclusion: 'neutral',
+        title: 'Review skipped',
+        summary: rulesSkipReason,
+      });
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ message: 'Skipped', reason: rulesSkipReason }),
+      };
+    }
 
     const modelId = installation?.modelId ?? DEFAULT_BEDROCK_MODEL_ID;
     const lightModelId = runtimeConfig.lightModel;

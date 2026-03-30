@@ -95,7 +95,7 @@ export { invokeWithFileFetching, FILE_REQUEST_INSTRUCTION } from './context/agen
 export type { FileFetchOptions, AgenticInvokeResult } from './context/agentic-fetcher.js';
 
 // ─── Skip logic ─────────────────────────────────────────────────────────────
-export { shouldSkipPR, SKIP_PATTERNS } from './skip-logic.js';
+export { shouldSkipPR, shouldSkipByRules, SKIP_PATTERNS } from './skip-logic.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type {

@@ -142,12 +142,6 @@ async function handlePullRequestEvent(
 
   if (action !== "opened" && action !== "synchronize" && action !== "ready_for_review") return;
 
-  // Skip draft PRs — they will be reviewed when marked ready
-  if (pr.draft) {
-    console.log(`Skipping draft PR: ${repository.full_name}#${pr.number}`);
-    return;
-  }
-
   const installationId = installation?.id;
   if (!installationId) {
     console.warn("pull_request event missing installation ID — skipping");
@@ -174,6 +168,9 @@ async function handlePullRequestEvent(
     prNumber,
     mode: "review",
     existingCommentId,
+    isDraft: pr.draft ?? false,
+    prLabels: pr.labels?.map((l) => l.name) ?? [],
+    changedFileCount: pr.changed_files,
   });
 
   console.log(
