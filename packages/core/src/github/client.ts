@@ -495,30 +495,18 @@ export async function postReplyComment(
  * Fetch and parse .mergewatch.yml from a repository's default branch.
  * Returns null if the file doesn't exist.
  */
-export async function fetchRepoConfig(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-): Promise<Partial<MergeWatchConfig> | null> {
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner,
-      repo,
-      path: '.mergewatch.yml',
-    });
+/**
+ * Parse a raw YAML string into a partial MergeWatchConfig.
+ * Exported for testability — `fetchRepoConfig` handles the GitHub API call.
+ */
+export function parseRepoConfigYaml(content: string): Partial<MergeWatchConfig> | null {
+  const parsed = yaml.load(content) as Record<string, unknown> | null;
+  if (!parsed || typeof parsed !== 'object') {
+    return null;
+  }
 
-    if (Array.isArray(data) || data.type !== 'file' || !data.content) {
-      return null;
-    }
+  const config: Partial<MergeWatchConfig> = {};
 
-    const content = Buffer.from(data.content, 'base64').toString('utf-8');
-    const parsed = yaml.load(content) as Record<string, unknown> | null;
-    if (!parsed || typeof parsed !== 'object') {
-      return null;
-    }
-
-    // Map YAML fields to MergeWatchConfig fields
-    const config: Partial<MergeWatchConfig> = {};
 
     if (typeof parsed.model === 'string') config.model = parsed.model;
     if (typeof parsed.lightModel === 'string') config.lightModel = parsed.lightModel;
@@ -602,7 +590,27 @@ export async function fetchRepoConfig(
       config.rules = rules as RulesConfig;
     }
 
-    return config;
+  return config;
+}
+
+export async function fetchRepoConfig(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<Partial<MergeWatchConfig> | null> {
+  try {
+    const { data } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: '.mergewatch.yml',
+    });
+
+    if (Array.isArray(data) || data.type !== 'file' || !data.content) {
+      return null;
+    }
+
+    const content = Buffer.from(data.content, 'base64').toString('utf-8');
+    return parseRepoConfigYaml(content);
   } catch (err: unknown) {
     // 404 means no config file — that's fine
     if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 404) {

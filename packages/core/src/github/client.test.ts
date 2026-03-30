@@ -6,6 +6,7 @@ import {
   formatPRReviewVerdict,
   extractInlineCommentTitle,
   BOT_COMMENT_MARKER,
+  parseRepoConfigYaml,
 } from './client.js';
 
 // ---------------------------------------------------------------------------
@@ -243,5 +244,145 @@ describe('extractInlineCommentTitle', () => {
 describe('BOT_COMMENT_MARKER', () => {
   it('is an HTML comment', () => {
     expect(BOT_COMMENT_MARKER).toMatch(/^<!--.*-->$/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseRepoConfigYaml
+// ---------------------------------------------------------------------------
+
+describe('parseRepoConfigYaml', () => {
+  it('returns null for empty string', () => {
+    expect(parseRepoConfigYaml('')).toBeNull();
+  });
+
+  it('returns null for non-object YAML', () => {
+    expect(parseRepoConfigYaml('just a string')).toBeNull();
+  });
+
+  it('parses model field', () => {
+    const result = parseRepoConfigYaml('model: my-model');
+    expect(result?.model).toBe('my-model');
+  });
+
+  it('ignores invalid model type', () => {
+    const result = parseRepoConfigYaml('model: 123');
+    expect(result?.model).toBeUndefined();
+  });
+
+  it('parses agents as boolean object', () => {
+    const yaml = `
+agents:
+  security: false
+  bugs: true
+  style: false
+`;
+    const result = parseRepoConfigYaml(yaml);
+    expect(result?.agents?.security).toBe(false);
+    expect(result?.agents?.bugs).toBe(true);
+    expect(result?.agents?.style).toBe(false);
+    expect(result?.agents?.summary).toBe(true); // default when not specified
+  });
+
+  it('ignores agents when it is an array (wrong format)', () => {
+    const yaml = `
+agents:
+  - name: security
+    enabled: true
+`;
+    const result = parseRepoConfigYaml(yaml);
+    // Array-based agents format: parsed.agents is an array, typeof === 'object' is true
+    // but the boolean checks will all fail, so all agents default to true
+    expect(result?.agents?.security).toBe(true);
+  });
+
+  // ─── Rules parsing ───────────────────────────────────────────────────────
+  it('parses rules with all fields', () => {
+    const yaml = `
+rules:
+  maxFiles: 30
+  ignorePatterns:
+    - "*.lock"
+    - "dist/**"
+  autoReview: false
+  reviewOnMention: true
+  skipDrafts: false
+  ignoreLabels:
+    - wip
+    - draft
+`;
+    const result = parseRepoConfigYaml(yaml);
+    expect(result?.rules).toBeDefined();
+    expect(result!.rules!.maxFiles).toBe(30);
+    expect(result!.rules!.ignorePatterns).toEqual(['*.lock', 'dist/**']);
+    expect(result!.rules!.autoReview).toBe(false);
+    expect(result!.rules!.reviewOnMention).toBe(true);
+    expect(result!.rules!.skipDrafts).toBe(false);
+    expect(result!.rules!.ignoreLabels).toEqual(['wip', 'draft']);
+  });
+
+  it('parses partial rules (only some fields)', () => {
+    const yaml = `
+rules:
+  skipDrafts: false
+`;
+    const result = parseRepoConfigYaml(yaml);
+    expect(result?.rules).toBeDefined();
+    expect(result!.rules!.skipDrafts).toBe(false);
+    expect(result!.rules!.maxFiles).toBeUndefined();
+    expect(result!.rules!.autoReview).toBeUndefined();
+  });
+
+  it('ignores invalid rule field types', () => {
+    const yaml = `
+rules:
+  maxFiles: "not a number"
+  skipDrafts: "yes"
+  autoReview: 1
+  ignorePatterns: "not-an-array"
+  ignoreLabels:
+    - valid-label
+    - 123
+`;
+    const result = parseRepoConfigYaml(yaml);
+    expect(result?.rules).toBeDefined();
+    expect(result!.rules!.maxFiles).toBeUndefined();
+    expect(result!.rules!.skipDrafts).toBeUndefined();
+    expect(result!.rules!.autoReview).toBeUndefined();
+    expect(result!.rules!.ignorePatterns).toBeUndefined();
+    // ignoreLabels filters non-strings
+    expect(result!.rules!.ignoreLabels).toEqual(['valid-label']);
+  });
+
+  it('returns no rules when rules block is absent', () => {
+    const result = parseRepoConfigYaml('model: my-model');
+    expect(result?.rules).toBeUndefined();
+  });
+
+  // ─── UX parsing ──────────────────────────────────────────────────────────
+  it('parses ux config', () => {
+    const yaml = `
+ux:
+  tone: direct
+  showWorkDone: false
+`;
+    const result = parseRepoConfigYaml(yaml);
+    expect(result?.ux?.tone).toBe('direct');
+    expect(result?.ux?.showWorkDone).toBe(false);
+  });
+
+  // ─── Custom agents ───────────────────────────────────────────────────────
+  it('parses customAgents array', () => {
+    const yaml = `
+customAgents:
+  - name: perf
+    prompt: "Check for performance issues"
+    severityDefault: warning
+    enabled: true
+`;
+    const result = parseRepoConfigYaml(yaml);
+    expect(result?.customAgents).toHaveLength(1);
+    expect(result!.customAgents![0].name).toBe('perf');
+    expect(result!.customAgents![0].severityDefault).toBe('warning');
   });
 });

@@ -75,6 +75,7 @@ export {
   buildInlineComments,
   extractInlineCommentTitle,
   fetchRepoConfig,
+  parseRepoConfigYaml,
 } from './github/client.js';
 
 // ─── Comment formatter ──────────────────────────────────────────────────────

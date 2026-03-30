@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_CONFIG, mergeConfig } from './defaults.js';
+import { DEFAULT_CONFIG, DEFAULT_RULES_CONFIG, mergeConfig } from './defaults.js';
 
 describe('DEFAULT_CONFIG', () => {
   it('has all agent flags as booleans', () => {
@@ -66,5 +66,35 @@ describe('mergeConfig', () => {
     const pricing = { 'my-model': { inputPer1M: 1, outputPer1M: 2 } };
     const result = mergeConfig({ pricing });
     expect(result.pricing).toEqual(pricing);
+  });
+
+  it('empty partial returns default rules', () => {
+    const result = mergeConfig({});
+    expect(result.rules).toEqual(DEFAULT_RULES_CONFIG);
+  });
+
+  it('deep merges partial rules with defaults', () => {
+    const result = mergeConfig({ rules: { skipDrafts: false } });
+    expect(result.rules.skipDrafts).toBe(false);
+    expect(result.rules.maxFiles).toBe(DEFAULT_RULES_CONFIG.maxFiles);
+    expect(result.rules.autoReview).toBe(DEFAULT_RULES_CONFIG.autoReview);
+    expect(result.rules.ignoreLabels).toEqual(DEFAULT_RULES_CONFIG.ignoreLabels);
+  });
+
+  it('overrides rules.maxFiles while keeping other rule defaults', () => {
+    const result = mergeConfig({ rules: { maxFiles: 100 } });
+    expect(result.rules.maxFiles).toBe(100);
+    expect(result.rules.skipDrafts).toBe(DEFAULT_RULES_CONFIG.skipDrafts);
+  });
+
+  it('overrides rules.ignoreLabels array', () => {
+    const result = mergeConfig({ rules: { ignoreLabels: ['wip', 'draft'] } });
+    expect(result.rules.ignoreLabels).toEqual(['wip', 'draft']);
+  });
+
+  it('overrides rules.ignorePatterns array', () => {
+    const result = mergeConfig({ rules: { ignorePatterns: ['*.generated.ts'] } });
+    expect(result.rules.ignorePatterns).toEqual(['*.generated.ts']);
+    expect(result.rules.maxFiles).toBe(DEFAULT_RULES_CONFIG.maxFiles);
   });
 });
