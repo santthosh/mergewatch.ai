@@ -86,8 +86,8 @@ export { computeReviewDelta } from './review-delta.js';
 export type { ReviewDelta } from './review-delta.js';
 
 // ─── Config ─────────────────────────────────────────────────────────────────
-export { DEFAULT_CONFIG, DEFAULT_UX_CONFIG, mergeConfig } from './config/defaults.js';
-export type { MergeWatchConfig, CustomAgentDef, UXConfig } from './config/defaults.js';
+export { DEFAULT_CONFIG, DEFAULT_UX_CONFIG, DEFAULT_RULES_CONFIG, mergeConfig } from './config/defaults.js';
+export type { MergeWatchConfig, CustomAgentDef, UXConfig, RulesConfig } from './config/defaults.js';
 
 // ─── Context (agentic file fetching) ─────────────────────────────────────────
 export { fetchFileContents } from './context/file-fetcher.js';

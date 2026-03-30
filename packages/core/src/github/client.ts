@@ -12,7 +12,7 @@
 import { Octokit } from "@octokit/rest";
 import yaml from 'js-yaml';
 import type { PRContext } from "../types/github.js";
-import type { MergeWatchConfig, CustomAgentDef, UXConfig } from '../config/defaults.js';
+import type { MergeWatchConfig, CustomAgentDef, UXConfig, RulesConfig } from '../config/defaults.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -583,6 +583,23 @@ export async function fetchRepoConfig(
       if (typeof u.allClearMessage === 'boolean') ux.allClearMessage = u.allClearMessage;
       if (typeof u.commentHeader === 'string') ux.commentHeader = u.commentHeader;
       config.ux = ux as UXConfig;
+    }
+
+    // Rules config
+    if (parsed.rules && typeof parsed.rules === 'object') {
+      const r = parsed.rules as Record<string, unknown>;
+      const rules: Partial<RulesConfig> = {};
+      if (typeof r.maxFiles === 'number') rules.maxFiles = r.maxFiles;
+      if (Array.isArray(r.ignorePatterns)) {
+        rules.ignorePatterns = r.ignorePatterns.filter((p: unknown) => typeof p === 'string');
+      }
+      if (typeof r.autoReview === 'boolean') rules.autoReview = r.autoReview;
+      if (typeof r.reviewOnMention === 'boolean') rules.reviewOnMention = r.reviewOnMention;
+      if (typeof r.skipDrafts === 'boolean') rules.skipDrafts = r.skipDrafts;
+      if (Array.isArray(r.ignoreLabels)) {
+        rules.ignoreLabels = r.ignoreLabels.filter((l: unknown) => typeof l === 'string');
+      }
+      config.rules = rules as RulesConfig;
     }
 
     return config;
