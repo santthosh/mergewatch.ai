@@ -1,35 +1,51 @@
-version: 1
+# MergeWatch configuration — see https://docs.mergewatch.ai/configuration/mergewatch-yml
+#
+# This file controls how MergeWatch reviews pull requests in this repository.
+# All fields are optional; omitted fields use sensible defaults.
 
-# Bedrock model ID — any model enabled in your account works.
+# Primary model for review agents (Bedrock model ID).
 model: anthropic.claude-sonnet-4-20250514
 
-# Review agents — each runs independently against the PR diff.
+# Built-in review agents — toggle each on/off.
 agents:
-  - name: security
-    enabled: true
-    prompt: "Flag OWASP Top 10 issues, hardcoded secrets, and unsafe deserialization."
+  security: true
+  bugs: true
+  style: true
+  summary: true
+  diagram: true
+  errorHandling: true
+  testCoverage: false
+  commentAccuracy: true
 
-  - name: logic
-    enabled: true
-    prompt: "Find logic bugs, off-by-one errors, and race conditions."
-
-  - name: style
-    enabled: true
-    prompt: "Enforce project conventions. Be concise."
-
+# Custom agents run alongside the built-in ones.
+customAgents:
   - name: tests
-    enabled: false
     prompt: "Suggest missing unit tests for new public functions."
+    severityDefault: info
+    enabled: false
 
 # Rules control when and what gets reviewed.
 rules:
-  max_files: 50
-  ignore_patterns:
+  maxFiles: 50
+  ignorePatterns:
     - "*.lock"
     - "vendor/**"
     - "dist/**"
-  auto_review: true
-  review_on_mention: true
+  autoReview: true
+  reviewOnMention: true
+  skipDrafts: true
+  ignoreLabels:
+    - skip-review
 
-# "inline" for per-line comments, "summary" for a single top-level comment.
-comment_style: inline
+# File patterns to exclude from the diff sent to agents.
+excludePatterns:
+  - "**/*.lock"
+  - "**/package-lock.json"
+  - "**/dist/**"
+  - "**/node_modules/**"
+
+# Minimum severity to report: info | warning | critical
+minSeverity: info
+
+# Maximum findings posted per review.
+maxFindings: 25
