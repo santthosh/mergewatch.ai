@@ -104,6 +104,7 @@ export async function processReviewJob(
   const modelOverride = process.env.LLM_MODEL;
   const config = mergeConfig({
     ...(yamlConfig ?? {}),
+    ...(installation?.config || {}),
     ...settingsOverrides,
     ...(modelOverride ? { model: modelOverride, lightModel: modelOverride } : {}),
   });
