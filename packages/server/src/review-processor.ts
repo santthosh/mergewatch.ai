@@ -262,15 +262,25 @@ export async function processReviewJob(
       }
     }
 
-    // Update review record
+    // Compute topSeverity by ranking all findings (not just first)
+    const severityRank: Record<string, number> = { critical: 0, warning: 1, info: 2 };
     const topSeverity = result.findings.length > 0
-      ? result.findings[0].severity
+      ? result.findings.reduce((top, f) =>
+          (severityRank[f.severity] ?? 99) < (severityRank[top] ?? 99) ? f.severity : top,
+        result.findings[0].severity) as 'info' | 'warning' | 'critical'
       : undefined;
 
     await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'complete', {
       completedAt: new Date().toISOString(),
       commentId,
       model: config.model,
+      settingsUsed: {
+        severityThreshold: instSettings.severityThreshold,
+        commentTypes: instSettings.commentTypes,
+        maxComments: instSettings.maxComments,
+        summaryEnabled: instSettings.summary.prSummary,
+        customInstructions: !!instSettings.customInstructions,
+      },
       durationMs,
       findingCount: result.findings.length,
       topSeverity,
