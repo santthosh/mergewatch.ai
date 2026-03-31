@@ -21,6 +21,7 @@ import {
   updateBillingFields,
   closeBillingIssue,
   FREE_REVIEW_LIMIT,
+  MIN_BALANCE_CENTS,
   getStripeWebhookSecret,
   getBillingApiSecret,
 } from '@mergewatch/billing';
@@ -170,6 +171,26 @@ async function handleWebhook(event: APIGatewayProxyEventV2): Promise<APIGatewayP
         // Stripe balance is negative for credits, we store as positive cents
         const balanceCents = Math.abs(customer.balance ?? 0);
         await updateBillingFields(dynamodb, INSTALLATIONS_TABLE, installationId, { balanceCents });
+
+        // If balance is now sufficient, clear billing block state and close the issue
+        if (balanceCents >= MIN_BALANCE_CENTS) {
+          const fields = await getBillingFields(dynamodb, INSTALLATIONS_TABLE, installationId);
+          if (fields.blockedAt) {
+            if (fields.blockIssueNumber && fields.blockIssueRepo) {
+              try {
+                const octokit = await authProvider.getInstallationOctokit(Number(installationId));
+                await closeBillingIssue(octokit, installationId, dynamodb, INSTALLATIONS_TABLE, fields.blockIssueNumber, fields.blockIssueRepo);
+              } catch (err) {
+                console.warn('[billing] Failed to close billing issue from webhook:', err);
+              }
+            } else {
+              // No issue to close, just clear the block fields
+              await updateBillingFields(dynamodb, INSTALLATIONS_TABLE, installationId, {
+                blockedAt: undefined,
+              });
+            }
+          }
+        }
       }
       break;
     }
