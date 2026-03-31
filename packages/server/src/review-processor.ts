@@ -9,8 +9,74 @@ import {
   buildIssueCommentUrl, formatPRReviewVerdict, buildInlineComments, extractInlineCommentTitle,
   fetchRepoConfig,
   buildWorkDoneSection, computeReviewDelta,
+  RESPOND_PROMPT, postReplyComment,
 } from '@mergewatch/core';
 import type { WebhookDeps } from './webhook-handler.js';
+
+// -- Conversational response handler -----------------------------------------
+
+async function handleRespondMode(
+  octokit: Awaited<ReturnType<IGitHubAuthProvider['getInstallationOctokit']>>,
+  job: ReviewJobPayload,
+  deps: Pick<WebhookDeps, 'reviewStore' | 'llm'>,
+): Promise<void> {
+  const { owner, repo, prNumber, userComment, userCommentAuthor } = job;
+  const repoFullName = `${owner}/${repo}`;
+
+  const prevReviews = await deps.reviewStore.queryByPR(repoFullName, `${prNumber}#`, 5);
+  const latestReview = prevReviews.find((item) => item.status === 'complete');
+
+  const findingsContext = latestReview?.findings
+    ? JSON.stringify(latestReview.findings, null, 2)
+    : 'No previous findings available.';
+  const summaryContext = (latestReview?.summaryText as string) ?? 'No summary available.';
+
+  if (latestReview?.commentId) {
+    const reactions = await getCommentReactions(
+      octokit, owner, repo, latestReview.commentId as number,
+    );
+    if (Object.keys(reactions).length > 0) {
+      await deps.reviewStore.updateStatus(
+        repoFullName,
+        latestReview.prNumberCommitSha as string,
+        latestReview.status as 'complete',
+        { reactions },
+      ).catch((err) => console.warn('Failed to update review status with reactions:', err));
+    }
+  }
+
+  const modelOverride = process.env.LLM_MODEL;
+  const modelId = modelOverride ?? 'default';
+
+  const prompt = `${RESPOND_PROMPT}
+
+--- Previous Review Summary ---
+${summaryContext}
+
+--- Previous Review Findings ---
+${findingsContext}
+
+--- Developer Comment (from @${userCommentAuthor ?? 'unknown'}) ---
+${userComment}
+
+Please respond to the developer's comment:`;
+
+  try {
+    const rawResponse = await deps.llm.invoke(modelId, prompt);
+    const response = typeof rawResponse === 'string' ? rawResponse : rawResponse.text;
+
+    await postReplyComment(octokit, owner, repo, prNumber, response);
+
+    console.log(`Posted conversational response for ${repoFullName}#${prNumber}`);
+  } catch (err) {
+    console.error('Respond failed for', repoFullName + '#' + prNumber, err);
+    // Post a fallback comment so the user knows something went wrong
+    await postReplyComment(
+      octokit, owner, repo, prNumber,
+      'Sorry, I encountered an error while processing your request. Please try again.',
+    ).catch((postErr) => console.warn('Failed to post error reply:', postErr));
+  }
+}
 
 export async function processReviewJob(
   job: ReviewJobPayload,
@@ -20,6 +86,11 @@ export async function processReviewJob(
   const instId = String(installationId);
   const repoFullName = `${owner}/${repo}`;
   const octokit = await deps.authProvider.getInstallationOctokit(Number(installationId));
+
+  // ── Handle "respond" mode: conversational follow-up ────────────────────
+  if (mode === 'respond' && job.userComment) {
+    return handleRespondMode(octokit, job, deps);
+  }
 
   // Fetch PR context and diff
   const prContext = await getPRContext(octokit, owner, repo, prNumber);
