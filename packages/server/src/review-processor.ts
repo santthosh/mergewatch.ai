@@ -301,6 +301,18 @@ export async function processReviewJob(
       }
     }
 
+    // Add +1 reaction after successful review
+    await addPRReaction(octokit, owner, repo, prNumber, '+1').catch(() => {});
+
+    // Collect reactions from the review comment
+    let reactions: Record<string, number> | undefined;
+    if (commentId) {
+      const reactionCounts = await getCommentReactions(octokit, owner, repo, commentId).catch(() => ({}));
+      if (Object.keys(reactionCounts).length > 0) {
+        reactions = reactionCounts;
+      }
+    }
+
     // Update review record
     const topSeverity = result.findings.length > 0
       ? result.findings[0].severity
@@ -318,6 +330,7 @@ export async function processReviewJob(
       mergeScore: result.mergeScore,
       mergeScoreReason: result.mergeScoreReason,
       findings: result.findings as any,
+      reactions,
       inputTokens: result.inputTokens || undefined,
       outputTokens: result.outputTokens || undefined,
       estimatedCostUsd: result.estimatedCostUsd ?? undefined,
