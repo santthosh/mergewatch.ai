@@ -38,7 +38,10 @@ export async function processReviewJob(
     status: 'in_progress',
     createdAt: now,
     prTitle: prContext.title,
-    prAuthor: owner,
+    prAuthor: prContext.prAuthor,
+    prAuthorAvatar: prContext.prAuthorAvatar,
+    headBranch: prContext.headBranch,
+    baseBranch: prContext.baseBranch,
     installationId: instId,
   });
   if (!claimed) {
@@ -59,7 +62,7 @@ export async function processReviewJob(
   // Smart skip check
   const skipReason = shouldSkipPR(prContext.files || []);
   if (skipReason) {
-    await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { skipReason });
+    await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: now, skipReason });
     await createCheckRun(octokit, owner, repo, headSha, {
       status: 'completed',
       conclusion: 'neutral',
@@ -91,7 +94,7 @@ export async function processReviewJob(
     mode,
   });
   if (rulesSkipReason) {
-    await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { skipReason: rulesSkipReason });
+    await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: now, skipReason: rulesSkipReason });
     await createCheckRun(octokit, owner, repo, headSha, {
       status: 'completed',
       conclusion: 'neutral',
