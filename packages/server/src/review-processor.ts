@@ -52,10 +52,23 @@ export async function processReviewJob(
   // Add eyes reaction
   await addPRReaction(octokit, owner, repo, prNumber, 'eyes').catch(() => {});
 
+  // In-progress check run
+  await createCheckRun(octokit, owner, repo, headSha, {
+    status: 'in_progress',
+    title: 'Review in progress',
+    summary: `MergeWatch is reviewing PR #${prNumber}...`,
+  }).catch((err) => console.warn('Failed to create in-progress check run:', err));
+
   // Smart skip check
   const skipReason = shouldSkipPR(prContext.files || []);
   if (skipReason) {
     await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: now, skipReason });
+    await createCheckRun(octokit, owner, repo, headSha, {
+      status: 'completed',
+      conclusion: 'neutral',
+      title: 'Review skipped',
+      summary: skipReason,
+    }).catch((err) => console.warn('Failed to create skip check run:', err));
     console.log(`Skipped ${repoFullName}#${prNumber}: ${skipReason}`);
     return;
   }
@@ -82,6 +95,12 @@ export async function processReviewJob(
   });
   if (rulesSkipReason) {
     await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: now, skipReason: rulesSkipReason });
+    await createCheckRun(octokit, owner, repo, headSha, {
+      status: 'completed',
+      conclusion: 'neutral',
+      title: 'Review skipped',
+      summary: rulesSkipReason,
+    }).catch((err) => console.warn('Failed to create rules skip check run:', err));
     console.log(`Rules skip ${repoFullName}#${prNumber}: ${rulesSkipReason}`);
     return;
   }
@@ -287,20 +306,42 @@ export async function processReviewJob(
       estimatedCostUsd: result.estimatedCostUsd ?? undefined,
     });
 
-    // Create check run
+    // Create structured check run (matches Lambda pattern)
     const hasCritical = criticalCount > 0;
+    const checkConclusion = hasCritical ? 'failure' as const : 'success' as const;
+    const findingSummaryParts: string[] = [];
+    if (criticalCount) findingSummaryParts.push(`${criticalCount} critical`);
+    if (warningCount) findingSummaryParts.push(`${warningCount} warning`);
+    if (infoCount) findingSummaryParts.push(`${infoCount} info`);
+
     await createCheckRun(octokit, owner, repo, headSha, {
       status: 'completed',
-      conclusion: hasCritical ? 'failure' : 'success',
-      title: `Score: ${result.mergeScore}/5`,
-      summary: result.summary,
-    }).catch(() => {});
+      conclusion: checkConclusion,
+      title: hasCritical
+        ? `${criticalCount} critical issue${criticalCount > 1 ? 's' : ''} found`
+        : result.findings.length > 0
+          ? `${result.findings.length} finding${result.findings.length > 1 ? 's' : ''} (no critical)`
+          : 'No issues found',
+      summary: findingSummaryParts.length > 0
+        ? `Found: ${findingSummaryParts.join(', ')}`
+        : 'No issues detected in this PR.',
+      detailsUrl: deps.dashboardBaseUrl
+        ? `${deps.dashboardBaseUrl}/dashboard/reviews/${encodeURIComponent(repoFullName)}/${encodeURIComponent(prNumberCommitSha)}`
+        : undefined,
+    }).catch((err) => console.warn('Failed to create completion check run:', err));
 
     console.log(`Review complete: ${repoFullName}#${prNumber} — score ${result.mergeScore}/5, ${result.findings.length} findings, ${durationMs}ms`);
   } catch (err) {
     await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'failed', {
       completedAt: new Date().toISOString(),
     });
+    // Error check run — use generic message to avoid leaking internal details
+    await createCheckRun(octokit, owner, repo, headSha, {
+      status: 'completed',
+      conclusion: 'failure',
+      title: 'Review failed',
+      summary: 'MergeWatch encountered an error while reviewing this PR. Please try again or contact support if the issue persists.',
+    }).catch((checkErr) => console.warn('Failed to create error check run:', checkErr));
     throw err;
   }
 }
