@@ -54,7 +54,7 @@ export async function processReviewJob(
     status: 'in_progress',
     title: 'Review in progress',
     summary: `MergeWatch is reviewing PR #${prNumber}...`,
-  }).catch(() => {});
+  }).catch((err) => console.warn('Failed to create in-progress check run:', err));
 
   // Smart skip check
   const skipReason = shouldSkipPR(prContext.files || []);
@@ -65,7 +65,7 @@ export async function processReviewJob(
       conclusion: 'neutral',
       title: 'Review skipped',
       summary: skipReason,
-    }).catch(() => {});
+    }).catch((err) => console.warn('Failed to create skip check run:', err));
     console.log(`Skipped ${repoFullName}#${prNumber}: ${skipReason}`);
     return;
   }
@@ -97,7 +97,7 @@ export async function processReviewJob(
       conclusion: 'neutral',
       title: 'Review skipped',
       summary: rulesSkipReason,
-    }).catch(() => {});
+    }).catch((err) => console.warn('Failed to create rules skip check run:', err));
     console.log(`Rules skip ${repoFullName}#${prNumber}: ${rulesSkipReason}`);
     return;
   }
@@ -323,22 +323,22 @@ export async function processReviewJob(
         ? `Found: ${findingSummaryParts.join(', ')}`
         : 'No issues detected in this PR.',
       detailsUrl: deps.dashboardBaseUrl
-        ? `${deps.dashboardBaseUrl}/dashboard/reviews/${encodeURIComponent(repoFullName)}/${prNumberCommitSha}`
+        ? `${deps.dashboardBaseUrl}/dashboard/reviews/${encodeURIComponent(repoFullName)}/${encodeURIComponent(prNumberCommitSha)}`
         : undefined,
-    }).catch(() => {});
+    }).catch((err) => console.warn('Failed to create completion check run:', err));
 
     console.log(`Review complete: ${repoFullName}#${prNumber} — score ${result.mergeScore}/5, ${result.findings.length} findings, ${durationMs}ms`);
   } catch (err) {
     await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'failed', {
       completedAt: new Date().toISOString(),
     });
-    // Error check run
+    // Error check run — use generic message to avoid leaking internal details
     await createCheckRun(octokit, owner, repo, headSha, {
       status: 'completed',
       conclusion: 'failure',
       title: 'Review failed',
-      summary: `MergeWatch encountered an error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-    }).catch(() => {});
+      summary: 'MergeWatch encountered an error while reviewing this PR. Please try again or contact support if the issue persists.',
+    }).catch((checkErr) => console.warn('Failed to create error check run:', checkErr));
     throw err;
   }
 }

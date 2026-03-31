@@ -178,7 +178,7 @@ describe('processReviewJob — check runs', () => {
         status: 'completed',
         conclusion: 'failure',
         title: 'Review failed',
-        summary: 'MergeWatch encountered an error: LLM timeout',
+        summary: 'MergeWatch encountered an error while reviewing this PR. Please try again or contact support if the issue persists.',
       }),
     );
   });
