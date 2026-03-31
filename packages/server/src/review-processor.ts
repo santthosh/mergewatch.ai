@@ -69,7 +69,7 @@ Please respond to the developer's comment:`;
 
     console.log(`Posted conversational response for ${repoFullName}#${prNumber}`);
   } catch (err) {
-    console.error(`Respond failed for ${repoFullName}#${prNumber}:`, err);
+    console.error('Respond failed for', repoFullName + '#' + prNumber, err);
     // Post a fallback comment so the user knows something went wrong
     await postReplyComment(
       octokit, owner, repo, prNumber,
