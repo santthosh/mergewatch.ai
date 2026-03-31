@@ -41,7 +41,7 @@ async function handleRespondMode(
         latestReview.prNumberCommitSha as string,
         latestReview.status as 'complete',
         { reactions },
-      ).catch(() => {});
+      ).catch((err) => console.warn('Failed to update review status with reactions:', err));
     }
   }
 
@@ -61,12 +61,21 @@ ${userComment}
 
 Please respond to the developer's comment:`;
 
-  const rawResponse = await deps.llm.invoke(modelId, prompt);
-  const response = typeof rawResponse === 'string' ? rawResponse : rawResponse.text;
+  try {
+    const rawResponse = await deps.llm.invoke(modelId, prompt);
+    const response = typeof rawResponse === 'string' ? rawResponse : rawResponse.text;
 
-  await postReplyComment(octokit, owner, repo, prNumber, response);
+    await postReplyComment(octokit, owner, repo, prNumber, response);
 
-  console.log(`Posted conversational response for ${repoFullName}#${prNumber}`);
+    console.log(`Posted conversational response for ${repoFullName}#${prNumber}`);
+  } catch (err) {
+    console.error(`Respond failed for ${repoFullName}#${prNumber}:`, err);
+    // Post a fallback comment so the user knows something went wrong
+    await postReplyComment(
+      octokit, owner, repo, prNumber,
+      'Sorry, I encountered an error while processing your request. Please try again.',
+    ).catch((postErr) => console.warn('Failed to post error reply:', postErr));
+  }
 }
 
 export async function processReviewJob(
