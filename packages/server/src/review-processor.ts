@@ -1,4 +1,4 @@
-import type { ReviewJobPayload, IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider, FileFetchOptions, ReviewDelta } from '@mergewatch/core';
+import type { ReviewJobPayload, IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider, FileFetchOptions, ReviewDelta, MergeWatchConfig } from '@mergewatch/core';
 import {
   getPRDiff, getPRContext, addPRReaction, postReviewComment, updateReviewComment,
   findExistingBotComment, getCommentReactions, createCheckRun,
@@ -109,7 +109,10 @@ export async function processReviewJob(
     status: 'in_progress',
     createdAt: now,
     prTitle: prContext.title,
-    prAuthor: owner,
+    prAuthor: prContext.prAuthor,
+    prAuthorAvatar: prContext.prAuthorAvatar,
+    headBranch: prContext.headBranch,
+    baseBranch: prContext.baseBranch,
     installationId: instId,
   });
   if (!claimed) {
@@ -120,10 +123,23 @@ export async function processReviewJob(
   // Add eyes reaction
   await addPRReaction(octokit, owner, repo, prNumber, 'eyes').catch(() => {});
 
+  // In-progress check run
+  await createCheckRun(octokit, owner, repo, headSha, {
+    status: 'in_progress',
+    title: 'Review in progress',
+    summary: `MergeWatch is reviewing PR #${prNumber}...`,
+  }).catch((err) => console.warn('Failed to create in-progress check run:', err));
+
   // Smart skip check
   const skipReason = shouldSkipPR(prContext.files || []);
   if (skipReason) {
-    await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { skipReason });
+    await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: now, skipReason });
+    await createCheckRun(octokit, owner, repo, headSha, {
+      status: 'completed',
+      conclusion: 'neutral',
+      title: 'Review skipped',
+      summary: skipReason,
+    }).catch((err) => console.warn('Failed to create skip check run:', err));
     console.log(`Skipped ${repoFullName}#${prNumber}: ${skipReason}`);
     return;
   }
@@ -132,12 +148,35 @@ export async function processReviewJob(
   const installation = await deps.installationStore.get(instId, repoFullName);
   const instSettings = await deps.installationStore.getSettings(instId);
 
+  // Apply dashboard InstallationSettings as config overrides (matches Lambda pattern)
+  // Field mapping: logic → security agent, syntax → bugs agent, style → style agent
+  // Severity: Low → info, Med → warning, High → critical
+  const severityMap: Record<string, 'info' | 'warning' | 'critical'> = { Low: 'info', Med: 'warning', High: 'critical' };
+  const settingsOverrides: Partial<MergeWatchConfig> = {
+    minSeverity: severityMap[instSettings.severityThreshold] ?? 'warning',
+    maxFindings: instSettings.maxComments,
+    agents: {
+      security: instSettings.commentTypes?.logic ?? true,
+      bugs: instSettings.commentTypes?.syntax ?? true,
+      style: instSettings.commentTypes?.style ?? true,
+      summary: instSettings.summary?.prSummary ?? true,
+      diagram: true,
+      errorHandling: true,
+      testCoverage: true,
+      commentAccuracy: true,
+    },
+    customStyleRules: instSettings.customInstructions
+      ? [instSettings.customInstructions]
+      : [],
+  };
+
   // Merge config: YAML provides base, dashboard settings override, env var model overrides all
   const yamlConfig = await fetchRepoConfig(octokit, owner, repo);
   const modelOverride = process.env.LLM_MODEL;
   const config = mergeConfig({
     ...(yamlConfig ?? {}),
     ...(installation?.config || {}),
+    ...settingsOverrides,
     ...(modelOverride ? { model: modelOverride, lightModel: modelOverride } : {}),
   });
 
@@ -149,7 +188,13 @@ export async function processReviewJob(
     mode,
   });
   if (rulesSkipReason) {
-    await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { skipReason: rulesSkipReason });
+    await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: now, skipReason: rulesSkipReason });
+    await createCheckRun(octokit, owner, repo, headSha, {
+      status: 'completed',
+      conclusion: 'neutral',
+      title: 'Review skipped',
+      summary: rulesSkipReason,
+    }).catch((err) => console.warn('Failed to create rules skip check run:', err));
     console.log(`Rules skip ${repoFullName}#${prNumber}: ${rulesSkipReason}`);
     return;
   }
@@ -206,16 +251,10 @@ export async function processReviewJob(
         modelId: config.model,
         lightModelId: config.lightModel || config.model,
         customStyleRules: config.customStyleRules,
-        maxFindings: instSettings.maxComments || config.maxFindings,
+        maxFindings: config.maxFindings,
         enabledAgents: {
-          security: config.agents.security,
-          bugs: config.agents.bugs,
-          style: config.agents.style,
-          summary: true,
+          ...config.agents,
           diagram: instSettings.summary?.diagram !== false,
-          errorHandling: config.agents.errorHandling,
-          testCoverage: config.agents.testCoverage,
-          commentAccuracy: config.agents.commentAccuracy,
         },
         fileFetchOptions,
         customAgents: config.customAgents,
@@ -333,6 +372,18 @@ export async function processReviewJob(
       }
     }
 
+    // Add +1 reaction after successful review
+    await addPRReaction(octokit, owner, repo, prNumber, '+1').catch(() => {});
+
+    // Collect reactions from the review comment
+    let reactions: Record<string, number> | undefined;
+    if (commentId) {
+      const reactionCounts = await getCommentReactions(octokit, owner, repo, commentId).catch(() => ({}));
+      if (Object.keys(reactionCounts).length > 0) {
+        reactions = reactionCounts;
+      }
+    }
+
     // Update review record
     const topSeverity = result.findings.length > 0
       ? result.findings[0].severity
@@ -350,25 +401,48 @@ export async function processReviewJob(
       mergeScore: result.mergeScore,
       mergeScoreReason: result.mergeScoreReason,
       findings: result.findings as any,
+      reactions,
       inputTokens: result.inputTokens || undefined,
       outputTokens: result.outputTokens || undefined,
       estimatedCostUsd: result.estimatedCostUsd ?? undefined,
     });
 
-    // Create check run
+    // Create structured check run (matches Lambda pattern)
     const hasCritical = criticalCount > 0;
+    const checkConclusion = hasCritical ? 'failure' as const : 'success' as const;
+    const findingSummaryParts: string[] = [];
+    if (criticalCount) findingSummaryParts.push(`${criticalCount} critical`);
+    if (warningCount) findingSummaryParts.push(`${warningCount} warning`);
+    if (infoCount) findingSummaryParts.push(`${infoCount} info`);
+
     await createCheckRun(octokit, owner, repo, headSha, {
       status: 'completed',
-      conclusion: hasCritical ? 'failure' : 'success',
-      title: `Score: ${result.mergeScore}/5`,
-      summary: result.summary,
-    }).catch(() => {});
+      conclusion: checkConclusion,
+      title: hasCritical
+        ? `${criticalCount} critical issue${criticalCount > 1 ? 's' : ''} found`
+        : result.findings.length > 0
+          ? `${result.findings.length} finding${result.findings.length > 1 ? 's' : ''} (no critical)`
+          : 'No issues found',
+      summary: findingSummaryParts.length > 0
+        ? `Found: ${findingSummaryParts.join(', ')}`
+        : 'No issues detected in this PR.',
+      detailsUrl: deps.dashboardBaseUrl
+        ? `${deps.dashboardBaseUrl}/dashboard/reviews/${encodeURIComponent(repoFullName)}/${encodeURIComponent(prNumberCommitSha)}`
+        : undefined,
+    }).catch((err) => console.warn('Failed to create completion check run:', err));
 
     console.log(`Review complete: ${repoFullName}#${prNumber} — score ${result.mergeScore}/5, ${result.findings.length} findings, ${durationMs}ms`);
   } catch (err) {
     await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'failed', {
       completedAt: new Date().toISOString(),
     });
+    // Error check run — use generic message to avoid leaking internal details
+    await createCheckRun(octokit, owner, repo, headSha, {
+      status: 'completed',
+      conclusion: 'failure',
+      title: 'Review failed',
+      summary: 'MergeWatch encountered an error while reviewing this PR. Please try again or contact support if the issue persists.',
+    }).catch((checkErr) => console.warn('Failed to create error check run:', checkErr));
     throw err;
   }
 }
