@@ -31,12 +31,15 @@ vi.mock('@mergewatch/core', async (importOriginal) => {
     buildInlineComments: vi.fn().mockReturnValue([]),
     dismissStaleReviews: vi.fn().mockResolvedValue(undefined),
     submitPRReview: vi.fn().mockResolvedValue(undefined),
+    getCommentReactions: vi.fn().mockResolvedValue({}),
+    postReplyComment: vi.fn().mockResolvedValue(200),
+    RESPOND_PROMPT: 'You are MergeWatch...',
   };
 });
 
 import {
   getPRContext, getPRDiff, createCheckRun, shouldSkipPR, shouldSkipByRules,
-  runReviewPipeline,
+  runReviewPipeline, postReplyComment,
 } from '@mergewatch/core';
 import { processReviewJob } from './review-processor.js';
 
@@ -279,5 +282,78 @@ describe('processReviewJob — check runs', () => {
       const completionCall = calls[calls.length - 1];
       expect(completionCall[4].title).toBe('1 critical issue found');
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Respond mode tests
+// ---------------------------------------------------------------------------
+
+describe('processReviewJob — respond mode', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (getPRContext as any).mockResolvedValue(basePRContext);
+    (getPRDiff as any).mockResolvedValue('diff content');
+  });
+
+  it('calls LLM and posts reply for respond mode', async () => {
+    const deps = makeDeps();
+    (deps.llm.invoke as any).mockResolvedValue({ text: 'Here is my response' });
+    (deps.reviewStore.queryByPR as any).mockResolvedValue([
+      { status: 'complete', findings: [{ title: 'Bug' }], summaryText: 'Summary' },
+    ]);
+
+    await processReviewJob(
+      makeJob({ mode: 'respond' as any, userComment: 'Can you explain?', userCommentAuthor: 'dev' }),
+      deps,
+    );
+
+    expect(deps.llm.invoke).toHaveBeenCalledOnce();
+    expect(postReplyComment).toHaveBeenCalledWith(mockOctokit, 'test', 'repo', 1, 'Here is my response');
+  });
+
+  it('does not run review pipeline in respond mode', async () => {
+    const deps = makeDeps();
+    (deps.llm.invoke as any).mockResolvedValue({ text: 'response' });
+    (deps.reviewStore.queryByPR as any).mockResolvedValue([]);
+
+    await processReviewJob(
+      makeJob({ mode: 'respond' as any, userComment: 'question' }),
+      deps,
+    );
+
+    expect(runReviewPipeline).not.toHaveBeenCalled();
+    expect(deps.reviewStore.claimReview).not.toHaveBeenCalled();
+  });
+
+  it('posts fallback error reply when LLM fails', async () => {
+    const deps = makeDeps();
+    (deps.llm.invoke as any).mockRejectedValue(new Error('LLM timeout'));
+    (deps.reviewStore.queryByPR as any).mockResolvedValue([]);
+
+    await processReviewJob(
+      makeJob({ mode: 'respond' as any, userComment: 'question' }),
+      deps,
+    );
+
+    expect(postReplyComment).toHaveBeenCalledWith(
+      mockOctokit, 'test', 'repo', 1,
+      'Sorry, I encountered an error while processing your request. Please try again.',
+    );
+  });
+
+  it('falls through to review mode when userComment is missing', async () => {
+    (shouldSkipPR as any).mockReturnValue(null);
+    (shouldSkipByRules as any).mockReturnValue(null);
+    (runReviewPipeline as any).mockResolvedValue(basePipelineResult);
+
+    const deps = makeDeps();
+    await processReviewJob(
+      makeJob({ mode: 'respond' as any }),
+      deps,
+    );
+
+    // Without userComment, respond mode is skipped → falls through to review
+    expect(deps.reviewStore.claimReview).toHaveBeenCalled();
   });
 });
