@@ -55,7 +55,7 @@ export async function processReviewJob(
   // Smart skip check
   const skipReason = shouldSkipPR(prContext.files || []);
   if (skipReason) {
-    await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: new Date().toISOString(), skipReason });
+    await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: now, skipReason });
     console.log(`Skipped ${repoFullName}#${prNumber}: ${skipReason}`);
     return;
   }
@@ -81,7 +81,7 @@ export async function processReviewJob(
     mode,
   });
   if (rulesSkipReason) {
-    await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: new Date().toISOString(), skipReason: rulesSkipReason });
+    await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: now, skipReason: rulesSkipReason });
     console.log(`Rules skip ${repoFullName}#${prNumber}: ${rulesSkipReason}`);
     return;
   }
