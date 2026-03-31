@@ -62,15 +62,17 @@ export async function processReviewJob(
   const instSettings = await deps.installationStore.getSettings(instId);
 
   // Apply dashboard InstallationSettings as config overrides (matches Lambda pattern)
-  const severityMap = { Low: 'info', Med: 'warning', High: 'critical' } as const;
+  // Field mapping: logic → security agent, syntax → bugs agent, style → style agent
+  // Severity: Low → info, Med → warning, High → critical
+  const severityMap: Record<string, 'info' | 'warning' | 'critical'> = { Low: 'info', Med: 'warning', High: 'critical' };
   const settingsOverrides: Partial<MergeWatchConfig> = {
-    minSeverity: severityMap[instSettings.severityThreshold],
+    minSeverity: severityMap[instSettings.severityThreshold] ?? 'warning',
     maxFindings: instSettings.maxComments,
     agents: {
-      security: instSettings.commentTypes.logic,
-      bugs: instSettings.commentTypes.syntax,
-      style: instSettings.commentTypes.style,
-      summary: instSettings.summary.prSummary,
+      security: instSettings.commentTypes?.logic ?? true,
+      bugs: instSettings.commentTypes?.syntax ?? true,
+      style: instSettings.commentTypes?.style ?? true,
+      summary: instSettings.summary?.prSummary ?? true,
       diagram: true,
       errorHandling: true,
       testCoverage: true,
