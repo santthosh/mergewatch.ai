@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import type { Request, Response } from 'express';
 import type { IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider } from '@mergewatch/core';
 import type { ReviewJobPayload, ReviewMode, PullRequestEvent, IssueCommentEvent, InstallationEvent } from '@mergewatch/core';
-import { REVIEW_TRIGGERING_ACTIONS } from '@mergewatch/core';
+import { REVIEW_TRIGGERING_ACTIONS, COMMENT_LOOKUP_ACTIONS, findExistingBotComment } from '@mergewatch/core';
 import { processReviewJob } from './review-processor.js';
 
 export interface WebhookDeps {
@@ -62,12 +62,27 @@ async function handlePullRequest(payload: PullRequestEvent, deps: WebhookDeps) {
   const { action, pull_request, repository, installation } = payload;
   if (!installation || !(REVIEW_TRIGGERING_ACTIONS as readonly string[]).includes(action)) return;
 
+  // Look for existing bot comment to update (not on first open)
+  let existingCommentId: number | undefined;
+  if ((COMMENT_LOOKUP_ACTIONS as readonly string[]).includes(action)) {
+    try {
+      const octokit = await deps.authProvider.getInstallationOctokit(installation.id);
+      const commentId = await findExistingBotComment(
+        octokit, repository.owner.login, repository.name, pull_request.number,
+      );
+      if (commentId) existingCommentId = commentId;
+    } catch (err) {
+      console.warn('Failed to look up existing bot comment:', err);
+    }
+  }
+
   const job: ReviewJobPayload = {
     installationId: installation.id,
     owner: repository.owner.login,
     repo: repository.name,
     prNumber: pull_request.number,
     mode: 'review',
+    existingCommentId,
     isDraft: pull_request.draft ?? false,
     prLabels: pull_request.labels?.map((l) => l.name) ?? [],
     changedFileCount: pull_request.changed_files,
