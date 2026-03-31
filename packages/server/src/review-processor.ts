@@ -1,4 +1,4 @@
-import type { ReviewJobPayload, IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider, FileFetchOptions, ReviewDelta } from '@mergewatch/core';
+import type { ReviewJobPayload, IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider, FileFetchOptions, ReviewDelta, MergeWatchConfig } from '@mergewatch/core';
 import {
   getPRDiff, getPRContext, addPRReaction, postReviewComment, updateReviewComment,
   findExistingBotComment, getCommentReactions, createCheckRun,
@@ -61,12 +61,32 @@ export async function processReviewJob(
   const installation = await deps.installationStore.get(instId, repoFullName);
   const instSettings = await deps.installationStore.getSettings(instId);
 
+  // Apply dashboard InstallationSettings as config overrides (matches Lambda pattern)
+  const severityMap = { Low: 'info', Med: 'warning', High: 'critical' } as const;
+  const settingsOverrides: Partial<MergeWatchConfig> = {
+    minSeverity: severityMap[instSettings.severityThreshold],
+    maxFindings: instSettings.maxComments,
+    agents: {
+      security: instSettings.commentTypes.logic,
+      bugs: instSettings.commentTypes.syntax,
+      style: instSettings.commentTypes.style,
+      summary: instSettings.summary.prSummary,
+      diagram: true,
+      errorHandling: true,
+      testCoverage: true,
+      commentAccuracy: true,
+    },
+    customStyleRules: instSettings.customInstructions
+      ? [instSettings.customInstructions]
+      : [],
+  };
+
   // Merge config: YAML provides base, dashboard settings override, env var model overrides all
   const yamlConfig = await fetchRepoConfig(octokit, owner, repo);
   const modelOverride = process.env.LLM_MODEL;
   const config = mergeConfig({
     ...(yamlConfig ?? {}),
-    ...(installation?.config || {}),
+    ...settingsOverrides,
     ...(modelOverride ? { model: modelOverride, lightModel: modelOverride } : {}),
   });
 
@@ -135,16 +155,10 @@ export async function processReviewJob(
         modelId: config.model,
         lightModelId: config.lightModel || config.model,
         customStyleRules: config.customStyleRules,
-        maxFindings: instSettings.maxComments || config.maxFindings,
+        maxFindings: config.maxFindings,
         enabledAgents: {
-          security: config.agents.security,
-          bugs: config.agents.bugs,
-          style: config.agents.style,
-          summary: true,
+          ...config.agents,
           diagram: instSettings.summary?.diagram !== false,
-          errorHandling: config.agents.errorHandling,
-          testCoverage: config.agents.testCoverage,
-          commentAccuracy: config.agents.commentAccuracy,
         },
         fileFetchOptions,
         customAgents: config.customAgents,
