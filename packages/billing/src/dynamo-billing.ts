@@ -107,33 +107,50 @@ export async function deductBalanceAndRecordUsage(
   }));
 }
 
-/** Generic update of billing fields on the #SETTINGS row. */
+/** Generic update of billing fields on the #SETTINGS row.
+ *  Fields set to `undefined` are REMOVED from DynamoDB (not silently dropped). */
 export async function updateBillingFields(
   client: DynamoDBDocumentClient,
   table: string,
   installationId: string,
   fields: Partial<BillingFields>,
 ): Promise<void> {
-  const entries = Object.entries(fields).filter(([, v]) => v !== undefined);
-  if (entries.length === 0) return;
+  const setEntries = Object.entries(fields).filter(([, v]) => v !== undefined);
+  const removeKeys = Object.entries(fields).filter(([, v]) => v === undefined).map(([k]) => k);
 
-  const setExprs: string[] = [];
+  if (setEntries.length === 0 && removeKeys.length === 0) return;
+
   const names: Record<string, string> = {};
   const values: Record<string, unknown> = {};
+  const parts: string[] = [];
 
-  for (const [key, value] of entries) {
-    const nameToken = `#${key}`;
-    const valToken = `:${key}`;
-    names[nameToken] = key;
-    values[valToken] = value;
-    setExprs.push(`${nameToken} = ${valToken}`);
+  if (setEntries.length > 0) {
+    const setExprs: string[] = [];
+    for (const [key, value] of setEntries) {
+      const nameToken = `#${key}`;
+      const valToken = `:${key}`;
+      names[nameToken] = key;
+      values[valToken] = value;
+      setExprs.push(`${nameToken} = ${valToken}`);
+    }
+    parts.push(`SET ${setExprs.join(', ')}`);
+  }
+
+  if (removeKeys.length > 0) {
+    const removeExprs: string[] = [];
+    for (const key of removeKeys) {
+      const nameToken = `#${key}`;
+      names[nameToken] = key;
+      removeExprs.push(nameToken);
+    }
+    parts.push(`REMOVE ${removeExprs.join(', ')}`);
   }
 
   await client.send(new UpdateCommand({
     TableName: table,
     Key: { installationId, repoFullName: SETTINGS_SK },
-    UpdateExpression: `SET ${setExprs.join(', ')}`,
+    UpdateExpression: parts.join(' '),
     ExpressionAttributeNames: names,
-    ExpressionAttributeValues: values,
+    ...(Object.keys(values).length > 0 ? { ExpressionAttributeValues: values } : {}),
   }));
 }
