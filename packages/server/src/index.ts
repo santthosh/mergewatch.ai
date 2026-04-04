@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { sql as drizzleSql } from 'drizzle-orm';
@@ -91,8 +92,16 @@ async function main() {
     });
   });
 
+  // Rate limit webhook endpoint to mitigate abuse
+  const webhookLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 120,            // 120 requests per minute
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
   // Webhook endpoint
-  app.post('/webhook', createWebhookHandler({
+  app.post('/webhook', webhookLimiter, createWebhookHandler({
     webhookSecret,
     installationStore,
     reviewStore,

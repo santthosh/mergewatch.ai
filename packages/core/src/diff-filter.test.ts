@@ -59,6 +59,14 @@ describe('filterDiff', () => {
     expect(filteredDiff).toBe(diff);
   });
 
+  it('handles file paths containing spaces', () => {
+    const diff = makeDiff('src/my file.ts', 'docs/read me.md');
+    const { filteredDiff, excludedFiles } = filterDiff(diff, ['docs/**']);
+    expect(excludedFiles).toEqual(['docs/read me.md']);
+    expect(filteredDiff).toContain('src/my file.ts');
+    expect(filteredDiff).not.toContain('docs/read me.md');
+  });
+
   it('works correctly when called multiple times (regex lastIndex reset)', () => {
     const diff = makeDiff('src/index.ts', 'dist/out.js');
     const result1 = filterDiff(diff, ['dist/**']);

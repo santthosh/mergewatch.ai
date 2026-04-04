@@ -13,15 +13,20 @@ import { minimatch } from 'minimatch';
  */
 function splitDiffByFile(diff: string): Array<{ file: string; section: string }> {
   const sections: Array<{ file: string; section: string }> = [];
-  // Match diff headers like: diff --git a/path/to/file b/path/to/file
-  const headerRegex = /^diff --git a\/(.+?) b\/(.+?)$/gm;
+  // Match the full diff header line — single .+ avoids polynomial backtracking
+  // that two lazy (.+?) groups would cause when paths contain spaces.
+  const headerRegex = /^diff --git a\/(.+)$/gm;
 
   let match: RegExpExecArray | null;
   const starts: Array<{ file: string; index: number }> = [];
   headerRegex.lastIndex = 0;
 
   while ((match = headerRegex.exec(diff)) !== null) {
-    starts.push({ file: match[2], index: match.index });
+    // The captured group is "<path1> b/<path2>". Extract the b/ path.
+    const rest = match[1];
+    const sepIdx = rest.indexOf(' b/');
+    const file = sepIdx !== -1 ? rest.slice(sepIdx + 3) : rest;
+    starts.push({ file, index: match.index });
   }
 
   for (let i = 0; i < starts.length; i++) {
