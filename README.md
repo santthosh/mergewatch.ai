@@ -49,7 +49,7 @@ Verify:
 
 ```bash
 curl http://localhost:3000/health
-# { "status": "ok", "version": "0.2.0", "db": "connected", "llmProvider": "anthropic" }
+# { "status": "ok", "version": "0.1.0", "db": "connected", "llmProvider": "anthropic" }
 ```
 
 Dashboard at **http://localhost:3001**. Sign in with GitHub and install the app on your repos.
@@ -58,8 +58,8 @@ Dashboard at **http://localhost:3001**. Sign in with GitHub and install the app 
 
 | Service | Port | Image |
 |---------|------|-------|
-| **mergewatch** (server) | 3000 | `ghcr.io/santthosh/mergewatch:latest` |
-| **dashboard** (Next.js) | 3001 | `ghcr.io/santthosh/mergewatch-dashboard:latest` |
+| **mergewatch** (server) | 3000 | `ghcr.io/santthosh/mergewatch:0.1.0` |
+| **dashboard** (Next.js) | 3001 | `ghcr.io/santthosh/mergewatch-dashboard:0.1.0` |
 | **db** (PostgreSQL 16) | 5432 | `postgres:16-alpine` |
 
 Pre-built images are published to GHCR on every push to `main`. Upgrade with `docker-compose pull && docker-compose up -d`.
@@ -204,6 +204,61 @@ The project has comprehensive unit tests covering core review logic, all LLM pro
 ```bash
 pnpm run test           # Run all tests (~1 second)
 pnpm run test:coverage  # Run with coverage report
+```
+
+## Releasing
+
+MergeWatch uses [semantic versioning](https://semver.org/) with a single release script that updates all packages, Docker images, and changelog in one step.
+
+### Cutting a release
+
+```bash
+# 1. Make sure you're on main with a clean tree
+git checkout main && git pull
+
+# 2. Run the release script (bumps versions, updates changelog, commits, tags)
+./scripts/release.sh 0.2.0
+
+# 3. Push the commit and tag
+git push && git push --tags
+
+# 4. Create a GitHub Release (triggers Docker image builds)
+gh release create v0.2.0 --generate-notes
+```
+
+### What happens automatically
+
+| Trigger | Action |
+|---------|--------|
+| `gh release create` | Docker images built and pushed to GHCR with semver tags (`0.2.0`, `0.2`, `latest`) |
+| Push to `main` | SAM deploy to dev (auto), prod (manual approval via GitHub environment) |
+| Push to `main` | Docker `:latest` and SHA-tagged images published |
+
+### What the release script does
+
+`scripts/release.sh <version>` automates:
+1. Updates `version` in root + all 11 workspace `package.json` files
+2. Updates the server health check version string
+3. Updates `docker-compose.yml` image tags to the new version
+4. Generates a changelog section from conventional commits (feat/fix/other)
+5. Commits as `chore: release vX.Y.Z` and creates an annotated git tag
+
+### Docker image tags
+
+Images are published to `ghcr.io/santthosh/mergewatch` and `ghcr.io/santthosh/mergewatch-dashboard`:
+
+| Tag | When |
+|-----|------|
+| `0.2.0` | On GitHub Release for `v0.2.0` |
+| `0.2` | On GitHub Release for `v0.2.x` (tracks latest patch) |
+| `latest` | On every push to `main` |
+| `abc1234` | On every push to `main` (commit SHA) |
+
+### Upgrading self-hosted
+
+```bash
+# Pin to a specific version in docker-compose.yml, then:
+docker-compose pull && docker-compose up -d
 ```
 
 ## Why MergeWatch?
