@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { filterDiff } from './diff-filter.js';
+import { filterDiff, extractChangedLines, isLineNearChange } from './diff-filter.js';
 
 const makeDiff = (...files: string[]) =>
   files
@@ -74,5 +74,169 @@ describe('filterDiff', () => {
     expect(result1.excludedFiles).toEqual(['dist/out.js']);
     expect(result2.excludedFiles).toEqual(['dist/out.js']);
     expect(result1.filteredDiff).toBe(result2.filteredDiff);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractChangedLines
+// ---------------------------------------------------------------------------
+
+describe('extractChangedLines', () => {
+  it('returns empty map for empty diff', () => {
+    expect(extractChangedLines('')).toEqual(new Map());
+  });
+
+  it('extracts added lines from a simple diff', () => {
+    const diff = [
+      'diff --git a/src/index.ts b/src/index.ts',
+      'index abc..def 100644',
+      '--- a/src/index.ts',
+      '+++ b/src/index.ts',
+      '@@ -1,3 +1,4 @@',
+      ' const a = 1;',
+      '+const b = 2;',
+      ' const c = 3;',
+      ' const d = 4;',
+    ].join('\n');
+
+    const result = extractChangedLines(diff);
+    expect(result.get('src/index.ts')).toEqual(new Set([2]));
+  });
+
+  it('handles multiple hunks in one file', () => {
+    const diff = [
+      'diff --git a/src/app.ts b/src/app.ts',
+      'index abc..def 100644',
+      '--- a/src/app.ts',
+      '+++ b/src/app.ts',
+      '@@ -1,3 +1,4 @@',
+      ' line 1',
+      '+added at line 2',
+      ' line 3',
+      ' line 4',
+      '@@ -10,3 +11,4 @@',
+      ' line 11',
+      '+added at line 12',
+      ' line 13',
+      ' line 14',
+    ].join('\n');
+
+    const result = extractChangedLines(diff);
+    expect(result.get('src/app.ts')).toEqual(new Set([2, 12]));
+  });
+
+  it('returns empty set for deleted-only file', () => {
+    const diff = [
+      'diff --git a/old.ts b/old.ts',
+      'index abc..def 100644',
+      '--- a/old.ts',
+      '+++ b/old.ts',
+      '@@ -1,3 +1,2 @@',
+      ' line 1',
+      '-removed line',
+      ' line 2',
+    ].join('\n');
+
+    const result = extractChangedLines(diff);
+    expect(result.get('old.ts')).toEqual(new Set());
+  });
+
+  it('marks all lines as changed for new file', () => {
+    const diff = [
+      'diff --git a/new.ts b/new.ts',
+      'new file mode 100644',
+      'index 0000000..abc1234',
+      '--- /dev/null',
+      '+++ b/new.ts',
+      '@@ -0,0 +1,3 @@',
+      '+line 1',
+      '+line 2',
+      '+line 3',
+    ].join('\n');
+
+    const result = extractChangedLines(diff);
+    expect(result.get('new.ts')).toEqual(new Set([1, 2, 3]));
+  });
+
+  it('does not include context lines', () => {
+    const diff = [
+      'diff --git a/src/index.ts b/src/index.ts',
+      'index abc..def 100644',
+      '--- a/src/index.ts',
+      '+++ b/src/index.ts',
+      '@@ -1,5 +1,6 @@',
+      ' context line 1',
+      ' context line 2',
+      '+added line 3',
+      ' context line 4',
+      ' context line 5',
+      ' context line 6',
+    ].join('\n');
+
+    const result = extractChangedLines(diff);
+    const changed = result.get('src/index.ts')!;
+    // Only line 3 is changed, context lines 1,2,4,5,6 are not
+    expect(changed).toEqual(new Set([3]));
+    expect(changed.has(1)).toBe(false);
+    expect(changed.has(2)).toBe(false);
+    expect(changed.has(4)).toBe(false);
+  });
+
+  it('handles multiple files', () => {
+    const diff = [
+      'diff --git a/a.ts b/a.ts',
+      'index abc..def 100644',
+      '--- a/a.ts',
+      '+++ b/a.ts',
+      '@@ -1,2 +1,3 @@',
+      ' line 1',
+      '+added in a',
+      ' line 2',
+      'diff --git a/b.ts b/b.ts',
+      'index abc..def 100644',
+      '--- a/b.ts',
+      '+++ b/b.ts',
+      '@@ -5,2 +5,3 @@',
+      ' line 5',
+      '+added in b',
+      ' line 6',
+    ].join('\n');
+
+    const result = extractChangedLines(diff);
+    expect(result.get('a.ts')).toEqual(new Set([2]));
+    expect(result.get('b.ts')).toEqual(new Set([6]));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isLineNearChange
+// ---------------------------------------------------------------------------
+
+describe('isLineNearChange', () => {
+  const changedLines = new Map([
+    ['src/index.ts', new Set([10, 20])],
+  ]);
+
+  it('returns true for exact match', () => {
+    expect(isLineNearChange(changedLines, 'src/index.ts', 10, 0)).toBe(true);
+  });
+
+  it('returns true within tolerance', () => {
+    expect(isLineNearChange(changedLines, 'src/index.ts', 12, 3)).toBe(true);
+    expect(isLineNearChange(changedLines, 'src/index.ts', 8, 3)).toBe(true);
+  });
+
+  it('returns false outside tolerance', () => {
+    expect(isLineNearChange(changedLines, 'src/index.ts', 14, 3)).toBe(false);
+    expect(isLineNearChange(changedLines, 'src/index.ts', 6, 3)).toBe(false);
+  });
+
+  it('returns false for file not in diff', () => {
+    expect(isLineNearChange(changedLines, 'other.ts', 10, 3)).toBe(false);
+  });
+
+  it('returns false for empty changed set', () => {
+    const empty = new Map([['src/index.ts', new Set<number>()]]);
+    expect(isLineNearChange(empty, 'src/index.ts', 10, 3)).toBe(false);
   });
 });

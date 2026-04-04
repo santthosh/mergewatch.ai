@@ -409,11 +409,20 @@ interface InlineCommentCandidate {
 export function buildInlineComments(
   findings: InlineCommentCandidate[],
   changedFiles: string[],
+  changedLines?: Map<string, Set<number>>,
 ): Array<{ path: string; line: number; side: string; body: string }> {
   const changedSet = new Set(changedFiles);
 
   return findings
-    .filter((f) => f.severity === 'critical' && changedSet.has(f.file) && f.line > 0)
+    .filter((f) => {
+      if (f.severity !== 'critical' || !changedSet.has(f.file) || f.line <= 0) return false;
+      // When changedLines is available, require line to be exactly on a changed line
+      if (changedLines) {
+        const fileLines = changedLines.get(f.file);
+        if (!fileLines || !fileLines.has(f.line)) return false;
+      }
+      return true;
+    })
     .map((f) => ({
       path: f.file,
       line: f.line,
