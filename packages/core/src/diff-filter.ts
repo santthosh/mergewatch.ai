@@ -73,3 +73,79 @@ export function filterDiff(
     excludedFiles,
   };
 }
+
+// ─── Changed-line extraction ───────────────────────────────────────────────
+
+const HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
+
+/**
+ * Parse a unified diff and return the set of new-side line numbers that were
+ * actually added or modified (lines starting with `+`).
+ *
+ * The returned map is keyed by file path (the `b/` side).  Each value is a
+ * `Set<number>` of 1-based line numbers in the new file.
+ */
+export function extractChangedLines(diff: string): Map<string, Set<number>> {
+  const result = new Map<string, Set<number>>();
+  if (!diff) return result;
+
+  const sections = splitDiffByFile(diff);
+
+  for (const { file, section } of sections) {
+    const lines = section.split('\n');
+    const changedSet = new Set<number>();
+    let newLine = 0; // current new-side line counter (set by hunk headers)
+
+    for (const line of lines) {
+      const hunkMatch = line.match(HUNK_HEADER);
+      if (hunkMatch) {
+        newLine = parseInt(hunkMatch[1], 10);
+        continue;
+      }
+
+      // Only process lines inside a hunk (newLine > 0)
+      if (newLine === 0) continue;
+
+      if (line.startsWith('+')) {
+        // Skip the +++ b/file header
+        if (line.startsWith('+++')) continue;
+        changedSet.add(newLine);
+        newLine++;
+      } else if (line.startsWith('-')) {
+        // Removed line — does not advance new-side counter
+        // Skip the --- a/file header
+        if (line.startsWith('---')) continue;
+        // newLine stays the same
+      } else if (line.startsWith('\\')) {
+        // "\ No newline at end of file" — skip
+        continue;
+      } else {
+        // Context line (space prefix or empty) — advance new-side counter
+        newLine++;
+      }
+    }
+
+    result.set(file, changedSet);
+  }
+
+  return result;
+}
+
+/**
+ * Check whether a given file:line is within `tolerance` lines of any actually
+ * changed line.  Returns false if the file is not in the diff at all.
+ */
+export function isLineNearChange(
+  changedLines: Map<string, Set<number>>,
+  file: string,
+  line: number,
+  tolerance: number,
+): boolean {
+  const fileChanges = changedLines.get(file);
+  if (!fileChanges || fileChanges.size === 0) return false;
+
+  for (const cl of fileChanges) {
+    if (Math.abs(line - cl) <= tolerance) return true;
+  }
+  return false;
+}

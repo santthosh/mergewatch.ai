@@ -30,7 +30,8 @@ IMPORTANT — Verify before reporting:
 - Before claiming something is "missing" (a missing await, missing null check, missing import, etc.), search the ENTIRE diff for it — it may appear in a different hunk or on a nearby line you overlooked.
 - Before claiming a comment or name is "wrong" or "misleading", quote the EXACT text from the diff. If you cannot quote it verbatim, do not report the finding.
 - Do NOT report an issue based on what you ASSUME the code says — only report issues based on what the diff ACTUALLY shows. If the diff does not contain enough context to confirm the issue, lower your confidence accordingly or skip the finding entirely.
-- If you are less than 75% confident that a finding is a real issue and not a misreading of the diff, do NOT include it.`;
+- If you are less than 75% confident that a finding is a real issue and not a misreading of the diff, do NOT include it.
+- IMPORTANT: The "line" field in your findings MUST point to a line that was actually added or modified in the diff (a line starting with "+"). Do NOT report findings where the "line" points to an unchanged context line. If a change introduces a downstream issue on a nearby unchanged line, point the finding to the nearest changed line instead.`;
 
 // ─── Security agent ────────────────────────────────────────────────────────
 export const SECURITY_REVIEWER_PROMPT = `${SHARED_PREAMBLE}
@@ -336,11 +337,12 @@ Your job:
    - Claiming a comment is outdated when the new text is right there in the diff
    - Claiming a variable is unused when it is referenced elsewhere in the same diff
    - Claiming error handling is missing when a try/catch exists in a surrounding scope
-4. Drop any finding with confidence below 75.
-5. Rank by severity: critical > warning > info.
-6. Within the same severity, rank by confidence and impact.
-7. Drop findings that are speculative or low-confidence.
-8. Cap the total to MAX_FINDINGS_PLACEHOLDER findings.
+4. Verify that each finding's "line" points to an actually changed line (a line with "+" prefix in the diff). If a finding points to an unchanged context line, either adjust its line to the nearest changed line, or drop it if it is unrelated to the actual changes.
+5. Drop any finding with confidence below 75.
+6. Rank by severity: critical > warning > info.
+7. Within the same severity, rank by confidence and impact.
+8. Drop findings that are speculative or low-confidence.
+9. Cap the total to MAX_FINDINGS_PLACEHOLDER findings.
 
 Also assess the overall merge readiness of the PR on a 1–5 scale:
 - 5 = No issues, clean PR — safe to merge

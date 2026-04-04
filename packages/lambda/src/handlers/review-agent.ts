@@ -452,7 +452,7 @@ export async function handler(
     }
 
     // ── Step B: Build inline comments for critical findings ──────────────
-    let inlineComments = buildInlineComments(result.findings, prContext.files);
+    let inlineComments = buildInlineComments(result.findings, prContext.files, result.changedLines);
 
     // Filter out carried-over findings (same file+line+title as previous review)
     if (prevComplete?.findings && inlineComments.length > 0) {

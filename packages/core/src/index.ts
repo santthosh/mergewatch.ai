@@ -99,7 +99,7 @@ export type { FileFetchOptions, AgenticInvokeResult } from './context/agentic-fe
 export { shouldSkipPR, shouldSkipByRules, SKIP_PATTERNS } from './skip-logic.js';
 
 // ─── Diff filtering ─────────────────────────────────────────────────────────
-export { filterDiff } from './diff-filter.js';
+export { filterDiff, extractChangedLines, isLineNearChange } from './diff-filter.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type {

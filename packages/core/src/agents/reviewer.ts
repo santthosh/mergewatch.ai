@@ -31,6 +31,7 @@ import {
 import type { CustomAgentDef, UXConfig } from '../config/defaults.js';
 import { FILE_REQUEST_INSTRUCTION, invokeWithFileFetching } from '../context/agentic-fetcher.js';
 import type { FileFetchOptions } from '../context/agentic-fetcher.js';
+import { extractChangedLines, isLineNearChange } from '../diff-filter.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -517,6 +518,8 @@ export interface ReviewPipelineOptions {
 export interface ReviewPipelineResult {
   summary: string;
   findings: OrchestratedFinding[];
+  /** Map of file → set of new-side line numbers that were actually changed */
+  changedLines: Map<string, Set<number>>;
   diagram: string;
   diagramCaption: string;
   mergeScore: number;
@@ -641,14 +644,22 @@ export async function runReviewPipeline(
   ];
   const enabledAgentCount = findingAgentFlags.filter(Boolean).length + enabledCustomAgents.length;
 
+  // Filter findings to only those on or near actually changed lines
+  const changedLines = extractChangedLines(diff);
+  const CHANGED_LINE_TOLERANCE = 3;
+  const filteredFindings = orchestratorResult.findings.filter(
+    (f) => isLineNearChange(changedLines, f.file, f.line, CHANGED_LINE_TOLERANCE),
+  );
+
   return {
     summary,
-    findings: orchestratorResult.findings,
+    findings: filteredFindings,
+    changedLines,
     diagram: diagramResult.diagram,
     diagramCaption: diagramResult.caption,
     mergeScore: orchestratorResult.mergeScore,
     mergeScoreReason: orchestratorResult.mergeScoreReason,
-    suppressedCount: Math.max(0, totalRawFindings - orchestratorResult.findings.length),
+    suppressedCount: Math.max(0, totalRawFindings - filteredFindings.length),
     enabledAgentCount,
     inputTokens: accumulator.totalInputTokens,
     outputTokens: accumulator.totalOutputTokens,
