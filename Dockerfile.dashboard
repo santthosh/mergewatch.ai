@@ -1,3 +1,5 @@
+ARG VERSION=0.1.0
+
 FROM node:20-alpine AS builder
 
 RUN npm install -g pnpm@10.23.0
@@ -27,6 +29,13 @@ RUN pnpm --filter @mergewatch/dashboard run build
 
 # ── Production image ─────────────────────────────────────────────────────────
 FROM node:20-alpine
+
+ARG VERSION
+LABEL org.opencontainers.image.title="MergeWatch Dashboard"
+LABEL org.opencontainers.image.description="Next.js dashboard for MergeWatch"
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.source="https://github.com/santthosh/mergewatch.ai"
+LABEL org.opencontainers.image.licenses="AGPL-3.0"
 
 WORKDIR /app
 
