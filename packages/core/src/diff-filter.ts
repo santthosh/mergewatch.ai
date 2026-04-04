@@ -14,7 +14,7 @@ import { minimatch } from 'minimatch';
 function splitDiffByFile(diff: string): Array<{ file: string; section: string }> {
   const sections: Array<{ file: string; section: string }> = [];
   // Match diff headers like: diff --git a/path/to/file b/path/to/file
-  const headerRegex = /^diff --git a\/(.+?) b\/(.+?)$/gm;
+  const headerRegex = /^diff --git a\/(\S+) b\/(\S+)$/gm;
 
   let match: RegExpExecArray | null;
   const starts: Array<{ file: string; index: number }> = [];

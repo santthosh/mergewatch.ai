@@ -115,7 +115,7 @@ export async function addPRReaction(
     });
   } catch (err) {
     // Non-critical — don't fail the review if reaction fails
-    console.warn(`Failed to add ${reaction} reaction to ${owner}/${repo}#${prNumber}:`, err);
+    console.warn('Failed to add %s reaction to %s/%s#%d:', reaction, owner, repo, prNumber, err);
   }
 }
 
@@ -242,7 +242,7 @@ export async function getCommentReactions(
     }
     return counts;
   } catch (err) {
-    console.warn(`Failed to fetch reactions for comment ${commentId}:`, err);
+    console.warn('Failed to fetch reactions for comment %d:', commentId, err);
     return {};
   }
 }
@@ -287,7 +287,7 @@ export async function createCheckRun(
     });
   } catch (err) {
     // Non-critical — don't fail the review if the check run fails.
-    console.warn(`Failed to create check run for ${owner}/${repo}@${headSha}:`, err);
+    console.warn('Failed to create check run for %s/%s@%s:', owner, repo, headSha, err);
   }
 }
 
@@ -616,7 +616,7 @@ export async function fetchRepoConfig(
     if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 404) {
       return null;
     }
-    console.warn(`Failed to fetch .mergewatch.yml from ${owner}/${repo}:`, err);
+    console.warn('Failed to fetch .mergewatch.yml from %s/%s:', owner, repo, err);
     return null;
   }
 }

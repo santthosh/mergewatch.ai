@@ -243,7 +243,7 @@ describe('extractInlineCommentTitle', () => {
 
 describe('BOT_COMMENT_MARKER', () => {
   it('is an HTML comment', () => {
-    expect(BOT_COMMENT_MARKER).toMatch(/^<!--.*-->$/);
+    expect(BOT_COMMENT_MARKER).toMatch(/^<!--[\s\S]*-->$/);
   });
 });
 

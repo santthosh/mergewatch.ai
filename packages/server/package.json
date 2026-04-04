@@ -14,16 +14,17 @@
   },
   "dependencies": {
     "@mergewatch/core": "workspace:*",
-    "@mergewatch/storage-postgres": "workspace:*",
     "@mergewatch/llm-anthropic": "workspace:*",
     "@mergewatch/llm-bedrock": "workspace:*",
     "@mergewatch/llm-litellm": "workspace:*",
     "@mergewatch/llm-ollama": "workspace:*",
+    "@mergewatch/storage-postgres": "workspace:*",
+    "@octokit/auth-app": "^7.1.0",
+    "@octokit/rest": "^21.0.0",
     "drizzle-orm": "^0.38.0",
     "express": "^4.21.0",
-    "postgres": "^3.4.0",
-    "@octokit/auth-app": "^7.1.0",
-    "@octokit/rest": "^21.0.0"
+    "express-rate-limit": "^8.3.2",
+    "postgres": "^3.4.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
