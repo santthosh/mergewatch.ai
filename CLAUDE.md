@@ -21,7 +21,7 @@ packages/
   llm-ollama/        — @mergewatch/llm-ollama: Ollama provider (local/air-gapped, experimental).
   lambda/            — @mergewatch/lambda: AWS Lambda handlers + SSM auth (SaaS path).
   server/            — @mergewatch/server: Express server + env auth (self-hosted path).
-  dashboard/         — @mergewatch/dashboard: Next.js 14 dashboard (App Router, AWS Amplify).
+  dashboard/         — @mergewatch/dashboard: Next.js 15 dashboard (App Router, AWS Amplify).
 infra/               — AWS SAM CloudFormation template
 scripts/             — Deployment and SSM setup scripts
 ```

@@ -23,7 +23,7 @@ Install it on your repos and it just works. Every PR gets a structured review co
 
 ## What you get
 
-- **8 specialized agents** running in parallel (security, bug, style, error handling, test coverage, comment accuracy, summary, diagram)
+- **6 review agents + 2 utilities** running in parallel (security, bug, style, error handling, test coverage, comment accuracy — plus summary and diagram generators)
 - **Merge readiness score** (1-5) on every PR so you know at a glance if it's safe to merge
 - **Any LLM** — Anthropic, AWS Bedrock, LiteLLM (100+ providers), or Ollama for fully local/air-gapped
 - **Smart skip** — auto-detects trivial PRs (lock files, docs, config) and skips them to save cost
@@ -42,7 +42,7 @@ Three services. One command. No cloud account required.
 git clone https://github.com/santthosh/mergewatch.ai.git && cd mergewatch.ai
 cp .env.example .env
 # Fill in your GitHub App credentials and LLM provider (see below)
-docker-compose up -d
+docker compose up -d
 ```
 
 Verify:
@@ -62,7 +62,7 @@ Dashboard at **http://localhost:3001**. Sign in with GitHub and install the app 
 | **dashboard** (Next.js) | 3001 | `ghcr.io/santthosh/mergewatch-dashboard:0.1.0` |
 | **db** (PostgreSQL 16) | 5432 | `postgres:16-alpine` |
 
-Pre-built images are published to GHCR on every push to `main`. Upgrade with `docker-compose pull && docker-compose up -d`.
+Pre-built images are published to GHCR on pushes to `main` that change relevant source files, and on every GitHub Release. Upgrade with `docker compose pull && docker compose up -d`.
 
 ### Environment variables
 
@@ -129,29 +129,44 @@ flowchart TD
 Drop a `.mergewatch.yml` in your repo root:
 
 ```yaml
-version: 1
 model: anthropic.claude-sonnet-4-20250514
 
+# Toggle built-in agents on/off
 agents:
-  - name: security
-    enabled: true
-    prompt: "Flag OWASP Top 10 issues, hardcoded secrets, and unsafe deserialization."
-  - name: logic
-    enabled: true
-  - name: style
-    enabled: true
+  security: true
+  bugs: true
+  style: true
+  errorHandling: true
+  testCoverage: false
+  commentAccuracy: true
+  summary: true
+  diagram: true
+
+# Add custom agents alongside built-in ones
+customAgents:
   - name: tests
-    enabled: false
     prompt: "Suggest missing unit tests for new public functions."
+    severityDefault: info
+    enabled: false
 
 rules:
-  max_files: 50
-  ignore_patterns:
+  maxFiles: 50
+  ignorePatterns:
     - "*.lock"
     - "vendor/**"
     - "dist/**"
-  auto_review: true
-  review_on_mention: true
+  autoReview: true
+  reviewOnMention: true
+  skipDrafts: true
+
+excludePatterns:
+  - "**/*.lock"
+  - "**/dist/**"
+
+# Review tone: collaborative | direct | advisory
+tone: collaborative
+
+maxFindings: 25
 ```
 
 Settings can also be managed from the dashboard (per-installation).
@@ -162,7 +177,7 @@ Settings can also be managed from the dashboard (per-installation).
 |---------|--------------|
 | `@mergewatch review` | Re-run a full review on the current commit |
 | `@mergewatch summary` | Get a summary without detailed findings |
-| `@mergewatch <question>` | Ask a question about the PR (conversational) |
+| `@mergewatch <question>` | Ask a question about the PR — gets a conversational response using the review context |
 
 ## Project structure
 
@@ -180,7 +195,7 @@ packages/
   lambda/            # AWS Lambda handlers
   server/            # Express server (self-hosted)
   billing/           # Billing logic (SaaS)
-  dashboard/         # Next.js 14 dashboard
+  dashboard/         # Next.js 15 dashboard
 infra/               # AWS SAM template
 scripts/             # Setup & deploy scripts
 ```
@@ -190,7 +205,7 @@ scripts/             # Setup & deploy scripts
 ```bash
 pnpm install            # Install all workspace dependencies
 pnpm run build          # Build all packages (respects dependency order)
-pnpm run test           # Run all tests (305 tests across 9 packages)
+pnpm run test           # Run all tests (~380 tests across 8 packages)
 pnpm run typecheck      # Type-check all packages
 
 cd packages/dashboard
@@ -202,7 +217,7 @@ pnpm run dev            # Dashboard local dev (localhost:3000)
 The project has comprehensive unit tests covering core review logic, all LLM providers, webhook handlers, billing, and the agent pipeline. Tests run on every PR via GitHub Actions.
 
 ```bash
-pnpm run test           # Run all tests (~1 second)
+pnpm run test           # Run all tests (~1-2 seconds)
 pnpm run test:coverage  # Run with coverage report
 ```
 
@@ -258,7 +273,7 @@ Images are published to `ghcr.io/santthosh/mergewatch` and `ghcr.io/santthosh/me
 
 ```bash
 # Pin to a specific version in docker-compose.yml, then:
-docker-compose pull && docker-compose up -d
+docker compose pull && docker compose up -d
 ```
 
 ## Why MergeWatch?
@@ -268,7 +283,7 @@ docker-compose pull && docker-compose up -d
 | **Deployment** | Self-hosted (Docker) or cloud | SaaS only |
 | **Model choice** | Any LLM provider | Vendor-locked |
 | **Data residency** | Your infra, your region | Vendor cloud |
-| **Review pipeline** | 8 parallel agents + orchestrator | Single-pass |
+| **Review pipeline** | 6 parallel agents + orchestrator | Single-pass |
 | **Codebase awareness** | Agents fetch files beyond the diff | Diff-only |
 | **Config** | `.mergewatch.yml` per repo | Limited |
 | **Source** | AGPL-3.0 open source | Proprietary |
