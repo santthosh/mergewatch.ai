@@ -97,8 +97,8 @@ done
 
 SERVER_INDEX="$REPO_ROOT/packages/server/src/index.ts"
 if [ -f "$SERVER_INDEX" ]; then
-  sed -i.bak "s/version: '[^']*'/version: '$VERSION'/" "$SERVER_INDEX"
-  rm -f "$SERVER_INDEX.bak"
+  sed "s/version: '[^']*'/version: '$VERSION'/" "$SERVER_INDEX" > "$SERVER_INDEX.tmp" \
+    && mv "$SERVER_INDEX.tmp" "$SERVER_INDEX"
   echo "  Updated packages/server/src/index.ts health check version"
 fi
 
@@ -106,11 +106,11 @@ fi
 
 COMPOSE_FILE="$REPO_ROOT/docker-compose.yml"
 if [ -f "$COMPOSE_FILE" ]; then
-  sed -i.bak \
+  sed \
     -e "s|ghcr.io/santthosh/mergewatch:[^ ]*|ghcr.io/santthosh/mergewatch:${VERSION}|" \
     -e "s|ghcr.io/santthosh/mergewatch-dashboard:[^ ]*|ghcr.io/santthosh/mergewatch-dashboard:${VERSION}|" \
-    "$COMPOSE_FILE"
-  rm -f "$COMPOSE_FILE.bak"
+    "$COMPOSE_FILE" > "$COMPOSE_FILE.tmp" \
+    && mv "$COMPOSE_FILE.tmp" "$COMPOSE_FILE"
   echo "  Updated docker-compose.yml image tags"
 fi
 
