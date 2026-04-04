@@ -13,3 +13,6 @@ dist/
 # Dashboard (Next.js)
 packages/dashboard/.next/
 packages/dashboard/out/
+
+# Stale npm lockfiles (we use pnpm)
+package-lock.json
