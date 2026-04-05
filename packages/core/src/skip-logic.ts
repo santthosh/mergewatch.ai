@@ -94,17 +94,18 @@ export function shouldSkipPR(files: string[]): string | null {
  */
 export function shouldSkipByRules(
   rules: RulesConfig,
-  pr: { isDraft?: boolean; labels?: string[]; changedFileCount?: number; mode?: string },
+  pr: { isDraft?: boolean; labels?: string[]; changedFileCount?: number; mode?: string; mentionTriggered?: boolean },
 ): string | null {
-  // mode='review' means auto-triggered (on open/synchronize).
-  // mode='summary' or 'respond' means triggered by an @mergewatch mention.
-  const isAutoTriggered = pr.mode === 'review';
+  // mentionTriggered is the authoritative signal for whether a user explicitly
+  // requested this review via an @mergewatch comment.  When true, the review
+  // is treated as a force-review that bypasses autoReview/reviewOnMention gates.
+  const isMentionTriggered = pr.mentionTriggered === true;
 
-  if (!rules.autoReview && isAutoTriggered) {
+  if (!rules.autoReview && !isMentionTriggered) {
     return 'Automatic reviews disabled — use @mergewatch to trigger manually';
   }
 
-  if (!rules.reviewOnMention && !isAutoTriggered) {
+  if (!rules.reviewOnMention && isMentionTriggered) {
     return 'Mention-triggered reviews disabled via reviewOnMention: false';
   }
 

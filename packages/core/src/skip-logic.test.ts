@@ -196,24 +196,32 @@ describe('shouldSkipByRules', () => {
   });
 
   it('does not skip mention-triggered reviews when autoReview is false', () => {
-    expect(shouldSkipByRules({ ...defaults, autoReview: false }, { mode: 'summary' })).toBeNull();
-    expect(shouldSkipByRules({ ...defaults, autoReview: false }, { mode: 'respond' })).toBeNull();
+    expect(shouldSkipByRules({ ...defaults, autoReview: false }, { mode: 'review', mentionTriggered: true })).toBeNull();
+    expect(shouldSkipByRules({ ...defaults, autoReview: false }, { mode: 'summary', mentionTriggered: true })).toBeNull();
   });
 
   // ─── reviewOnMention ─────────────────────────────────────────────────────
   it('skips mention-triggered reviews when reviewOnMention is false', () => {
-    const result = shouldSkipByRules({ ...defaults, reviewOnMention: false }, { mode: 'summary' });
+    const result = shouldSkipByRules({ ...defaults, reviewOnMention: false }, { mode: 'summary', mentionTriggered: true });
     expect(result).not.toBeNull();
     expect(result).toContain('Mention-triggered reviews disabled');
   });
 
   it('skips respond mode when reviewOnMention is false', () => {
-    const result = shouldSkipByRules({ ...defaults, reviewOnMention: false }, { mode: 'respond' });
+    const result = shouldSkipByRules({ ...defaults, reviewOnMention: false }, { mode: 'respond', mentionTriggered: true });
     expect(result).not.toBeNull();
   });
 
   it('does not skip auto-triggered reviews when reviewOnMention is false', () => {
     const result = shouldSkipByRules({ ...defaults, reviewOnMention: false }, { mode: 'review' });
+    expect(result).toBeNull();
+  });
+
+  // ─── mentionTriggered bypasses shouldSkipPR-style gates ──────────────────
+  it('force-reviews when mentionTriggered even with mode=review', () => {
+    // When user comments "@mergewatch review", mode is 'review' but mentionTriggered is true
+    // This should NOT be blocked by autoReview: false
+    const result = shouldSkipByRules({ ...defaults, autoReview: false }, { mode: 'review', mentionTriggered: true });
     expect(result).toBeNull();
   });
 

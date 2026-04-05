@@ -163,8 +163,8 @@ export async function handler(
   const shortSha = headSha.slice(0, 7);
   const prNumberCommitSha = `${prNumber}#${shortSha}`;
 
-  // ── Smart skip ────
-  const skipReason = shouldSkipPR(prContext.files);
+  // ── Smart skip — bypass when user explicitly requested a review via @mergewatch ────
+  const skipReason = event.mentionTriggered ? null : shouldSkipPR(prContext.files);
   if (skipReason) {
     console.log(`Skipping ${repoFullName}#${prNumber}: ${skipReason}`);
 
@@ -285,6 +285,7 @@ export async function handler(
       labels: event.prLabels,
       changedFileCount: event.changedFileCount ?? prContext?.files?.length,
       mode,
+      mentionTriggered: event.mentionTriggered,
     });
     if (rulesSkipReason) {
       console.log(`Rules skip ${repoFullName}#${prNumber}: ${rulesSkipReason}`);

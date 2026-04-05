@@ -130,8 +130,8 @@ export async function processReviewJob(
     summary: `MergeWatch is reviewing PR #${prNumber}...`,
   }).catch((err) => console.warn('Failed to create in-progress check run:', err));
 
-  // Smart skip check
-  const skipReason = shouldSkipPR(prContext.files || []);
+  // Smart skip check — bypass when user explicitly requested a review via @mergewatch
+  const skipReason = job.mentionTriggered ? null : shouldSkipPR(prContext.files || []);
   if (skipReason) {
     await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: now, skipReason });
     await createCheckRun(octokit, owner, repo, headSha, {
@@ -186,6 +186,7 @@ export async function processReviewJob(
     labels: job.prLabels,
     changedFileCount: job.changedFileCount ?? prContext?.files?.length,
     mode,
+    mentionTriggered: job.mentionTriggered,
   });
   if (rulesSkipReason) {
     await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: now, skipReason: rulesSkipReason });

@@ -106,6 +106,7 @@ async function handleIssueComment(payload: IssueCommentEvent, deps: WebhookDeps)
     repo: repository.name,
     prNumber: issue.number,
     mode,
+    mentionTriggered: true,
     ...(userComment ? { userComment, userCommentAuthor: comment.user.login } : {}),
   };
 
