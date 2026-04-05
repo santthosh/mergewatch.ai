@@ -217,6 +217,7 @@ async function handleIssueCommentEvent(
     prNumber,
     mode,
     existingCommentId,
+    mentionTriggered: true,
   };
 
   if (mode === "respond") {

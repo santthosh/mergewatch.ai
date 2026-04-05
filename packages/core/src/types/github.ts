@@ -206,6 +206,8 @@ export interface ReviewJobPayload {
   prLabels?: string[];
   /** Number of changed files in the PR (passed from webhook for config-aware skip logic). */
   changedFileCount?: number;
+  /** True when triggered by an @mergewatch comment (force-bypasses skip logic). */
+  mentionTriggered?: boolean;
   /** For "respond" mode: the user's comment body that triggered the response. */
   userComment?: string;
   /** For "respond" mode: the login of the user who commented. */
