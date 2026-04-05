@@ -153,6 +153,15 @@ describe('processReviewJob — check runs', () => {
     );
   });
 
+  it('bypasses smart skip when mentionTriggered is true', async () => {
+    (shouldSkipPR as any).mockReturnValue('Only docs changed');
+    const deps = makeDeps();
+    await processReviewJob(makeJob({ mentionTriggered: true }), deps);
+
+    // shouldSkipPR return value is ignored — review runs through to pipeline
+    expect(runReviewPipeline).toHaveBeenCalled();
+  });
+
   it('creates neutral check run on rules skip', async () => {
     (shouldSkipByRules as any).mockReturnValue('Draft PR skipped');
     const deps = makeDeps();
