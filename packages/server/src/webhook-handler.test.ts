@@ -51,8 +51,8 @@ describe('parseReviewMode', () => {
     expect(parseReviewMode(body)).toEqual({ mode: 'respond', userComment: body });
   });
 
-  it('returns mode "review" when no @mergewatch is mentioned (default)', () => {
-    expect(parseReviewMode('This is a regular comment')).toEqual({ mode: 'review' });
+  it('returns null when no @mergewatch is mentioned', () => {
+    expect(parseReviewMode('This is a regular comment')).toBeNull();
   });
 
   it('is case-insensitive', () => {
