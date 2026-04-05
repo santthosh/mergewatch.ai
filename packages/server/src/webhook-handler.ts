@@ -20,12 +20,12 @@ export function verifySignature(payload: string, signature: string, secret: stri
   return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
 }
 
-export function parseReviewMode(body: string): { mode: ReviewMode; userComment?: string } {
+export function parseReviewMode(body: string): { mode: ReviewMode; userComment?: string } | null {
   const lower = body.toLowerCase().trim();
   if (lower.includes('@mergewatch review')) return { mode: 'review' };
   if (lower.includes('@mergewatch summary')) return { mode: 'summary' };
   if (lower.includes('@mergewatch')) return { mode: 'respond', userComment: body };
-  return { mode: 'review' };
+  return null;
 }
 
 export function createWebhookHandler(deps: WebhookDeps) {
@@ -98,7 +98,10 @@ async function handleIssueComment(payload: IssueCommentEvent, deps: WebhookDeps)
   const { action, comment, issue, repository, installation } = payload;
   if (action !== 'created' || !installation || !issue.pull_request) return;
 
-  const { mode, userComment } = parseReviewMode(comment.body);
+  const parsed = parseReviewMode(comment.body);
+  if (!parsed) return; // No @mergewatch mention — ignore comment
+
+  const { mode, userComment } = parsed;
 
   const job: ReviewJobPayload = {
     installationId: installation.id,
