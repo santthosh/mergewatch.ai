@@ -9,6 +9,7 @@
 <p align="center">
   <a href="https://github.com/santthosh/mergewatch.ai/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/santthosh/mergewatch.ai/ci.yml?style=flat-square&label=tests" alt="Tests"></a>
   <a href="https://github.com/santthosh/mergewatch.ai/actions/workflows/docker-publish.yml"><img src="https://img.shields.io/github/actions/workflow/status/santthosh/mergewatch.ai/docker-publish.yml?style=flat-square&label=docker" alt="Docker"></a>
+  <img src="https://img.shields.io/badge/coverage-85%25-brightgreen?style=flat-square" alt="Coverage">
   <a href="https://github.com/santthosh/mergewatch.ai"><img src="https://img.shields.io/github/stars/santthosh/mergewatch.ai?style=flat-square" alt="Stars"></a>
   <a href="https://github.com/santthosh/mergewatch.ai/issues"><img src="https://img.shields.io/github/issues/santthosh/mergewatch.ai?style=flat-square" alt="Issues"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="License"></a>
