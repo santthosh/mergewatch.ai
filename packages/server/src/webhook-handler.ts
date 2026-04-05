@@ -95,8 +95,11 @@ async function handlePullRequest(payload: PullRequestEvent, deps: WebhookDeps) {
 }
 
 async function handleIssueComment(payload: IssueCommentEvent, deps: WebhookDeps) {
-  const { action, comment, issue, repository, installation } = payload;
+  const { action, comment, issue, repository, installation, sender } = payload;
   if (action !== 'created' || !installation || !issue.pull_request) return;
+
+  // Ignore comments from bots (prevents self-triggering loops)
+  if (sender.type === 'Bot') return;
 
   const parsed = parseReviewMode(comment.body);
   if (!parsed) return; // No @mergewatch mention — ignore comment

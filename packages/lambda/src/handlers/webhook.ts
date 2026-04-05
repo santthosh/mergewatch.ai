@@ -190,6 +190,9 @@ async function handleIssueCommentEvent(
   if (event.action !== "created") return;
   if (!event.issue.pull_request) return;
 
+  // Ignore comments from bots (prevents self-triggering loops)
+  if (event.sender.type === "Bot") return;
+
   const mode = parseReviewMode(event.comment.body);
   if (!mode) return;
 
