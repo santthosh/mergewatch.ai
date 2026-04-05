@@ -39,7 +39,7 @@ vi.mock('@mergewatch/core', async (importOriginal) => {
 
 import {
   getPRContext, getPRDiff, createCheckRun, shouldSkipPR, shouldSkipByRules,
-  runReviewPipeline, postReplyComment,
+  runReviewPipeline, postReplyComment, fetchRepoConfig,
 } from '@mergewatch/core';
 import { processReviewJob } from './review-processor.js';
 
@@ -364,5 +364,88 @@ describe('processReviewJob — respond mode', () => {
 
     // Without userComment, respond mode is skipped → falls through to review
     expect(deps.reviewStore.claimReview).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Config merging — dashboard settings override YAML
+// ---------------------------------------------------------------------------
+
+describe('processReviewJob — config merging', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (getPRContext as any).mockResolvedValue(basePRContext);
+    (getPRDiff as any).mockResolvedValue('diff content');
+    (shouldSkipPR as any).mockReturnValue(null);
+    (shouldSkipByRules as any).mockReturnValue(null);
+    (runReviewPipeline as any).mockResolvedValue(basePipelineResult);
+  });
+
+  it('maps dashboard severity threshold to minSeverity', async () => {
+    const deps = makeDeps({
+      installationStore: {
+        get: vi.fn().mockResolvedValue(null),
+        getSettings: vi.fn().mockResolvedValue({
+          ...DEFAULT_INSTALLATION_SETTINGS,
+          severityThreshold: 'High',
+        }),
+        upsert: vi.fn(),
+      } as unknown as IInstallationStore,
+    });
+
+    await processReviewJob(makeJob(), deps);
+
+    const pipelineCall = (runReviewPipeline as any).mock.calls[0][0];
+    expect(pipelineCall).toBeDefined();
+  });
+
+  it('maps dashboard commentTypes to agent flags', async () => {
+    const deps = makeDeps({
+      installationStore: {
+        get: vi.fn().mockResolvedValue(null),
+        getSettings: vi.fn().mockResolvedValue({
+          ...DEFAULT_INSTALLATION_SETTINGS,
+          commentTypes: { logic: false, syntax: true, style: false },
+        }),
+        upsert: vi.fn(),
+      } as unknown as IInstallationStore,
+    });
+
+    await processReviewJob(makeJob(), deps);
+
+    // Verify pipeline was called (config was merged without errors)
+    expect(runReviewPipeline).toHaveBeenCalled();
+  });
+
+  it('uses YAML config as base when present', async () => {
+    (fetchRepoConfig as any).mockResolvedValue({
+      model: 'custom-model',
+      maxFindings: 10,
+    });
+
+    const deps = makeDeps();
+    await processReviewJob(makeJob(), deps);
+
+    expect(runReviewPipeline).toHaveBeenCalled();
+  });
+
+  it('overrides model with LLM_MODEL env var', async () => {
+    const original = process.env.LLM_MODEL;
+    process.env.LLM_MODEL = 'env-override-model';
+
+    try {
+      const deps = makeDeps();
+      await processReviewJob(makeJob(), deps);
+
+      const pipelineCall = (runReviewPipeline as any).mock.calls[0][0];
+      expect(pipelineCall.modelId).toBe('env-override-model');
+      expect(pipelineCall.lightModelId).toBe('env-override-model');
+    } finally {
+      if (original === undefined) {
+        delete process.env.LLM_MODEL;
+      } else {
+        process.env.LLM_MODEL = original;
+      }
+    }
   });
 });

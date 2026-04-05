@@ -132,6 +132,36 @@ describe('runSecurityAgent', () => {
   });
 });
 
+// ─── buildPrompt (tested indirectly via runSecurityAgent) ──────────────────
+
+describe('buildPrompt via runSecurityAgent', () => {
+  it('includes tone directive in prompt when tone is provided', async () => {
+    const llm = createMockLLM([JSON.stringify({ findings: [] })]);
+    await runSecurityAgent(sampleDiff, sampleContext, 'model-1', llm, undefined, 'direct');
+    expect(llm.calls[0].prompt).toContain('Tone: Direct');
+  });
+
+  it('strips tone placeholder when no tone is provided', async () => {
+    const llm = createMockLLM([JSON.stringify({ findings: [] })]);
+    await runSecurityAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(llm.calls[0].prompt).not.toContain('{{TONE_DIRECTIVE}}');
+  });
+
+  it('includes PR title and body in prompt context', async () => {
+    const llm = createMockLLM([JSON.stringify({ findings: [] })]);
+    await runSecurityAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(llm.calls[0].prompt).toContain('Title: Test PR');
+    expect(llm.calls[0].prompt).toContain('A test pull request');
+  });
+
+  it('includes diff in prompt', async () => {
+    const llm = createMockLLM([JSON.stringify({ findings: [] })]);
+    await runSecurityAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(llm.calls[0].prompt).toContain('--- Diff ---');
+    expect(llm.calls[0].prompt).toContain('import { bar }');
+  });
+});
+
 // ─── runBugAgent ────────────────────────────────────────────────────────────
 
 describe('runBugAgent', () => {
