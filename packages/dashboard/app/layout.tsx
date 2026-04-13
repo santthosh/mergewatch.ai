@@ -46,6 +46,15 @@ export const metadata: Metadata = {
   },
 };
 
+function serializeJsonLd(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
 const jsonLd = [
   {
     "@context": "https://schema.org",
@@ -93,7 +102,7 @@ export default function RootLayout({
         <ThemeProvider>{children}</ThemeProvider>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
         />
       </body>
     </html>
