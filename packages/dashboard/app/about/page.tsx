@@ -66,17 +66,47 @@ export default function AboutPage() {
         >
           Santthosh
         </a>
-        , a software engineer with a long background shipping developer
-        tooling. Contributions are welcome &mdash; pull requests, bug reports,
-        and feature ideas all land in the{" "}
+        , a software engineer who has spent the last decade-plus building and
+        shipping developer tooling, web infrastructure, and SaaS products at
+        small startups and large platform teams. MergeWatch is an opinionated
+        response to a recurring frustration: every code review tool on the
+        market either locks you into a closed model, prices per seat so that
+        growing teams pay more for the same thing, or ships as a thin wrapper
+        around a single LLM vendor.
+      </p>
+      <p>
+        The project is developed in public. Every design decision, prompt
+        change, and pipeline tweak lands as a regular commit on{" "}
         <a
           href="https://github.com/santthosh/mergewatch.ai"
           target="_blank"
           rel="noopener noreferrer"
         >
-          GitHub repository
+          the GitHub repository
         </a>
-        .
+        , and the project itself is dogfooded &mdash; MergeWatch reviews every
+        pull request that goes into MergeWatch. Contributions of every size
+        are welcome: pull requests, bug reports, provider adapters, custom
+        agent ideas, documentation fixes, and security reports all land in the
+        same issue tracker. If you want to discuss a larger change before
+        opening a PR, start with a GitHub Discussion first.
+      </p>
+      <h2>Status and roadmap</h2>
+      <p>
+        MergeWatch is at version 1.0 as of April 2026 and is actively
+        maintained. The public roadmap covers expanding the built-in agent
+        library, first-class support for additional LLM providers, and
+        deeper IDE integration so that reviewer comments can flow back into
+        editors like Cursor, Zed, and VS Code without leaving the PR
+        context. Follow the{" "}
+        <a
+          href="https://github.com/santthosh/mergewatch.ai/releases"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          GitHub releases page
+        </a>{" "}
+        for changelog updates and new version announcements.
       </p>
 
       <h2>Get involved</h2>
