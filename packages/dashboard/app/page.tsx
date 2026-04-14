@@ -492,6 +492,14 @@ export default function LandingPage() {
             <h4 className="font-semibold text-fg-primary">Company</h4>
             <ul className="mt-3 space-y-2 text-primer-muted">
               <li>
+                <Link
+                  href="/about"
+                  className="transition hover:text-fg-primary"
+                >
+                  About
+                </Link>
+              </li>
+              <li>
                 <a
                   href="https://github.com/santthosh/mergewatch.ai"
                   target="_blank"
@@ -517,6 +525,22 @@ export default function LandingPage() {
             <h4 className="font-semibold text-fg-primary">Legal</h4>
             <ul className="mt-3 space-y-2 text-primer-muted">
               <li>
+                <Link
+                  href="/privacy"
+                  className="transition hover:text-fg-primary"
+                >
+                  Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/terms"
+                  className="transition hover:text-fg-primary"
+                >
+                  Terms of Service
+                </Link>
+              </li>
+              <li>
                 <a
                   href="https://github.com/santthosh/mergewatch.ai/blob/main/LICENSE"
                   target="_blank"
@@ -530,7 +554,16 @@ export default function LandingPage() {
           </div>
         </div>
         <p className="mt-8 text-center text-xs text-primer-muted">
-          Open source under AGPL-3.0 &copy; {new Date().getFullYear()}{" "}
+          Built by{" "}
+          <a
+            href="https://github.com/santthosh"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition hover:text-fg-primary"
+          >
+            Santthosh
+          </a>{" "}
+          &middot; Open source under AGPL-3.0 &copy; {new Date().getFullYear()}{" "}
           mergewatch.ai
         </p>
       </footer>
