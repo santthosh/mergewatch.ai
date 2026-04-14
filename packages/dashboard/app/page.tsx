@@ -106,13 +106,13 @@ export default async function LandingPage() {
             href="https://docs.mergewatch.ai"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-primer-muted transition hover:text-fg-primary"
+            className="hidden text-sm text-primer-muted transition hover:text-fg-primary sm:inline"
           >
             Docs
           </a>
           <Link
             href="/pricing"
-            className="text-sm text-primer-muted transition hover:text-fg-primary"
+            className="hidden text-sm text-primer-muted transition hover:text-fg-primary sm:inline"
           >
             Pricing
           </Link>
@@ -120,7 +120,7 @@ export default async function LandingPage() {
             href="https://github.com/santthosh/mergewatch.ai"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-primer-muted transition hover:text-fg-primary"
+            className="hidden text-primer-muted transition hover:text-fg-primary sm:inline"
             aria-label="GitHub repository"
           >
             <Github size={20} />
