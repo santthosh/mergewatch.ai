@@ -24,6 +24,44 @@ import {
 
 const GITHUB_REPO = "santthosh/mergewatch.ai";
 
+function serializeJsonLd(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
+/**
+ * Self-contained answer blocks optimized for AI Overviews, ChatGPT search,
+ * and Perplexity passage extraction. Each answer opens with a direct
+ * factual sentence and stays within the 90-170 word sweet spot. Rendered
+ * both as visible page content and as FAQPage JSON-LD for AI systems.
+ */
+const faqs: { question: string; answer: string }[] = [
+  {
+    question: "What does MergeWatch review on a pull request?",
+    answer:
+      "MergeWatch runs five parallel specialist agents on every pull request: security (OWASP Top 10, injection patterns, exposed secrets), bugs (null dereferences, race conditions, off-by-one errors), style (naming, dead code, missing types), summary (PR intent and risk rating), and architectural impact (a Mermaid diagram of changed control flow). All agents execute in parallel, so total latency is bounded by the slowest agent, not the sum — most reviews complete in under 60 seconds. You can define additional custom agents in .mergewatch.yml with just a name and a prompt. Findings are deduplicated, ranked by severity and confidence, and posted as a single upsert-style comment on the PR.",
+  },
+  {
+    question: "How much does MergeWatch cost?",
+    answer:
+      "MergeWatch is priced by pull request volume, not per developer. A five-person team and a hundred-person team merging the same number of PRs pay the same amount, so hiring engineers does not make your bill bigger. The self-hosted distribution is free forever under the GNU AGPL v3 license — you bring your own LLM provider and pay that provider directly. The managed SaaS gives the first 5 reviews free, then uses prepaid credits based on actual LLM cost plus a small platform fee (roughly $0.005 per review plus a 40% margin on the LLM call itself). No credit card is required to start, and you can cancel at any time.",
+  },
+  {
+    question: "Does MergeWatch support self-hosting?",
+    answer:
+      "Yes. MergeWatch ships as open-source software under the GNU AGPL v3 license, and the full source code — including every agent prompt, the orchestrator, and all comment templates — is available at github.com/santthosh/mergewatch.ai. Self-hosting requires running docker-compose up, which starts an Express server backed by Postgres. You supply your own GitHub App credentials, database URL, and LLM provider via environment variables. MergeWatch runs on AWS, GCP, Azure, bare metal, Fly.io, Railway, or any environment that can run Docker. Your code never leaves your infrastructure, which makes the self-hosted distribution appropriate for regulated industries, air-gapped environments, and organizations with strict data residency requirements.",
+  },
+  {
+    question: "Which LLM providers does MergeWatch support?",
+    answer:
+      "MergeWatch supports four LLM provider backends out of the box. Anthropic (direct Claude API) is the default for self-hosted installs. Amazon Bedrock (IAM-authenticated Claude models) powers the managed SaaS and eliminates the need to manage API keys. LiteLLM is an OpenAI-compatible proxy that gives access to 100+ providers including OpenAI, Google Gemini, Azure OpenAI, Groq, and Together AI. Ollama supports local models for air-gapped or privacy-sensitive environments and is currently experimental. Self-hosted deployments select a provider via the LLM_PROVIDER environment variable. The ILLMProvider interface in @mergewatch/core is a single method, so adding a new backend is a small amount of code.",
+  },
+];
+
 /**
  * Fetch live GitHub star count for social proof. ISR-cached for 5 minutes
  * via the fetch options, matching the page `revalidate` setting. Returns
@@ -254,6 +292,30 @@ export default async function LandingPage() {
           </code>{" "}
           with a name and a prompt.
         </p>
+      </section>
+
+      {/* ─── 4.5 Frequently Asked ──────────────────────────────────────── */}
+      <section className="border-t border-border-default px-6 py-16 md:py-24">
+        <h2 className="text-center text-2xl font-bold md:text-4xl">
+          Frequently asked.{" "}
+          <span className="text-primer-green">Directly answered.</span>
+        </h2>
+
+        <div className="mx-auto mt-12 max-w-3xl space-y-8">
+          {faqs.map((faq) => (
+            <div
+              key={faq.question}
+              className="rounded-xl border border-border-default bg-surface-card/60 p-6"
+            >
+              <h3 className="text-lg font-semibold text-fg-primary">
+                {faq.question}
+              </h3>
+              <p className="mt-3 text-sm leading-relaxed text-primer-muted">
+                {faq.answer}
+              </p>
+            </div>
+          ))}
+        </div>
       </section>
 
       {/* ─── 5. What Reviewers See — Output Preview ────────────────────── */}
@@ -639,6 +701,24 @@ export default async function LandingPage() {
           mergewatch.ai
         </p>
       </footer>
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: serializeJsonLd({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: faqs.map((faq) => ({
+              "@type": "Question",
+              name: faq.question,
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: faq.answer,
+              },
+            })),
+          }),
+        }}
+      />
     </div>
   );
 }
