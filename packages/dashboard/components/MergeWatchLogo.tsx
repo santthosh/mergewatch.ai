@@ -49,9 +49,12 @@ export function LogoIcon({ size = 20, className }: { size?: number; className?: 
 /** Full wordmark: logo icon + "merge" white + "watch" green + ".ai" */
 export function Wordmark({ iconSize = 20, className }: { iconSize?: number; className?: string }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 ${className ?? ""}`}>
-      <LogoIcon size={iconSize} />
-      <span className="text-lg font-bold tracking-tight">
+    <span className={`inline-flex shrink-0 items-center gap-1.5 ${className ?? ""}`}>
+      <LogoIcon
+        size={iconSize}
+        className="shrink-0"
+      />
+      <span className="whitespace-nowrap text-lg font-bold tracking-tight">
         <span className="text-fg-primary">merge</span>
         <span className="text-accent-green">watch</span>
         <span className="text-fg-tertiary">.ai</span>
