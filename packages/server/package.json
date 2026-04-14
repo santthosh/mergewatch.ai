@@ -21,7 +21,7 @@
     "@mergewatch/storage-postgres": "workspace:*",
     "@octokit/auth-app": "^7.1.0",
     "@octokit/rest": "^21.0.0",
-    "drizzle-orm": "^0.38.0",
+    "drizzle-orm": "^0.45.2",
     "express": "^4.21.0",
     "express-rate-limit": "^8.3.2",
     "postgres": "^3.4.0"
