@@ -1,11 +1,79 @@
 const path = require('path');
 
+/**
+ * Security headers applied to every response. HSTS and the nosniff/frame/
+ * referrer policies are safe universal defaults; CSP is intentionally left
+ * out for now because the app uses inline JSON-LD and NextAuth redirects
+ * that would require report-only rollout first.
+ */
+const securityHeaders = [
+  {
+    key: 'Strict-Transport-Security',
+    value: 'max-age=63072000; includeSubDomains; preload',
+  },
+  {
+    key: 'X-Content-Type-Options',
+    value: 'nosniff',
+  },
+  {
+    key: 'X-Frame-Options',
+    value: 'DENY',
+  },
+  {
+    key: 'Referrer-Policy',
+    value: 'strict-origin-when-cross-origin',
+  },
+  {
+    key: 'Permissions-Policy',
+    value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+  },
+];
+
+// Public marketing pages — safe to cache aggressively at the CDN edge.
+const publicCacheControl = {
+  key: 'Cache-Control',
+  value: 'public, s-maxage=300, stale-while-revalidate=86400',
+};
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // 'standalone' output bundles the server into a self-contained directory.
   // Required for AWS Amplify SSR hosting — Amplify deploys the .next/standalone
   // output as Lambda@Edge functions.
   output: 'standalone',
+
+  // Strip the X-Powered-By: Next.js fingerprint header.
+  poweredByHeader: false,
+
+  async headers() {
+    return [
+      {
+        // Apply the security headers to every route.
+        source: '/:path*',
+        headers: securityHeaders,
+      },
+      {
+        source: '/',
+        headers: [publicCacheControl],
+      },
+      {
+        source: '/pricing',
+        headers: [publicCacheControl],
+      },
+      {
+        source: '/about',
+        headers: [publicCacheControl],
+      },
+      {
+        source: '/privacy',
+        headers: [publicCacheControl],
+      },
+      {
+        source: '/terms',
+        headers: [publicCacheControl],
+      },
+    ];
+  },
 
   // Expose env vars to the server runtime (Amplify SSR only gets build-time
   // env vars by default — this ensures they're bundled into the runtime).

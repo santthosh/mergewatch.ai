@@ -1,4 +1,9 @@
-export const dynamic = "force-dynamic";
+// Revalidate every 5 minutes so the CDN can cache the rendered HTML while
+// still picking up deploy-time env changes within a reasonable window.
+// DEPLOYMENT_MODE is inlined at build time via next.config.js, so the
+// redirect branch is dead code in the SaaS build and this page renders
+// as a static ISR asset.
+export const revalidate = 300;
 
 import { redirect } from "next/navigation";
 import Link from "next/link";
