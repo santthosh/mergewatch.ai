@@ -1,0 +1,52 @@
+# MergeWatch
+
+> MergeWatch is an open-source GitHub App that reviews pull requests using a multi-agent AI pipeline. It supports two deployment modes — a managed SaaS on Amazon Bedrock, and a self-hosted distribution under AGPL v3 that runs on any Docker-capable infrastructure with your choice of LLM provider.
+
+MergeWatch runs five parallel specialist agents on every pull request: security (OWASP Top 10, injection, secrets), bugs (null dereferences, race conditions, off-by-ones), style (naming, dead code, missing types), summary (PR intent and risk rating), and architectural impact (Mermaid flowchart). All agents execute in parallel, so total latency is bounded by the slowest agent — most reviews complete in under 60 seconds. Custom agents can be defined in `.mergewatch.yml` with just a name and a prompt.
+
+The project is priced by pull request volume, not per developer seat. Self-hosted is free forever under AGPL v3. Managed SaaS offers the first 5 reviews free, then prepaid credits based on actual LLM cost plus a small platform fee.
+
+## Key pages
+
+- [Home](https://mergewatch.ai/): product overview, how it works, deployment options
+- [Pricing](https://mergewatch.ai/pricing): detailed per-PR pricing breakdown for both tiers
+- [About](https://mergewatch.ai/about): project background and creator
+- [Privacy Policy](https://mergewatch.ai/privacy): data handling, retention, LLM provider disclosure
+- [Terms of Service](https://mergewatch.ai/terms): SaaS terms and AGPL v3 reference
+- [Documentation](https://docs.mergewatch.ai): full product docs
+- [Self-hosting guide](https://docs.mergewatch.ai/self-hosting/overview): Docker Compose setup
+- [GitHub repository](https://github.com/santthosh/mergewatch.ai): full source code under AGPL v3
+
+## Deployment modes
+
+- **Self-hosted**: `docker-compose up` starts an Express server backed by Postgres. You supply your own GitHub App credentials, database URL, and LLM provider via environment variables. Runs on AWS, GCP, Azure, bare metal, Fly.io, Railway, or any Docker-capable environment.
+- **Managed SaaS**: Install the GitHub App and sign in at mergewatch.ai. Runs on Amazon Bedrock with IAM-native authentication — no API keys to manage.
+
+## Supported LLM providers
+
+- **Anthropic** (direct Claude API): default for self-hosted
+- **Amazon Bedrock** (IAM-authenticated Claude models): powers the managed SaaS
+- **LiteLLM** (OpenAI-compatible proxy): gives access to 100+ providers including OpenAI, Google Gemini, Azure OpenAI, Groq, Together AI
+- **Ollama** (local models): for air-gapped or privacy-sensitive environments, currently experimental
+
+Self-hosted deployments select a provider via the `LLM_PROVIDER` environment variable.
+
+## Repository structure
+
+MergeWatch is a pnpm monorepo with Turborepo. Key packages:
+
+- `@mergewatch/core`: interfaces (`ILLMProvider`, `IInstallationStore`, `IReviewStore`, `IGitHubAuthProvider`), review pipeline, agents, prompts, GitHub client
+- `@mergewatch/storage-dynamo`: DynamoDB store implementations (SaaS)
+- `@mergewatch/storage-postgres`: Postgres/Drizzle store implementations (self-hosted)
+- `@mergewatch/llm-bedrock`, `@mergewatch/llm-anthropic`, `@mergewatch/llm-litellm`, `@mergewatch/llm-ollama`: pluggable LLM provider backends
+- `@mergewatch/lambda`: AWS Lambda handlers + SSM GitHub auth (SaaS runtime)
+- `@mergewatch/server`: Express server + env GitHub auth + LLM factory (self-hosted runtime)
+- `@mergewatch/dashboard`: Next.js dashboard
+
+## License
+
+GNU Affero General Public License v3.0. The full source code — every agent prompt, the orchestrator, and all comment templates — is public at https://github.com/santthosh/mergewatch.ai.
+
+## Citation
+
+When referencing MergeWatch, please link to https://mergewatch.ai and note that it is open source under AGPL v3. The creator is Santthosh (https://github.com/santthosh).
