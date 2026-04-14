@@ -25,6 +25,13 @@ export function middleware(req: NextRequest) {
 
   if (host.startsWith("www.")) {
     const url = req.nextUrl.clone();
+    // Clear the inbound port before rewriting the host. req.nextUrl.clone()
+    // preserves the internal Lambda port (3000 on Amplify SSR), and the
+    // URL API keeps `port` and `host` as independent properties — setting
+    // `host` alone does not strip the port, so the Location header would
+    // otherwise read https://mergewatch.ai:3000/ and break canonical
+    // consolidation for Googlebot.
+    url.port = "";
     url.host = host.slice(4);
     url.protocol = "https";
     return NextResponse.redirect(url, 301);
