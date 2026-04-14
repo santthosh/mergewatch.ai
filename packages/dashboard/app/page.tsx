@@ -18,7 +18,32 @@ import {
   Server,
   Cloud,
   CheckCircle2,
+  Star,
+  Lock,
 } from "lucide-react";
+
+const GITHUB_REPO = "santthosh/mergewatch.ai";
+
+/**
+ * Fetch live GitHub star count for social proof. ISR-cached for 5 minutes
+ * via the fetch options, matching the page `revalidate` setting. Returns
+ * null on any failure so the UI can fall back gracefully.
+ */
+async function getGithubStars(): Promise<number | null> {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}`, {
+      next: { revalidate: 300 },
+      headers: { Accept: "application/vnd.github+json" },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { stargazers_count?: number };
+    return typeof data.stargazers_count === "number"
+      ? data.stargazers_count
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Landing page for mergewatch.ai — psychological copy rewrite.
@@ -28,10 +53,11 @@ import {
  *
  * Self-hosted deployments skip straight to /signin.
  */
-export default function LandingPage() {
+export default async function LandingPage() {
   if (process.env.DEPLOYMENT_MODE !== "saas") {
     redirect("/signin");
   }
+  const stars = await getGithubStars();
   return (
     <div className="flex min-h-screen flex-col">
       {/* ─── 1. Nav ────────────────────────────────────────────────────── */}
@@ -112,6 +138,10 @@ export default function LandingPage() {
           AGPL v3&nbsp;&mdash; the whole codebase, not just the parts
           we&rsquo;re comfortable showing you.
         </p>
+
+        <p className="mt-3 text-[11px] uppercase tracking-widest text-primer-muted">
+          v1.0 &middot; Updated April 2026 &middot; Actively maintained
+        </p>
       </section>
 
       {/* ─── 3. Social Proof Bar ───────────────────────────────────────── */}
@@ -121,15 +151,52 @@ export default function LandingPage() {
           Fly.io &middot; Railway
         </p>
 
-        <div className="mx-auto mt-10 grid max-w-4xl gap-8 md:grid-cols-2">
-          <Testimonial
-            quote="We switched from our previous review tool after they went closed-source. MergeWatch catches the same issues, costs a fraction of the price, and our infra team can actually audit what's running on our code."
-            author="Engineering lead, Series B startup"
-          />
-          <Testimonial
-            quote="The security agent flagged a path traversal vulnerability on our first PR. Our human reviewer had been looking at that file for 10 minutes."
-            author="Senior engineer"
-          />
+        <div className="mx-auto mt-10 grid max-w-4xl gap-6 md:grid-cols-2">
+          <a
+            href={`https://github.com/${GITHUB_REPO}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-start gap-4 rounded-xl border border-border-default bg-surface-card/60 p-5 transition hover:border-primer-green hover:bg-surface-card"
+          >
+            <div className="rounded-lg bg-surface-inset p-2 text-primer-green">
+              <Star className="h-5 w-5" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-fg-primary">
+                {stars !== null
+                  ? `${stars.toLocaleString()} stars on GitHub`
+                  : "Star MergeWatch on GitHub"}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-primer-muted">
+                Real numbers, not testimonials. The full pipeline is public
+                &mdash; agent prompts, orchestrator, comment templates. Audit
+                what runs on your code before you install it.
+              </p>
+              <p className="mt-2 text-xs text-primer-green transition group-hover:underline">
+                View the repo &rarr;
+              </p>
+            </div>
+          </a>
+
+          <div className="flex items-start gap-4 rounded-xl border border-border-default bg-surface-card/60 p-5">
+            <div className="rounded-lg bg-surface-inset p-2 text-primer-purple">
+              <Lock className="h-5 w-5" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-fg-primary">
+                AGPL v3 &middot; Self-host anywhere
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-primer-muted">
+                Your code never has to leave your infrastructure.{" "}
+                <code className="rounded bg-surface-inset px-1 py-0.5 text-[10px] text-fg-primary">
+                  docker-compose up
+                </code>{" "}
+                and point it at Anthropic, OpenAI via LiteLLM, Ollama for
+                air-gapped, or Amazon Bedrock with IAM auth. No API keys
+                leave your network.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -577,25 +644,6 @@ export default function LandingPage() {
 }
 
 /* ─── Inline sub-components ──────────────────────────────────────────────── */
-
-function Testimonial({
-  quote,
-  author,
-}: {
-  quote: string;
-  author: string;
-}) {
-  return (
-    <blockquote className="rounded-xl border border-border-default bg-surface-card/60 p-5">
-      <p className="text-sm leading-relaxed text-fg-primary">
-        &ldquo;{quote}&rdquo;
-      </p>
-      <cite className="mt-3 block text-xs not-italic text-primer-muted">
-        &mdash; {author}
-      </cite>
-    </blockquote>
-  );
-}
 
 function AgentCard({
   icon,
