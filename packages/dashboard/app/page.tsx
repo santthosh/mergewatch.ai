@@ -48,7 +48,7 @@ const faqs: { question: string; answer: string }[] = [
   {
     question: "How much does MergeWatch cost?",
     answer:
-      "MergeWatch is priced by pull request volume, not per developer. A five-person team and a hundred-person team merging the same number of PRs pay the same amount, so hiring engineers does not make your bill bigger. The self-hosted distribution is free forever under the GNU AGPL v3 license — you bring your own LLM provider and pay that provider directly. The managed SaaS gives the first 5 reviews free, then uses prepaid credits based on actual LLM cost plus a small platform fee (roughly $0.005 per review plus a 40% margin on the LLM call itself). No credit card is required to start, and you can cancel at any time.",
+      "MergeWatch is priced by pull request volume, not per developer. A five-person team and a hundred-person team merging the same number of PRs pay the same amount, so hiring engineers does not make your bill bigger. The self-hosted distribution is free forever under the GNU AGPL v3 license — you bring your own LLM provider and pay that provider directly. The managed SaaS gives the first 5 reviews free, then uses prepaid credits based on actual LLM cost plus a small platform fee. No credit card is required to start, and you can cancel at any time. See mergewatch.ai/pricing for the full breakdown.",
   },
   {
     question: "Does MergeWatch support self-hosting?",
