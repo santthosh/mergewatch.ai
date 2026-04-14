@@ -37,15 +37,21 @@ const pricingJsonLd = {
       description:
         "Open source under AGPL v3. Deploy with Docker Compose, bring your own LLM provider.",
       url: "https://github.com/santthosh/mergewatch.ai",
+      availability: "https://schema.org/InStock",
     },
     {
       "@type": "Offer",
       name: "Managed SaaS",
-      price: "0",
-      priceCurrency: "USD",
       description:
-        "First 5 reviews free. Prepaid credits based on actual LLM cost + small platform fee. No per-seat pricing.",
+        "Pay-as-you-go. First 5 pull request reviews free. Prepaid credits priced on actual LLM usage plus a small platform fee. No per-seat pricing.",
       url: "https://mergewatch.ai/pricing",
+      availability: "https://schema.org/InStock",
+      priceSpecification: {
+        "@type": "UnitPriceSpecification",
+        priceCurrency: "USD",
+        price: "0",
+        unitText: "Free tier: first 5 reviews per month",
+      },
     },
   ],
   publisher: {

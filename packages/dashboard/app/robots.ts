@@ -11,6 +11,12 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/dashboard", "/api/", "/signin", "/signout", "/onboarding"],
       },
       {
+        // Opt out of Common Crawl, which feeds training corpora for many
+        // LLMs. Dedicated AI search crawlers are allowed explicitly below.
+        userAgent: "CCBot",
+        disallow: "/",
+      },
+      {
         userAgent: [
           "GPTBot",
           "OAI-SearchBot",

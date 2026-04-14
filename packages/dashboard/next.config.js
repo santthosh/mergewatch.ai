@@ -1,10 +1,30 @@
 const path = require('path');
 
 /**
+ * Content-Security-Policy starts in report-only mode. Violations will
+ * surface in browser devtools without blocking anything, so we can
+ * measure real-world breakage before flipping to enforcement. Inline
+ * scripts are needed for JSON-LD blocks and the Next.js theme
+ * detection script, so 'unsafe-inline' is scoped to script-src for now.
+ */
+const cspReportOnly = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: https://avatars.githubusercontent.com",
+  "font-src 'self' data:",
+  "connect-src 'self' https://api.github.com",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "upgrade-insecure-requests",
+].join('; ');
+
+/**
  * Security headers applied to every response. HSTS and the nosniff/frame/
- * referrer policies are safe universal defaults; CSP is intentionally left
- * out for now because the app uses inline JSON-LD and NextAuth redirects
- * that would require report-only rollout first.
+ * referrer policies are safe universal defaults. CSP ships in report-only
+ * mode; promote to enforcing (Content-Security-Policy) after a week of
+ * monitoring browser reports.
  */
 const securityHeaders = [
   {
@@ -26,6 +46,10 @@ const securityHeaders = [
   {
     key: 'Permissions-Policy',
     value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+  },
+  {
+    key: 'Content-Security-Policy-Report-Only',
+    value: cspReportOnly,
   },
 ];
 

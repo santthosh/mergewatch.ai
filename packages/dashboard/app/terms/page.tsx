@@ -107,8 +107,11 @@ export default function TermsOfServicePage() {
 
       <h2>10. Governing Law</h2>
       <p>
-        These Terms are governed by the laws of the jurisdiction in which the
-        maintainers reside, without regard to conflict-of-laws principles.
+        These Terms are governed by and construed in accordance with the laws
+        of the State of Delaware, United States, without regard to its
+        conflict-of-laws principles. Any dispute arising out of or relating to
+        these Terms or the Service shall be subject to the exclusive
+        jurisdiction of the state and federal courts located in Delaware.
       </p>
 
       <h2>11. Changes</h2>

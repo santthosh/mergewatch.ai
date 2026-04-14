@@ -70,25 +70,9 @@ const jsonLd = [
     name: SITE_NAME,
     url: SITE_URL,
   },
-  {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    name: SITE_NAME,
-    url: SITE_URL,
-    applicationCategory: "DeveloperApplication",
-    operatingSystem: "Web, Linux, macOS",
-    description: SITE_DESCRIPTION,
-    offers: {
-      "@type": "Offer",
-      price: "0",
-      priceCurrency: "USD",
-    },
-    publisher: {
-      "@type": "Organization",
-      name: SITE_NAME,
-      url: SITE_URL,
-    },
-  },
+  // SoftwareApplication is declared on /pricing/layout.tsx with real Offer
+  // data. Do not duplicate it here — Google parsers flag two entities of
+  // the same type on the same URL as a structured-data error.
 ];
 
 export default function RootLayout({
