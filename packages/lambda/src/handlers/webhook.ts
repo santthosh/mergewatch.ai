@@ -238,21 +238,34 @@ async function handleIssueCommentEvent(
 // ---------------------------------------------------------------------------
 
 /**
+ * Decide whether this review-comment event warrants engagement. Extracted as
+ * a pure predicate so the cheap filter branches can be unit-tested without
+ * stubbing Lambda and DynamoDB clients.
+ *
+ * Rules: only `created` action, only human senders (bots are filtered to
+ * prevent reply loops), only replies with `in_reply_to_id` set (skip
+ * top-level inline comments on new findings that humans start themselves),
+ * and only when installation metadata is present.
+ */
+export function shouldHandleReviewCommentEvent(
+  event: PullRequestReviewCommentEvent,
+): boolean {
+  if (event.action !== 'created') return false;
+  if (event.sender.type === 'Bot') return false;
+  if (event.comment.in_reply_to_id == null) return false;
+  if (!event.installation?.id) return false;
+  return true;
+}
+
+/**
  * Handle an inline review-comment reply. We only engage when a human replies
  * inside a thread whose root comment was authored by MergeWatch.
  */
 async function handleReviewCommentEvent(
   event: PullRequestReviewCommentEvent,
 ): Promise<void> {
-  if (event.action !== 'created') return;
-  if (event.sender.type === 'Bot') return; // loop guard
-  if (event.comment.in_reply_to_id == null) return; // not a reply — nothing to do
-
-  const installationId = event.installation?.id;
-  if (!installationId) {
-    console.warn('pull_request_review_comment event missing installation ID — skipping');
-    return;
-  }
+  if (!shouldHandleReviewCommentEvent(event)) return;
+  const installationId = event.installation!.id;
 
   const payload: ReviewJobPayload = {
     installationId,

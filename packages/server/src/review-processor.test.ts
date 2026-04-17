@@ -34,12 +34,21 @@ vi.mock('@mergewatch/core', async (importOriginal) => {
     getCommentReactions: vi.fn().mockResolvedValue({}),
     postReplyComment: vi.fn().mockResolvedValue(200),
     RESPOND_PROMPT: 'You are MergeWatch...',
+    fetchConventions: vi.fn().mockResolvedValue(null),
+    handleInlineReply: vi.fn().mockResolvedValue({
+      action: 'replied',
+      recommendation: 'keep',
+      botCommentId: 999,
+      inputTokens: 500,
+      outputTokens: 100,
+      estimatedCostUsd: 0.002,
+    }),
   };
 });
 
 import {
   getPRContext, getPRDiff, createCheckRun, shouldSkipPR, shouldSkipByRules,
-  runReviewPipeline, postReplyComment, fetchRepoConfig,
+  runReviewPipeline, postReplyComment, fetchRepoConfig, handleInlineReply,
 } from '@mergewatch/core';
 import { processReviewJob } from './review-processor.js';
 
@@ -447,5 +456,85 @@ describe('processReviewJob — config merging', () => {
         process.env.LLM_MODEL = original;
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// inline_reply mode
+// ---------------------------------------------------------------------------
+
+describe('processReviewJob — inline_reply mode', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('dispatches inline_reply mode to handleInlineReply', async () => {
+    const deps = makeDeps();
+    await processReviewJob(
+      makeJob({ mode: 'inline_reply', inlineReplyCommentId: 4242 }),
+      deps,
+    );
+
+    expect(handleInlineReply).toHaveBeenCalledTimes(1);
+    const [ctx, innerDeps] = (handleInlineReply as any).mock.calls[0];
+    expect(ctx.replyCommentId).toBe(4242);
+    expect(ctx.owner).toBe('test');
+    expect(ctx.repo).toBe('repo');
+    expect(innerDeps.llm).toBe(deps.llm);
+    // Review pipeline must NOT run for inline_reply mode
+    expect(runReviewPipeline).not.toHaveBeenCalled();
+  });
+
+  it('rolls inline-reply cost onto the parent review when one exists', async () => {
+    const deps = makeDeps();
+    (deps.reviewStore.queryByPR as any).mockResolvedValueOnce([
+      {
+        prNumberCommitSha: '1#abc123',
+        status: 'complete',
+        inputTokens: 1000,
+        outputTokens: 200,
+        estimatedCostUsd: 0.05,
+      },
+    ]);
+
+    await processReviewJob(
+      makeJob({ mode: 'inline_reply', inlineReplyCommentId: 1 }),
+      deps,
+    );
+
+    expect(deps.reviewStore.updateStatus).toHaveBeenCalledTimes(1);
+    const [, sk, status, patch] = (deps.reviewStore.updateStatus as any).mock.calls[0];
+    expect(sk).toBe('1#abc123');
+    expect(status).toBe('complete');
+    expect(patch.inputTokens).toBe(1500); // 1000 + 500 from handleInlineReply mock
+    expect(patch.outputTokens).toBe(300);
+    expect(patch.estimatedCostUsd).toBeCloseTo(0.052, 5);
+  });
+
+  it('does not update the parent review when inline reply used zero tokens', async () => {
+    (handleInlineReply as any).mockResolvedValueOnce({
+      action: 'resolved',
+      inputTokens: 0,
+      outputTokens: 0,
+      estimatedCostUsd: 0,
+    });
+    const deps = makeDeps();
+    (deps.reviewStore.queryByPR as any).mockResolvedValueOnce([
+      { prNumberCommitSha: '1#abc123', status: 'complete', inputTokens: 100, outputTokens: 50, estimatedCostUsd: 0.01 },
+    ]);
+
+    await processReviewJob(
+      makeJob({ mode: 'inline_reply', inlineReplyCommentId: 1 }),
+      deps,
+    );
+
+    expect(deps.reviewStore.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it('no-ops when inlineReplyCommentId is missing', async () => {
+    const deps = makeDeps();
+    await processReviewJob(makeJob({ mode: 'inline_reply' }), deps);
+    expect(handleInlineReply).not.toHaveBeenCalled();
+    expect(runReviewPipeline).not.toHaveBeenCalled();
   });
 });
