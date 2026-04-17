@@ -497,6 +497,221 @@ export async function postReplyComment(
 }
 
 // ---------------------------------------------------------------------------
+// Inline review comment operations (for threaded reply conversations)
+// ---------------------------------------------------------------------------
+
+/** A single inline review comment in a thread. */
+export interface ReviewThreadComment {
+  id: number;
+  body: string;
+  authorLogin: string;
+  isBot: boolean;
+  createdAt: string;
+  inReplyToId?: number;
+}
+
+/**
+ * Fetch the review-comment thread containing a given leaf comment and return
+ * it in chronological order (oldest first).
+ *
+ * GitHub's REST API returns review comments flat — threads are an emergent
+ * property of `in_reply_to_id` parent pointers. Replies in a single thread
+ * typically all point directly to the root comment rather than forming a
+ * linear parent chain, so to reconstruct the full conversation we: (1) walk
+ * from the leaf up to find the root, then (2) collect every comment whose
+ * ancestor chain bottoms out at that root.
+ */
+export async function fetchReviewCommentThread(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  leafCommentId: number,
+): Promise<ReviewThreadComment[]> {
+  const { data } = await octokit.pulls.listReviewComments({
+    owner,
+    repo,
+    pull_number: prNumber,
+    per_page: 100,
+  });
+  const byId = new Map<number, ReviewThreadComment>();
+  for (const c of data) {
+    byId.set(c.id, {
+      id: c.id,
+      body: c.body,
+      authorLogin: c.user?.login ?? 'unknown',
+      isBot: c.user?.type === 'Bot',
+      createdAt: c.created_at,
+      inReplyToId: c.in_reply_to_id,
+    });
+  }
+
+  // Find the root by walking `in_reply_to_id` back from the leaf.
+  let rootId = leafCommentId;
+  const visitedOnWalk = new Set<number>();
+  while (!visitedOnWalk.has(rootId)) {
+    visitedOnWalk.add(rootId);
+    const node = byId.get(rootId);
+    if (!node?.inReplyToId) break;
+    rootId = node.inReplyToId;
+  }
+
+  // Collect every comment that transitively descends from the root.
+  const inThread = new Set<number>([rootId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const c of byId.values()) {
+      if (c.inReplyToId != null && inThread.has(c.inReplyToId) && !inThread.has(c.id)) {
+        inThread.add(c.id);
+        grew = true;
+      }
+    }
+  }
+
+  return Array.from(inThread)
+    .map((id) => byId.get(id))
+    .filter((c): c is ReviewThreadComment => c != null)
+    .sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''));
+}
+
+/**
+ * Reply inside an existing review-comment thread. Uses GitHub's dedicated
+ * reply endpoint so the new comment is threaded under the root rather than
+ * floating as a new top-level review comment.
+ */
+export async function replyToReviewComment(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  rootCommentId: number,
+  body: string,
+): Promise<number> {
+  const { data } = await octokit.pulls.createReplyForReviewComment({
+    owner,
+    repo,
+    pull_number: prNumber,
+    comment_id: rootCommentId,
+    body,
+  });
+  return data.id;
+}
+
+/**
+ * Add an "eyes" reaction to an inline review comment to signal MergeWatch is
+ * processing the reply. Returns the reaction ID so callers can remove it
+ * after the reply is posted.
+ */
+export async function addReviewCommentReaction(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  commentId: number,
+  reaction: '+1' | '-1' | 'laugh' | 'confused' | 'heart' | 'hooray' | 'rocket' | 'eyes' = 'eyes',
+): Promise<number | null> {
+  try {
+    const { data } = await octokit.reactions.createForPullRequestReviewComment({
+      owner,
+      repo,
+      comment_id: commentId,
+      content: reaction,
+    });
+    return data.id;
+  } catch (err) {
+    console.warn('Failed to add %s reaction to review comment %d:', reaction, commentId, err);
+    return null;
+  }
+}
+
+/**
+ * Remove a reaction from a review comment. Used to clear the eyes reaction
+ * once MergeWatch has posted its reply.
+ */
+export async function removeReviewCommentReaction(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  commentId: number,
+  reactionId: number,
+): Promise<void> {
+  try {
+    await octokit.reactions.deleteForPullRequestComment({
+      owner,
+      repo,
+      comment_id: commentId,
+      reaction_id: reactionId,
+    });
+  } catch (err) {
+    console.warn('Failed to remove reaction %d from review comment %d:', reactionId, commentId, err);
+  }
+}
+
+/**
+ * Resolve a pull request review thread via GraphQL. The REST API has no
+ * equivalent — only the GraphQL `resolveReviewThread` mutation can mark a
+ * thread as resolved.
+ */
+export async function resolveReviewThread(
+  octokit: Octokit,
+  threadNodeId: string,
+): Promise<void> {
+  const mutation = `
+    mutation ResolveThread($threadId: ID!) {
+      resolveReviewThread(input: { threadId: $threadId }) {
+        thread { id isResolved }
+      }
+    }
+  `;
+  await octokit.graphql(mutation, { threadId: threadNodeId });
+}
+
+/**
+ * Look up the GraphQL node ID of the review thread that contains a given
+ * review comment. GitHub's REST review-comment payload exposes `node_id` for
+ * the comment itself but not for its containing thread — so we fetch all
+ * threads on the PR and locate the one containing this comment.
+ */
+export async function findReviewThreadIdForComment(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  commentId: number,
+): Promise<string | null> {
+  const query = `
+    query FindThread($owner: String!, $repo: String!, $number: Int!) {
+      repository(owner: $owner, name: $repo) {
+        pullRequest(number: $number) {
+          reviewThreads(first: 100) {
+            nodes {
+              id
+              comments(first: 100) { nodes { databaseId } }
+            }
+          }
+        }
+      }
+    }
+  `;
+  type Resp = {
+    repository: {
+      pullRequest: {
+        reviewThreads: {
+          nodes: Array<{ id: string; comments: { nodes: Array<{ databaseId: number }> } }>;
+        };
+      };
+    };
+  };
+  const data = await octokit.graphql<Resp>(query, { owner, repo, number: prNumber });
+  for (const thread of data.repository.pullRequest.reviewThreads.nodes) {
+    if (thread.comments.nodes.some((c) => c.databaseId === commentId)) {
+      return thread.id;
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Repository config (.mergewatch.yml)
 // ---------------------------------------------------------------------------
 
