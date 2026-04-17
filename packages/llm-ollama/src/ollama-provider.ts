@@ -11,7 +11,7 @@ export class OllamaLLMProvider implements ILLMProvider {
       body: JSON.stringify({
         model: modelId,
         stream: false,
-        options: { num_predict: maxTokens },
+        options: { num_predict: maxTokens, temperature: 0 },
         messages: [{ role: 'user', content: prompt }],
       }),
     });

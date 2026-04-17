@@ -58,6 +58,7 @@ describe('BedrockLLMProvider', () => {
     expect(body).toEqual({
       anthropic_version: 'bedrock-2023-05-31',
       max_tokens: 2048,
+      temperature: 0,
       messages: [{ role: 'user', content: 'test prompt' }],
     });
   });
@@ -75,8 +76,8 @@ describe('BedrockLLMProvider', () => {
       inputText: 'test prompt',
       textGenerationConfig: {
         maxTokenCount: 1024,
-        temperature: 0.2,
-        topP: 0.9,
+        temperature: 0,
+        topP: 1,
       },
     });
   });

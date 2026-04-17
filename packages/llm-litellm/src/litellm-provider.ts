@@ -21,6 +21,7 @@ export class LiteLLMProvider implements ILLMProvider {
       body: JSON.stringify({
         model: modelId,
         max_tokens: maxTokens,
+        temperature: 0,
         messages: [{ role: 'user', content: prompt }],
       }),
     });

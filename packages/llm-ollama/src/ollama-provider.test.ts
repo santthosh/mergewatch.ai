@@ -67,7 +67,7 @@ describe('OllamaLLMProvider', () => {
     expect(body).toEqual({
       model: 'llama3',
       stream: false,
-      options: { num_predict: 2048 },
+      options: { num_predict: 2048, temperature: 0 },
       messages: [{ role: 'user', content: 'test prompt' }],
     });
   });
