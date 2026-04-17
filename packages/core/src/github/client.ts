@@ -525,6 +525,9 @@ export function parseRepoConfigYaml(content: string): Partial<MergeWatchConfig> 
     }
     if (typeof parsed.maxFindings === 'number') config.maxFindings = parsed.maxFindings;
     if (typeof parsed.postSummaryOnClean === 'boolean') config.postSummaryOnClean = parsed.postSummaryOnClean;
+    if (typeof parsed.conventions === 'string' && parsed.conventions.trim()) {
+      config.conventions = parsed.conventions.trim();
+    }
     if (Array.isArray(parsed.customStyleRules)) {
       config.customStyleRules = parsed.customStyleRules.filter((r: unknown) => typeof r === 'string');
     }

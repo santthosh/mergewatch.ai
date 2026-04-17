@@ -123,6 +123,25 @@ describe('runSecurityAgent', () => {
     expect(findings).toEqual([]);
   });
 
+  it('injects conventions into the prompt when provided', async () => {
+    const llm = createMockLLM([JSON.stringify({ findings: [] })]);
+    const conventions = '# Repo rules\nErrors are handled via middleware. Do NOT flag missing try/catch.';
+    await runSecurityAgent(sampleDiff, sampleContext, 'model-1', llm, undefined, undefined, conventions);
+    const prompt = llm.calls[0].prompt;
+    expect(prompt).toContain('Repository conventions');
+    expect(prompt).toContain('Errors are handled via middleware');
+    // Placeholder should be substituted, not left behind
+    expect(prompt).not.toContain('{{CONVENTIONS}}');
+  });
+
+  it('strips the conventions placeholder when no conventions are provided', async () => {
+    const llm = createMockLLM([JSON.stringify({ findings: [] })]);
+    await runSecurityAgent(sampleDiff, sampleContext, 'model-1', llm);
+    const prompt = llm.calls[0].prompt;
+    expect(prompt).not.toContain('{{CONVENTIONS}}');
+    expect(prompt).not.toContain('Repository conventions');
+  });
+
   it('parses markdown-fenced JSON correctly', async () => {
     const response = '```json\n' + validFindingsJson([{ title: 'XSS' }]) + '\n```';
     const llm = createMockLLM([response]);
@@ -381,6 +400,18 @@ describe('runOrchestratorAgent', () => {
     expect(promptSent).not.toContain('x'.repeat(500));
     // But a capped prefix should still be present
     expect(promptSent).toContain('x'.repeat(100));
+  });
+
+  it('injects conventions into the orchestrator prompt when provided', async () => {
+    const orchestratorResponse = JSON.stringify({ findings: [], mergeScore: 5, mergeScoreReason: 'clean' });
+    const llm = createMockLLM([orchestratorResponse]);
+    await runOrchestratorAgent(
+      [{ category: 'bug', findings: [{ file: 'a.ts', line: 1, severity: 'info', title: 't', description: 'd', suggestion: 's' }] }],
+      'model-1', 25, llm, undefined, '# Rules\nUse middleware for errors.',
+    );
+    const prompt = llm.calls[0].prompt;
+    expect(prompt).toContain('Use middleware for errors');
+    expect(prompt).not.toContain('{{CONVENTIONS}}');
   });
 
   it('strips the previous-findings placeholder when none are provided', async () => {

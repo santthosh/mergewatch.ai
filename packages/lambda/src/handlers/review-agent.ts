@@ -38,6 +38,7 @@ import {
   buildInlineComments,
   extractInlineCommentTitle,
   fetchRepoConfig,
+  fetchConventions,
 } from '@mergewatch/core';
 import type {
   ReviewJobPayload,
@@ -350,6 +351,12 @@ export async function handler(
 
     const previousDiagram = typeof prevComplete?.diagramText === 'string' ? prevComplete.diagramText : undefined;
 
+    // Load repo conventions (AGENTS.md / CONVENTIONS.md or the `conventions:` path)
+    const conventionsResult = await fetchConventions(octokit, owner, repo, headSha, runtimeConfig.conventions);
+    if (conventionsResult) {
+      console.log(`Loaded repo conventions from ${conventionsResult.sourcePath}${conventionsResult.truncated ? ' (truncated)' : ''}`);
+    }
+
     const result = await runReviewPipeline({
       diff: filteredDiff,
       context: {
@@ -372,6 +379,7 @@ export async function handler(
       customPricing: runtimeConfig.pricing,
       previousDiagram,
       previousFindings: prevComplete?.findings,
+      conventions: conventionsResult?.content,
     }, { llm });
 
     const reviewDetailUrl = `${DASHBOARD_BASE_URL}/dashboard/reviews/${encodeURIComponent(`${repoFullName}:${prNumberCommitSha}`)}`;
@@ -420,6 +428,8 @@ export async function handler(
       cumulativeCostUsd: cumulativeCostUsd > 0 ? cumulativeCostUsd : undefined,
       durationMs,
       model: modelName,
+      conventionsSource: conventionsResult?.sourcePath,
+      conventionsTruncated: conventionsResult?.truncated,
     });
 
     // ── Step A: Upsert issue comment (full review — primary artifact) ──────

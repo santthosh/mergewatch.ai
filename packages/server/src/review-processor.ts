@@ -7,7 +7,7 @@ import {
   DEFAULT_CONFIG, mergeConfig,
   BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
   buildIssueCommentUrl, formatPRReviewVerdict, buildInlineComments, extractInlineCommentTitle,
-  fetchRepoConfig,
+  fetchRepoConfig, fetchConventions,
   buildWorkDoneSection, computeReviewDelta,
   RESPOND_PROMPT, postReplyComment,
 } from '@mergewatch/core';
@@ -238,6 +238,12 @@ export async function processReviewJob(
 
     const previousDiagram = typeof prevComplete?.diagramText === 'string' ? prevComplete.diagramText : undefined;
 
+    // Load repo conventions (AGENTS.md / CONVENTIONS.md or the `conventions:` path)
+    const conventionsResult = await fetchConventions(octokit, owner, repo, ref, config.conventions);
+    if (conventionsResult) {
+      console.log(`Loaded repo conventions from ${conventionsResult.sourcePath}${conventionsResult.truncated ? ' (truncated)' : ''}`);
+    }
+
     // Run review pipeline
     const result = await runReviewPipeline(
       {
@@ -263,6 +269,7 @@ export async function processReviewJob(
         customPricing: config.pricing,
         previousDiagram,
         previousFindings: prevComplete?.findings,
+        conventions: conventionsResult?.content,
       },
       { llm: deps.llm },
     );
@@ -314,6 +321,8 @@ export async function processReviewJob(
       cumulativeCostUsd: cumulativeCostUsd > 0 ? cumulativeCostUsd : undefined,
       durationMs,
       model: config.model,
+      conventionsSource: conventionsResult?.sourcePath,
+      conventionsTruncated: conventionsResult?.truncated,
     });
 
     // ── Step A: Upsert issue comment (full review — primary artifact) ──────
