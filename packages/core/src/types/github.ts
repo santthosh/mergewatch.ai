@@ -141,6 +141,43 @@ export interface IssueCommentEvent {
 }
 
 /**
+ * `pull_request_review_comment` event.
+ * Fires on inline review comment create/edit/delete. MergeWatch uses the
+ * `created` action with `in_reply_to_id` set to engage in threaded
+ * conversations where the root comment is bot-authored.
+ */
+export interface PullRequestReviewCommentEvent {
+  action: "created" | "edited" | "deleted";
+  comment: GitHubReviewComment;
+  pull_request: GitHubPullRequest;
+  repository: GitHubRepository;
+  installation?: { id: number };
+  sender: GitHubUser;
+}
+
+/**
+ * A single review comment on a pull request (inline annotation on a diff line).
+ */
+export interface GitHubReviewComment {
+  id: number;
+  /** Full text of the comment body (markdown). */
+  body: string;
+  /** Parent review ID (the submitted review this comment belongs to). */
+  pull_request_review_id: number | null;
+  /** When set, this comment is a reply to another review comment. */
+  in_reply_to_id?: number;
+  /** Thread node id exposed on the REST payload for GraphQL correlation. */
+  node_id: string;
+  user: GitHubUser;
+  created_at: string;
+  updated_at: string;
+  /** Path within the repo the comment was made on. */
+  path: string;
+  /** Commit SHA the comment was posted against. */
+  commit_id: string;
+}
+
+/**
  * `installation` event.
  * Fired when a user installs / uninstalls the GitHub App.
  */
@@ -160,14 +197,15 @@ export interface InstallationEvent {
 export type WebhookEvent =
   | { eventType: "pull_request"; payload: PullRequestEvent }
   | { eventType: "issue_comment"; payload: IssueCommentEvent }
+  | { eventType: "pull_request_review_comment"; payload: PullRequestReviewCommentEvent }
   | { eventType: "installation"; payload: InstallationEvent };
 
 // ---------------------------------------------------------------------------
 // Internal types used by the review pipeline
 // ---------------------------------------------------------------------------
 
-/** The review "mode" derived from an @mergewatch mention. */
-export type ReviewMode = "review" | "summary" | "respond";
+/** The review "mode" derived from an @mergewatch mention or inbound webhook. */
+export type ReviewMode = "review" | "summary" | "respond" | "inline_reply";
 
 /** Context we extract from a PR before handing it to the review agent. */
 export interface PRContext {
@@ -212,4 +250,10 @@ export interface ReviewJobPayload {
   userComment?: string;
   /** For "respond" mode: the login of the user who commented. */
   userCommentAuthor?: string;
+  /**
+   * For "inline_reply" mode: the ID of the human's review comment that we are
+   * responding to. The handler walks the thread from this comment back to the
+   * root to reconstruct conversation context.
+   */
+  inlineReplyCommentId?: number;
 }

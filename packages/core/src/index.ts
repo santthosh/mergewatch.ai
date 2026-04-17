@@ -29,6 +29,12 @@ export {
   runCustomAgent,
   isValidMermaidDiagram,
 } from './agents/reviewer.js';
+export {
+  handleInlineReply,
+  detectResolveIntent,
+  MAX_BOT_REPLIES,
+} from './agents/inline-reply.js';
+export type { InlineReplyContext, InlineReplyDeps, InlineReplyResult } from './agents/inline-reply.js';
 export type {
   AgentFinding,
   OrchestratedFinding,
@@ -53,6 +59,7 @@ export {
   PREVIOUS_FINDINGS_PLACEHOLDER,
   CONVENTIONS_PLACEHOLDER,
   RESPOND_PROMPT,
+  INLINE_REPLY_PROMPT,
   CUSTOM_AGENT_RESPONSE_FORMAT,
   TONE_DIRECTIVES,
   TONE_PLACEHOLDER,
@@ -70,6 +77,12 @@ export {
   getCommentReactions,
   createCheckRun,
   postReplyComment,
+  fetchReviewCommentThread,
+  replyToReviewComment,
+  addReviewCommentReaction,
+  removeReviewCommentReaction,
+  resolveReviewThread,
+  findReviewThreadIdForComment,
   mergeScoreToReviewEvent,
   submitPRReview,
   dismissStaleReviews,
@@ -80,6 +93,7 @@ export {
   fetchRepoConfig,
   parseRepoConfigYaml,
 } from './github/client.js';
+export type { ReviewThreadComment } from './github/client.js';
 
 // ─── Comment formatter ──────────────────────────────────────────────────────
 export { formatReviewComment, buildWorkDoneSection } from './comment-formatter.js';
@@ -122,6 +136,8 @@ export type {
   GitHubInstallation,
   PullRequestEvent,
   IssueCommentEvent,
+  PullRequestReviewCommentEvent,
+  GitHubReviewComment,
   InstallationEvent,
   WebhookEvent,
   ReviewMode,

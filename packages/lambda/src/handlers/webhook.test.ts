@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { createHmac } from 'node:crypto';
-import { verifySignature, parseReviewMode } from './webhook.js';
+import { verifySignature, parseReviewMode, shouldHandleReviewCommentEvent } from './webhook.js';
 import { REVIEW_TRIGGERING_ACTIONS, COMMENT_LOOKUP_ACTIONS } from '@mergewatch/core';
+import type { PullRequestReviewCommentEvent } from '@mergewatch/core';
 
 // ---------------------------------------------------------------------------
 // verifySignature
@@ -104,5 +105,61 @@ describe('COMMENT_LOOKUP_ACTIONS', () => {
 
   it('does not include opened (first review creates a new comment)', () => {
     expect(COMMENT_LOOKUP_ACTIONS).not.toContain('opened');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// shouldHandleReviewCommentEvent
+// ---------------------------------------------------------------------------
+
+describe('shouldHandleReviewCommentEvent', () => {
+  function makeEvent(overrides: Partial<PullRequestReviewCommentEvent> = {}): PullRequestReviewCommentEvent {
+    return {
+      action: 'created',
+      sender: { login: 'alice', id: 1, avatar_url: '', type: 'User' },
+      installation: { id: 123 },
+      comment: {
+        id: 1001,
+        body: 'reply body',
+        pull_request_review_id: null,
+        in_reply_to_id: 1000,
+        node_id: 'node-id',
+        user: { login: 'alice', id: 1, avatar_url: '', type: 'User' },
+        created_at: '2026-04-01T00:00:00Z',
+        updated_at: '2026-04-01T00:00:00Z',
+        path: 'src/foo.ts',
+        commit_id: 'abc',
+      },
+      pull_request: { number: 5 } as any,
+      repository: { name: 'r', owner: { login: 'o' } } as any,
+      ...overrides,
+    };
+  }
+
+  it('returns true for a valid human reply with installation id', () => {
+    expect(shouldHandleReviewCommentEvent(makeEvent())).toBe(true);
+  });
+
+  it('returns false for non-created actions', () => {
+    expect(shouldHandleReviewCommentEvent(makeEvent({ action: 'edited' }))).toBe(false);
+    expect(shouldHandleReviewCommentEvent(makeEvent({ action: 'deleted' }))).toBe(false);
+  });
+
+  it('returns false for bot senders (loop guard)', () => {
+    expect(shouldHandleReviewCommentEvent(makeEvent({
+      sender: { login: 'mergewatch[bot]', id: 2, avatar_url: '', type: 'Bot' },
+    }))).toBe(false);
+  });
+
+  it('returns false when the comment is not a reply (no in_reply_to_id)', () => {
+    const evt = makeEvent();
+    delete (evt.comment as any).in_reply_to_id;
+    expect(shouldHandleReviewCommentEvent(evt)).toBe(false);
+  });
+
+  it('returns false when installation metadata is missing', () => {
+    const evt = makeEvent();
+    evt.installation = undefined;
+    expect(shouldHandleReviewCommentEvent(evt)).toBe(false);
   });
 });

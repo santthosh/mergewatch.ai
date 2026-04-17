@@ -22,6 +22,7 @@ import {
 import type {
   PullRequestEvent,
   IssueCommentEvent,
+  PullRequestReviewCommentEvent,
   InstallationEvent,
   ReviewMode,
   ReviewJobPayload,
@@ -233,6 +234,56 @@ async function handleIssueCommentEvent(
 }
 
 // ---------------------------------------------------------------------------
+// Pull request review comment event handler (inline thread replies)
+// ---------------------------------------------------------------------------
+
+/**
+ * Decide whether this review-comment event warrants engagement. Extracted as
+ * a pure predicate so the cheap filter branches can be unit-tested without
+ * stubbing Lambda and DynamoDB clients.
+ *
+ * Rules: only `created` action, only human senders (bots are filtered to
+ * prevent reply loops), only replies with `in_reply_to_id` set (skip
+ * top-level inline comments on new findings that humans start themselves),
+ * and only when installation metadata is present.
+ */
+export function shouldHandleReviewCommentEvent(
+  event: PullRequestReviewCommentEvent,
+): boolean {
+  if (event.action !== 'created') return false;
+  if (event.sender.type === 'Bot') return false;
+  if (event.comment.in_reply_to_id == null) return false;
+  if (!event.installation?.id) return false;
+  return true;
+}
+
+/**
+ * Handle an inline review-comment reply. We only engage when a human replies
+ * inside a thread whose root comment was authored by MergeWatch.
+ */
+async function handleReviewCommentEvent(
+  event: PullRequestReviewCommentEvent,
+): Promise<void> {
+  if (!shouldHandleReviewCommentEvent(event)) return;
+  const installationId = event.installation!.id;
+
+  const payload: ReviewJobPayload = {
+    installationId,
+    owner: event.repository.owner.login,
+    repo: event.repository.name,
+    prNumber: event.pull_request.number,
+    mode: 'inline_reply',
+    inlineReplyCommentId: event.comment.id,
+  };
+
+  await enqueueReviewJob(payload);
+
+  console.log(
+    `Enqueued inline_reply job: ${payload.owner}/${payload.repo}#${payload.prNumber} (reply=${event.comment.id})`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Installation event handler
 // ---------------------------------------------------------------------------
 
@@ -286,6 +337,10 @@ export async function handler(
 
       case "issue_comment":
         await handleIssueCommentEvent(payload as IssueCommentEvent);
+        break;
+
+      case "pull_request_review_comment":
+        await handleReviewCommentEvent(payload as PullRequestReviewCommentEvent);
         break;
 
       case "installation":
