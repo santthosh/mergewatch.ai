@@ -84,6 +84,14 @@ export interface MergeWatchConfig {
   };
   /** Custom style rules appended to the style agent prompt */
   customStyleRules: string[];
+  /**
+   * Path to a markdown file documenting repo conventions. Injected into every
+   * agent prompt so MergeWatch respects repo-specific patterns over generic
+   * best practices (e.g. "errors handled via middleware, don't flag missing
+   * try/catch"). When unset, auto-discovery looks for AGENTS.md, CONVENTIONS.md,
+   * and .mergewatch/conventions.md at the repo root in that order.
+   */
+  conventions?: string;
   /** File patterns to exclude from review (glob syntax) */
   excludePatterns: string[];
   /** Minimum severity to report: 'info' | 'warning' | 'critical' */
