@@ -32,6 +32,7 @@ export {
 export type {
   AgentFinding,
   OrchestratedFinding,
+  PreviousFinding,
   ReviewContext,
   DiagramResult,
   OrchestratorResult,
@@ -49,6 +50,7 @@ export {
   TEST_COVERAGE_REVIEWER_PROMPT,
   COMMENT_ACCURACY_REVIEWER_PROMPT,
   ORCHESTRATOR_PROMPT,
+  PREVIOUS_FINDINGS_PLACEHOLDER,
   RESPOND_PROMPT,
   CUSTOM_AGENT_RESPONSE_FORMAT,
   TONE_DIRECTIVES,

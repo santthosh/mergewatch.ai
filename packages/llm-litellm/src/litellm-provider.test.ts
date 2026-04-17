@@ -98,6 +98,7 @@ describe('LiteLLMProvider', () => {
     expect(body).toEqual({
       model: 'gpt-4',
       max_tokens: 2048,
+      temperature: 0,
       messages: [{ role: 'user', content: 'test prompt' }],
     });
   });

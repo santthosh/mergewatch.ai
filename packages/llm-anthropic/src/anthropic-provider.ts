@@ -12,6 +12,7 @@ export class AnthropicLLMProvider implements ILLMProvider {
     const response = await this.client.messages.create({
       model: modelId,
       max_tokens: maxTokens,
+      temperature: 0,
       messages: [{ role: 'user', content: prompt }],
     });
     const block = response.content[0];

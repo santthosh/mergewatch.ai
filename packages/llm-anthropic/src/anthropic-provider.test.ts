@@ -27,6 +27,7 @@ describe('AnthropicLLMProvider', () => {
     expect(mockCreate).toHaveBeenCalledWith({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2048,
+      temperature: 0,
       messages: [{ role: 'user', content: 'hello' }],
     });
   });

@@ -262,6 +262,7 @@ export async function processReviewJob(
         tone: config.ux.tone,
         customPricing: config.pricing,
         previousDiagram,
+        previousFindings: prevComplete?.findings,
       },
       { llm: deps.llm },
     );

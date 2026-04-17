@@ -41,6 +41,7 @@ function buildAnthropicBody(prompt: string, maxTokens: number): ModelRequestBody
     body: JSON.stringify({
       anthropic_version: 'bedrock-2023-05-31',
       max_tokens: maxTokens,
+      temperature: 0,
       messages: [{ role: 'user', content: prompt }],
     }),
     contentType: 'application/json',
@@ -54,8 +55,8 @@ function buildTitanBody(prompt: string, maxTokens: number): ModelRequestBody {
       inputText: prompt,
       textGenerationConfig: {
         maxTokenCount: maxTokens,
-        temperature: 0.2,
-        topP: 0.9,
+        temperature: 0,
+        topP: 1,
       },
     }),
     contentType: 'application/json',
