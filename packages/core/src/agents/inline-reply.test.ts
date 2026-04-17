@@ -35,6 +35,19 @@ describe('detectResolveIntent', () => {
     expect(detectResolveIntent('')).toBe(false);
     expect(detectResolveIntent('   ')).toBe(false);
   });
+
+  it('matches case-insensitively and with punctuation variations', () => {
+    expect(detectResolveIntent('RESOLVE')).toBe(true);
+    expect(detectResolveIntent('Resolve!')).toBe(true);
+    expect(detectResolveIntent('resolve.')).toBe(true);
+    expect(detectResolveIntent(' resolve ')).toBe(true);
+  });
+
+  it('does not match ambiguous phrases', () => {
+    expect(detectResolveIntent('resolves the issue in the next PR')).toBe(false);
+    expect(detectResolveIntent('I cannot resolve this right now')).toBe(false);
+    expect(detectResolveIntent('the bug will resolve itself')).toBe(false);
+  });
 });
 
 // ─── handleInlineReply ──────────────────────────────────────────────────────
@@ -189,6 +202,50 @@ describe('handleInlineReply', () => {
     expect(result.action).toBe('skipped');
     expect(llm.calls).toHaveLength(0);
     expect(calls.createReplyForReviewComment).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a safe reply when the LLM returns invalid JSON', async () => {
+    const { octokit, calls } = makeOctokitMock(baseComments);
+    const llm = makeLLM('not valid json at all');
+    const result = await handleInlineReply(
+      { owner: 'o', repo: 'r', prNumber: 1, replyCommentId: 101 },
+      { octokit, llm, lightModelId: 'light' },
+    );
+    expect(result.action).toBe('replied');
+    expect(result.recommendation).toBe('needs_info');
+    expect(calls.createReplyForReviewComment).toHaveBeenCalled();
+  });
+
+  it('injects repo conventions into the prompt when provided', async () => {
+    const { octokit } = makeOctokitMock(baseComments);
+    const llm = makeLLM(JSON.stringify({ reply: 'ok', recommendation: 'keep' }));
+    await handleInlineReply(
+      {
+        owner: 'o', repo: 'r', prNumber: 1, replyCommentId: 101,
+        conventions: '# We handle errors via middleware',
+      },
+      { octokit, llm, lightModelId: 'light' },
+    );
+    expect(llm.calls[0]).toContain('handle errors via middleware');
+    expect(llm.calls[0]).not.toContain('{{CONVENTIONS}}');
+  });
+
+  it('skips resolve when the GraphQL thread lookup returns null', async () => {
+    const { octokit, calls } = makeOctokitMock([
+      ...baseComments,
+      { id: 102, body: '/resolve', user: { login: 'santthosh', type: 'User' as const }, in_reply_to_id: 101, created_at: '2026-04-01T02:00:00Z' },
+    ]);
+    // Override the graphql mock to return no matching thread
+    (calls.graphql as any).mockImplementation(async () => ({
+      repository: { pullRequest: { reviewThreads: { nodes: [] } } },
+    }));
+    const llm = makeLLM('unused');
+    const result = await handleInlineReply(
+      { owner: 'o', repo: 'r', prNumber: 1, replyCommentId: 102 },
+      { octokit, llm, lightModelId: 'light' },
+    );
+    expect(result.action).toBe('skipped');
+    expect(result.reason).toMatch(/thread id/);
   });
 
   it('removes the eyes reaction even when the LLM throws', async () => {

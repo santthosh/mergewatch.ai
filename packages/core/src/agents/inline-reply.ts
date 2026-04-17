@@ -2,16 +2,18 @@
  * Inline review-comment conversation handler.
  *
  * When a developer replies to a MergeWatch inline finding, this module
- * generates a focused conversational reply and — if the model recommends it
- * and the developer confirms with `resolve` — marks the review thread as
- * resolved via GraphQL.
+ * generates a focused conversational reply. Thread *resolution* is always
+ * human-initiated: the model's recommendation (resolve / keep / needs_info)
+ * is used to shape the reply text only — the GraphQL `resolveReviewThread`
+ * mutation fires when the developer explicitly replies with `resolve` or
+ * `/resolve`, never on the model's own judgment.
  *
  * Lifecycle:
  *   1. Add an "eyes" reaction to the human reply (read receipt).
  *   2. If the reply text signals explicit resolve intent, skip the LLM call
- *      and just resolve the thread (human already decided).
+ *      and resolve the thread directly (human already decided).
  *   3. Otherwise, run a light-model LLM call with the thread context, the
- *      original finding, the diff hunk, and any repo conventions.
+ *      original finding, and any repo conventions.
  *   4. Post the bot's reply inline in the same thread.
  *   5. Remove the eyes reaction.
  *
@@ -39,20 +41,33 @@ import type { Octokit } from '@octokit/rest';
 export const MAX_BOT_REPLIES = 3;
 
 /**
- * Recognise explicit resolve intent in a free-form reply. Matches common
- * phrasings without being too aggressive — we require the word `resolve`
- * as a standalone verb or command to avoid false triggers on prose like
- * "here's how I'd resolve this differently".
+ * Patterns that count as explicit resolve intent. Kept narrow and
+ * standalone-only to avoid matching prose like "here's how I'd resolve this
+ * differently" or "this won't resolve the issue". Matched against a
+ * trimmed + lowercased reply; a match anywhere for the slash-command pattern,
+ * full-string match for the verb patterns.
+ */
+const RESOLVE_INTENT_PATTERNS = {
+  /** `/resolve` as a standalone token anywhere in the reply. */
+  slashCommand: /(^|\s)\/resolve(\s|$)/,
+  /** A bare `resolve` with optional trailing punctuation (e.g. `resolve.`, `resolve!`). */
+  bareVerb: /^resolve[.!\s]*$/,
+  /** Common affirmative phrasings: "resolved", "please resolve", etc. */
+  affirmative: /^(resolved|please resolve|mergewatch resolve|yes,? resolve)[.!\s]*$/,
+};
+
+/**
+ * Recognise explicit resolve intent in a free-form reply. Case-insensitive;
+ * requires `resolve` as a standalone verb or slash command to avoid false
+ * triggers on descriptive prose.
  */
 export function detectResolveIntent(text: string): boolean {
   if (!text) return false;
   const normalized = text.trim().toLowerCase();
-  // Slash command: "/resolve" anywhere in the reply.
-  if (/(^|\s)\/resolve(\s|$)/.test(normalized)) return true;
-  // Standalone `resolve` as the entire reply or command.
-  if (/^resolve[.!\s]*$/.test(normalized)) return true;
-  // "resolved" / "please resolve" / "mergewatch resolve"
-  if (/^(resolved|please resolve|mergewatch resolve|yes,? resolve)[.!\s]*$/.test(normalized)) return true;
+  if (!normalized) return false;
+  for (const pattern of Object.values(RESOLVE_INTENT_PATTERNS)) {
+    if (pattern.test(normalized)) return true;
+  }
   return false;
 }
 

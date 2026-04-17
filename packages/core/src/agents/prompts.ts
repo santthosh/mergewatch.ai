@@ -326,6 +326,8 @@ You will receive:
 - The conversation so far (oldest to newest)
 - Repository conventions (if any) — treat these as authoritative over your general priors
 
+${CONVENTIONS_PLACEHOLDER}
+
 Your task:
 1. Read the conversation carefully. Consider whether the developer's most recent reply addresses the concern, contradicts it with valid reasoning, asks for clarification, or rejects it on convention grounds.
 2. Produce a short, collaborative reply (1-3 sentences, plain markdown) that engages with their specific point. Do NOT repeat the finding text. If they're right, say so directly. If they're asking a question, answer it.
