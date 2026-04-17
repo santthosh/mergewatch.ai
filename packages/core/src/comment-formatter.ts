@@ -76,6 +76,10 @@ interface FormatOptions {
   durationMs?: number;
   /** LLM model name */
   model?: string;
+  /** Path to the repo conventions file that was loaded, if any. */
+  conventionsSource?: string;
+  /** True when the loaded conventions file was truncated to fit the size cap. */
+  conventionsTruncated?: boolean;
 }
 
 // ─── Severity display config ───────────────────────────────────────────────
@@ -214,6 +218,8 @@ export function formatReviewComment(options: FormatOptions): string {
     cumulativeCostUsd,
     durationMs,
     model,
+    conventionsSource,
+    conventionsTruncated,
   } = options;
 
   const lines: string[] = [];
@@ -363,7 +369,7 @@ export function formatReviewComment(options: FormatOptions): string {
   // 9. Review details drawer — collapsed: model, time, tokens, cost, suppressed
   const totalTokens = (inputTokens ?? 0) + (outputTokens ?? 0);
   const hasSuppressed = (suppressedCount ?? 0) > 0 && (ux?.showSuppressedCount !== false);
-  const hasDetails = totalTokens > 0 || durationMs != null || model || hasSuppressed;
+  const hasDetails = totalTokens > 0 || durationMs != null || model || hasSuppressed || !!conventionsSource;
   if (hasDetails) {
     const detailParts: string[] = [];
     if (totalTokens > 0) {
@@ -399,6 +405,10 @@ export function formatReviewComment(options: FormatOptions): string {
     }
     if (hasSuppressed) {
       lines.push(`| **Suppressed** | ${suppressedCount} finding${suppressedCount !== 1 ? 's' : ''} removed by dedup & quality filters |`);
+    }
+    if (conventionsSource) {
+      const suffix = conventionsTruncated ? ' (truncated)' : '';
+      lines.push(`| **Conventions** | Loaded from \`${conventionsSource}\`${suffix} |`);
     }
     lines.push('');
     lines.push('</details>');
