@@ -144,10 +144,15 @@ async function handleInlineReplyJob(
     }
 
     console.log(
-      `Inline reply ${result.action} for ${repoFullName}#${prNumber} (reply=${inlineReplyCommentId}, cost=$${result.estimatedCostUsd?.toFixed(4) ?? '0'})`,
+      'Inline reply %s for %s#%d (reply=%d, cost=$%s)',
+      result.action,
+      repoFullName,
+      prNumber,
+      inlineReplyCommentId,
+      result.estimatedCostUsd?.toFixed(4) ?? '0',
     );
   } catch (err) {
-    console.error(`Inline reply failed for ${repoFullName}#${prNumber}:`, err);
+    console.error('Inline reply failed for %s#%d:', repoFullName, prNumber, err);
   }
 }
 

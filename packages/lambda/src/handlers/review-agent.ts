@@ -207,7 +207,12 @@ async function handleInlineReplyMode(
     }
 
     console.log(
-      `Inline reply ${result.action} for ${repoFullName}#${prNumber} (reply=${inlineReplyCommentId}, cost=$${result.estimatedCostUsd?.toFixed(4) ?? '0'})`,
+      'Inline reply %s for %s#%d (reply=%d, cost=$%s)',
+      result.action,
+      repoFullName,
+      prNumber,
+      inlineReplyCommentId,
+      result.estimatedCostUsd?.toFixed(4) ?? '0',
     );
 
     return {
@@ -215,7 +220,7 @@ async function handleInlineReplyMode(
       body: JSON.stringify({ action: result.action }),
     };
   } catch (error) {
-    console.error(`Inline reply failed for ${repoFullName}#${prNumber}:`, error);
+    console.error('Inline reply failed for %s#%d:', repoFullName, prNumber, error);
     return {
       statusCode: 500,
       body: JSON.stringify({
