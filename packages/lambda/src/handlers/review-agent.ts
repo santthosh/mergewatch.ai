@@ -39,6 +39,7 @@ import {
   extractInlineCommentTitle,
   fetchRepoConfig,
   fetchConventions,
+  handleInlineReply,
 } from '@mergewatch/core';
 import type {
   ReviewJobPayload,
@@ -140,6 +141,91 @@ Please respond to the developer's comment:`;
   }
 }
 
+// -- Inline reply mode -------------------------------------------------------
+
+/**
+ * Handle an inline thread reply: the core handler runs the LLM + posts the
+ * reply (or resolves the thread), and this wrapper rolls the cost up onto the
+ * parent review record so the PR's cumulative cost stays honest.
+ */
+async function handleInlineReplyMode(
+  octokit: Awaited<ReturnType<typeof authProvider.getInstallationOctokit>>,
+  event: ReviewJobPayload,
+): Promise<{ statusCode: number; body: string }> {
+  const { owner, repo, prNumber, installationId, inlineReplyCommentId } = event;
+  const repoFullName = `${owner}/${repo}`;
+
+  if (inlineReplyCommentId == null) {
+    return { statusCode: 400, body: JSON.stringify({ message: 'inline_reply mode requires inlineReplyCommentId' }) };
+  }
+
+  try {
+    // Look up the parent review so we can pass conventions (if configured) and
+    // later roll cost up onto it.
+    const prevReviews = await reviewStore.queryByPR(repoFullName, `${prNumber}#`, 5).catch(() => [] as ReviewItem[]);
+    const latestReview = prevReviews.find((r) => r.status === 'complete');
+
+    // Load repo conventions from the review's head SHA if we have one, else default branch.
+    const ref = latestReview?.prNumberCommitSha
+      ? (latestReview.prNumberCommitSha as string).split('#')[1]
+      : undefined;
+    const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch(() => null);
+    const conventionsResult = await fetchConventions(octokit, owner, repo, ref, yamlConfig?.conventions).catch(() => null);
+
+    const result = await handleInlineReply(
+      {
+        owner,
+        repo,
+        prNumber,
+        replyCommentId: inlineReplyCommentId,
+        conventions: conventionsResult?.content,
+      },
+      {
+        octokit,
+        llm,
+        lightModelId: process.env.DEFAULT_LIGHT_MODEL_ID ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+      },
+    );
+
+    // Roll cost up onto the parent review record so the PR's cumulative cost
+    // reflects inline conversations too. We only update if we actually spent
+    // tokens (the explicit-resolve fast path has zero cost).
+    if (latestReview && (result.inputTokens > 0 || result.outputTokens > 0)) {
+      const newInput = (latestReview.inputTokens ?? 0) + result.inputTokens;
+      const newOutput = (latestReview.outputTokens ?? 0) + result.outputTokens;
+      const newCost = (latestReview.estimatedCostUsd ?? 0) + (result.estimatedCostUsd ?? 0);
+      await reviewStore.updateStatus(
+        repoFullName,
+        latestReview.prNumberCommitSha as string,
+        latestReview.status as 'complete',
+        {
+          inputTokens: newInput,
+          outputTokens: newOutput,
+          estimatedCostUsd: newCost,
+        },
+      ).catch((err) => console.warn('Failed to roll up inline reply cost:', err));
+    }
+
+    console.log(
+      `Inline reply ${result.action} for ${repoFullName}#${prNumber} (reply=${inlineReplyCommentId}, cost=$${result.estimatedCostUsd?.toFixed(4) ?? '0'})`,
+    );
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ action: result.action }),
+    };
+  } catch (error) {
+    console.error(`Inline reply failed for ${repoFullName}#${prNumber}:`, error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        message: 'Inline reply failed',
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    };
+  }
+}
+
 // -- Lambda handler ----------------------------------------------------------
 
 export async function handler(
@@ -155,6 +241,11 @@ export async function handler(
   // ── Handle "respond" mode: conversational follow-up ────────────────────
   if (mode === 'respond' && userComment) {
     return handleRespondMode(octokit, event);
+  }
+
+  // ── Handle "inline_reply" mode: threaded conversation on a finding ─────
+  if (mode === 'inline_reply') {
+    return handleInlineReplyMode(octokit, event);
   }
 
   // ── Handle "review" / "summary" modes ──────────────────────────────────

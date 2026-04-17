@@ -22,6 +22,7 @@ import {
 import type {
   PullRequestEvent,
   IssueCommentEvent,
+  PullRequestReviewCommentEvent,
   InstallationEvent,
   ReviewMode,
   ReviewJobPayload,
@@ -233,6 +234,43 @@ async function handleIssueCommentEvent(
 }
 
 // ---------------------------------------------------------------------------
+// Pull request review comment event handler (inline thread replies)
+// ---------------------------------------------------------------------------
+
+/**
+ * Handle an inline review-comment reply. We only engage when a human replies
+ * inside a thread whose root comment was authored by MergeWatch.
+ */
+async function handleReviewCommentEvent(
+  event: PullRequestReviewCommentEvent,
+): Promise<void> {
+  if (event.action !== 'created') return;
+  if (event.sender.type === 'Bot') return; // loop guard
+  if (event.comment.in_reply_to_id == null) return; // not a reply — nothing to do
+
+  const installationId = event.installation?.id;
+  if (!installationId) {
+    console.warn('pull_request_review_comment event missing installation ID — skipping');
+    return;
+  }
+
+  const payload: ReviewJobPayload = {
+    installationId,
+    owner: event.repository.owner.login,
+    repo: event.repository.name,
+    prNumber: event.pull_request.number,
+    mode: 'inline_reply',
+    inlineReplyCommentId: event.comment.id,
+  };
+
+  await enqueueReviewJob(payload);
+
+  console.log(
+    `Enqueued inline_reply job: ${payload.owner}/${payload.repo}#${payload.prNumber} (reply=${event.comment.id})`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Installation event handler
 // ---------------------------------------------------------------------------
 
@@ -286,6 +324,10 @@ export async function handler(
 
       case "issue_comment":
         await handleIssueCommentEvent(payload as IssueCommentEvent);
+        break;
+
+      case "pull_request_review_comment":
+        await handleReviewCommentEvent(payload as PullRequestReviewCommentEvent);
         break;
 
       case "installation":

@@ -10,6 +10,7 @@ import {
   fetchRepoConfig, fetchConventions,
   buildWorkDoneSection, computeReviewDelta,
   RESPOND_PROMPT, postReplyComment,
+  handleInlineReply,
 } from '@mergewatch/core';
 import type { WebhookDeps } from './webhook-handler.js';
 
@@ -78,6 +79,78 @@ Please respond to the developer's comment:`;
   }
 }
 
+// ─── Inline reply mode ──────────────────────────────────────────────────────
+
+/**
+ * Handle an inline thread reply: runs the core handler (which manages the
+ * eyes reaction, LLM call, and thread resolution) and rolls the cost up onto
+ * the parent review record so the PR's cumulative cost stays honest.
+ */
+async function handleInlineReplyJob(
+  octokit: Awaited<ReturnType<IGitHubAuthProvider['getInstallationOctokit']>>,
+  job: ReviewJobPayload,
+  deps: Pick<WebhookDeps, 'installationStore' | 'reviewStore' | 'llm'>,
+): Promise<void> {
+  const { owner, repo, prNumber, installationId, inlineReplyCommentId } = job;
+  const repoFullName = `${owner}/${repo}`;
+
+  if (inlineReplyCommentId == null) {
+    console.warn(`inline_reply job for ${repoFullName}#${prNumber} missing inlineReplyCommentId`);
+    return;
+  }
+
+  try {
+    // Parent review (for conventions path + cost rollup target).
+    const prevReviews = await deps.reviewStore.queryByPR(repoFullName, `${prNumber}#`, 5).catch(() => []);
+    const latestReview = prevReviews.find((r) => r.status === 'complete');
+
+    const ref = latestReview?.prNumberCommitSha
+      ? (latestReview.prNumberCommitSha as string).split('#')[1]
+      : undefined;
+    const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch(() => null);
+    const conventionsResult = await fetchConventions(octokit, owner, repo, ref, yamlConfig?.conventions).catch(() => null);
+
+    const lightModelId = process.env.LLM_MODEL ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
+
+    const result = await handleInlineReply(
+      {
+        owner,
+        repo,
+        prNumber,
+        replyCommentId: inlineReplyCommentId,
+        conventions: conventionsResult?.content,
+      },
+      {
+        octokit,
+        llm: deps.llm,
+        lightModelId,
+      },
+    );
+
+    if (latestReview && (result.inputTokens > 0 || result.outputTokens > 0)) {
+      const newInput = (latestReview.inputTokens ?? 0) + result.inputTokens;
+      const newOutput = (latestReview.outputTokens ?? 0) + result.outputTokens;
+      const newCost = (latestReview.estimatedCostUsd ?? 0) + (result.estimatedCostUsd ?? 0);
+      await deps.reviewStore.updateStatus(
+        repoFullName,
+        latestReview.prNumberCommitSha as string,
+        latestReview.status as 'complete',
+        {
+          inputTokens: newInput,
+          outputTokens: newOutput,
+          estimatedCostUsd: newCost,
+        },
+      ).catch((err) => console.warn('Failed to roll up inline reply cost:', err));
+    }
+
+    console.log(
+      `Inline reply ${result.action} for ${repoFullName}#${prNumber} (reply=${inlineReplyCommentId}, cost=$${result.estimatedCostUsd?.toFixed(4) ?? '0'})`,
+    );
+  } catch (err) {
+    console.error(`Inline reply failed for ${repoFullName}#${prNumber}:`, err);
+  }
+}
+
 export async function processReviewJob(
   job: ReviewJobPayload,
   deps: Pick<WebhookDeps, 'installationStore' | 'reviewStore' | 'authProvider' | 'llm' | 'dashboardBaseUrl'>,
@@ -90,6 +163,11 @@ export async function processReviewJob(
   // ── Handle "respond" mode: conversational follow-up ────────────────────
   if (mode === 'respond' && job.userComment) {
     return handleRespondMode(octokit, job, deps);
+  }
+
+  // ── Handle "inline_reply" mode: threaded conversation on a finding ─────
+  if (mode === 'inline_reply') {
+    return handleInlineReplyJob(octokit, job, deps);
   }
 
   // Fetch PR context and diff

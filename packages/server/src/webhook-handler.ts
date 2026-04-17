@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { Request, Response } from 'express';
 import type { IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider } from '@mergewatch/core';
-import type { ReviewJobPayload, ReviewMode, PullRequestEvent, IssueCommentEvent, InstallationEvent } from '@mergewatch/core';
+import type { ReviewJobPayload, ReviewMode, PullRequestEvent, IssueCommentEvent, PullRequestReviewCommentEvent, InstallationEvent } from '@mergewatch/core';
 import { REVIEW_TRIGGERING_ACTIONS, COMMENT_LOOKUP_ACTIONS, findExistingBotComment } from '@mergewatch/core';
 import { processReviewJob } from './review-processor.js';
 
@@ -49,6 +49,8 @@ export function createWebhookHandler(deps: WebhookDeps) {
         await handlePullRequest(payload as PullRequestEvent, deps);
       } else if (event === 'issue_comment') {
         await handleIssueComment(payload as IssueCommentEvent, deps);
+      } else if (event === 'pull_request_review_comment') {
+        await handleReviewComment(payload as PullRequestReviewCommentEvent, deps);
       } else if (event === 'installation') {
         await handleInstallation(payload as InstallationEvent, deps);
       }
@@ -118,6 +120,26 @@ async function handleIssueComment(payload: IssueCommentEvent, deps: WebhookDeps)
 
   processReviewJob(job, deps).catch((err) => {
     console.error('Review job failed for %s#%d:', repository.full_name, issue.number, err);
+  });
+}
+
+async function handleReviewComment(payload: PullRequestReviewCommentEvent, deps: WebhookDeps) {
+  const { action, comment, pull_request, repository, installation, sender } = payload;
+  if (action !== 'created' || !installation) return;
+  if (sender.type === 'Bot') return; // loop guard
+  if (comment.in_reply_to_id == null) return; // not a reply
+
+  const job: ReviewJobPayload = {
+    installationId: installation.id,
+    owner: repository.owner.login,
+    repo: repository.name,
+    prNumber: pull_request.number,
+    mode: 'inline_reply',
+    inlineReplyCommentId: comment.id,
+  };
+
+  processReviewJob(job, deps).catch((err) => {
+    console.error('Inline reply job failed for %s#%d:', repository.full_name, pull_request.number, err);
   });
 }
 
