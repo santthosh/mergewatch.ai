@@ -371,7 +371,7 @@ export async function handler(
       tone: runtimeConfig.ux.tone,
       customPricing: runtimeConfig.pricing,
       previousDiagram,
-      previousFindings: (prevComplete?.findings as any) ?? undefined,
+      previousFindings: prevComplete?.findings,
     }, { llm });
 
     const reviewDetailUrl = `${DASHBOARD_BASE_URL}/dashboard/reviews/${encodeURIComponent(`${repoFullName}:${prNumberCommitSha}`)}`;

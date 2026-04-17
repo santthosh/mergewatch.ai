@@ -32,6 +32,7 @@ export {
 export type {
   AgentFinding,
   OrchestratedFinding,
+  PreviousFinding,
   ReviewContext,
   DiagramResult,
   OrchestratorResult,
