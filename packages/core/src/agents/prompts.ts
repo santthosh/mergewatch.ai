@@ -326,6 +326,14 @@ Rules:
 Respond with plain markdown text (NOT JSON). This will be posted directly as a GitHub comment.`;
 
 // ─── Orchestrator agent ────────────────────────────────────────────────────
+
+/**
+ * Placeholder replaced at runtime with a block describing findings from prior
+ * reviews on earlier commits of the same PR. When no prior findings exist the
+ * placeholder is stripped entirely.
+ */
+export const PREVIOUS_FINDINGS_PLACEHOLDER = '{{PREVIOUS_FINDINGS}}';
+
 export const ORCHESTRATOR_PROMPT = `${SHARED_PREAMBLE}
 
 You receive findings from multiple review agents (security, bugs, style, error-handling, test-coverage, comment-accuracy).
@@ -343,6 +351,8 @@ Your job:
 7. Within the same severity, rank by confidence and impact.
 8. Drop findings that are speculative or low-confidence.
 9. Cap the total to MAX_FINDINGS_PLACEHOLDER findings.
+
+${PREVIOUS_FINDINGS_PLACEHOLDER}
 
 Also assess the overall merge readiness of the PR on a 1–5 scale:
 - 5 = No issues, clean PR — safe to merge

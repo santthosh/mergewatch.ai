@@ -330,6 +330,46 @@ describe('runOrchestratorAgent', () => {
     expect(result.mergeScoreReason).toBe('Warnings present.');
   });
 
+  it('injects previous findings into the prompt and still calls the LLM when there are no new agent findings', async () => {
+    const orchestratorResponse = JSON.stringify({
+      findings: [
+        {
+          file: 'foo.ts', line: 10, severity: 'warning', confidence: 90,
+          category: 'bug', title: 'Carried over', description: 'Still present.', suggestion: 'Fix it.',
+        },
+      ],
+      mergeScore: 3,
+      mergeScoreReason: 'One carried-over warning.',
+    });
+    const llm = createMockLLM([orchestratorResponse]);
+    const previousFindings = [
+      {
+        file: 'foo.ts', line: 10, severity: 'warning' as const, confidence: 90,
+        category: 'bug', title: 'Carried over', description: 'Still present.', suggestion: 'Fix it.',
+      },
+    ];
+    const result = await runOrchestratorAgent([], 'model-1', 25, llm, previousFindings);
+
+    expect(llm.calls).toHaveLength(1);
+    expect(llm.calls[0].prompt).toContain('Previously reported findings');
+    expect(llm.calls[0].prompt).toContain('Carried over');
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0].title).toBe('Carried over');
+  });
+
+  it('strips the previous-findings placeholder when none are provided', async () => {
+    const orchestratorResponse = JSON.stringify({
+      findings: [], mergeScore: 5, mergeScoreReason: 'Clean.',
+    });
+    const llm = createMockLLM([orchestratorResponse]);
+    await runOrchestratorAgent(
+      [{ category: 'bug', findings: [{ file: 'a.ts', line: 1, severity: 'info', title: 't', description: 'd', suggestion: 's' }] }],
+      'model-1', 25, llm,
+    );
+    expect(llm.calls[0].prompt).not.toContain('{{PREVIOUS_FINDINGS}}');
+    expect(llm.calls[0].prompt).not.toContain('Previously reported findings');
+  });
+
   it('clamps mergeScore to 1-5 range', async () => {
     const responseTooHigh = JSON.stringify({ findings: [], mergeScore: 10, mergeScoreReason: 'way too high' });
     const llm1 = createMockLLM([responseTooHigh]);
