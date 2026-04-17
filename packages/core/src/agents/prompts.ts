@@ -16,13 +16,22 @@ export const TONE_DIRECTIVES: Record<string, string> = {
 
 export const TONE_PLACEHOLDER = '{{TONE_DIRECTIVE}}';
 
+/**
+ * Placeholder substituted at runtime with the contents of the repo conventions
+ * file (e.g. AGENTS.md). When no conventions file is found the placeholder is
+ * stripped, leaving the prompt unchanged from the no-conventions case.
+ */
+export const CONVENTIONS_PLACEHOLDER = '{{CONVENTIONS}}';
+
 // ─── Shared preamble inserted into every agent prompt ──────────────────────
 const SHARED_PREAMBLE = `You are a senior software engineer performing an automated code review.
 ${TONE_PLACEHOLDER}
+${CONVENTIONS_PLACEHOLDER}
 Rules:
 - Be concise and high-signal. Do NOT nitpick formatting, whitespace, or trivial naming.
 - Only report issues you are confident about.
 - Before reporting an issue, re-read the surrounding code in the diff carefully. If a guard, null check, validation, or mitigation already exists nearby that addresses the concern, do NOT report the issue.
+- Respect the repository conventions above (if any) OVER generic best practices. If a convention explains why a pattern the diff uses is intentional, do NOT flag it.
 - When you reference a location, use the exact file path and line number from the diff.
 - Respond ONLY with the JSON object described below — no markdown fences, no extra text.
 

@@ -51,6 +51,7 @@ export {
   COMMENT_ACCURACY_REVIEWER_PROMPT,
   ORCHESTRATOR_PROMPT,
   PREVIOUS_FINDINGS_PLACEHOLDER,
+  CONVENTIONS_PLACEHOLDER,
   RESPOND_PROMPT,
   CUSTOM_AGENT_RESPONSE_FORMAT,
   TONE_DIRECTIVES,
@@ -91,6 +92,13 @@ export type { ReviewDelta } from './review-delta.js';
 // ─── Config ─────────────────────────────────────────────────────────────────
 export { DEFAULT_CONFIG, DEFAULT_UX_CONFIG, DEFAULT_RULES_CONFIG, mergeConfig } from './config/defaults.js';
 export type { MergeWatchConfig, CustomAgentDef, UXConfig, RulesConfig } from './config/defaults.js';
+export {
+  fetchConventions,
+  truncateConventions,
+  DEFAULT_CONVENTIONS_PATHS,
+  CONVENTIONS_MAX_BYTES,
+} from './config/conventions.js';
+export type { ConventionsLoadResult } from './config/conventions.js';
 
 // ─── Context (agentic file fetching) ─────────────────────────────────────────
 export { fetchFileContents } from './context/file-fetcher.js';
