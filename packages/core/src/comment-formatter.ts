@@ -366,6 +366,33 @@ export function formatReviewComment(options: FormatOptions): string {
     }
   }
 
+  // 8b. Previously reported findings (collapsed) — resolved + carried-over
+  // audit trail so authors can see what carried across and what was dropped
+  // without cluttering the primary findings list.
+  if (delta && (delta.resolved.length > 0 || delta.carriedOver.length > 0)) {
+    const prevTotal = delta.resolved.length + delta.carriedOver.length;
+    lines.push(`<details><summary>\uD83D\uDCCE Previously reported findings \u2014 ${prevTotal}</summary>`);
+    lines.push('');
+    if (delta.resolved.length > 0) {
+      lines.push(`**\u2705 Resolved on this commit (${delta.resolved.length})**`);
+      lines.push('');
+      for (const f of delta.resolved) {
+        lines.push(`- \`${f.file}:${f.line}\` — ${f.title}`);
+      }
+      lines.push('');
+    }
+    if (delta.carriedOver.length > 0) {
+      lines.push(`**\u21BB Still present (${delta.carriedOver.length})**`);
+      lines.push('');
+      for (const f of delta.carriedOver) {
+        lines.push(`- \`${f.file}:${f.line}\` — ${f.title}`);
+      }
+      lines.push('');
+    }
+    lines.push('</details>');
+    lines.push('');
+  }
+
   // 9. Review details drawer — collapsed: model, time, tokens, cost, suppressed
   const totalTokens = (inputTokens ?? 0) + (outputTokens ?? 0);
   const hasSuppressed = (suppressedCount ?? 0) > 0 && (ux?.showSuppressedCount !== false);

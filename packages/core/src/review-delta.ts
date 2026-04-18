@@ -3,6 +3,12 @@
  * showing which issues were resolved, which are new, and which persist.
  */
 
+export interface FindingLike {
+  file: string;
+  line: number;
+  title: string;
+}
+
 export interface ReviewDelta {
   /** Number of issues from the previous review that are no longer present */
   resolvedCount: number;
@@ -10,12 +16,17 @@ export interface ReviewDelta {
   newCount: number;
   /** Number of issues carried over unchanged from the previous review */
   carriedOverCount: number;
-}
-
-interface FindingLike {
-  file: string;
-  line: number;
-  title: string;
+  /**
+   * Findings from the previous review that are no longer reported — the
+   * orchestrator either dropped them as resolved or the diff itself no
+   * longer triggers them. Preserved here so the review comment can list
+   * them in a collapsed "Previously reported" section for audit.
+   */
+  resolved: FindingLike[];
+  /** New findings present on this commit but not in the previous review. */
+  new: FindingLike[];
+  /** Findings present in both the previous and current review. */
+  carriedOver: FindingLike[];
 }
 
 /**
@@ -38,23 +49,32 @@ export function computeReviewDelta(
     return null;
   }
 
-  const prevKeys = new Set(previousFindings.map(findingKey));
-  const currKeys = new Set(currentFindings.map(findingKey));
+  const prevByKey = new Map<string, FindingLike>();
+  for (const f of previousFindings) prevByKey.set(findingKey(f), f);
+  const currByKey = new Map<string, FindingLike>();
+  for (const f of currentFindings) currByKey.set(findingKey(f), f);
 
-  let resolvedCount = 0;
-  for (const key of prevKeys) {
-    if (!currKeys.has(key)) resolvedCount++;
+  const resolved: FindingLike[] = [];
+  for (const [key, f] of prevByKey) {
+    if (!currByKey.has(key)) resolved.push(f);
   }
 
-  let newCount = 0;
-  let carriedOverCount = 0;
-  for (const key of currKeys) {
-    if (prevKeys.has(key)) {
-      carriedOverCount++;
+  const added: FindingLike[] = [];
+  const carriedOver: FindingLike[] = [];
+  for (const [key, f] of currByKey) {
+    if (prevByKey.has(key)) {
+      carriedOver.push(f);
     } else {
-      newCount++;
+      added.push(f);
     }
   }
 
-  return { resolvedCount, newCount, carriedOverCount };
+  return {
+    resolvedCount: resolved.length,
+    newCount: added.length,
+    carriedOverCount: carriedOver.length,
+    resolved,
+    new: added,
+    carriedOver,
+  };
 }

@@ -180,7 +180,10 @@ describe('formatReviewComment', () => {
   // Delta section
   it('renders delta section with resolved and new counts', () => {
     const result = formatReviewComment(baseOptions({
-      delta: { resolvedCount: 3, newCount: 1, carriedOverCount: 2 },
+      delta: {
+        resolvedCount: 3, newCount: 1, carriedOverCount: 2,
+        resolved: [], new: [], carriedOver: [],
+      },
     }));
     expect(result).toContain('3');
     expect(result).toContain('resolved');
@@ -188,6 +191,36 @@ describe('formatReviewComment', () => {
     expect(result).toContain('new');
     expect(result).toContain('2');
     expect(result).toContain('carried over');
+  });
+
+  it('renders the collapsed "Previously reported findings" section with resolved and carried-over items', () => {
+    const result = formatReviewComment(baseOptions({
+      delta: {
+        resolvedCount: 2,
+        newCount: 0,
+        carriedOverCount: 1,
+        resolved: [
+          { file: 'a.ts', line: 10, title: 'Stale comment' },
+          { file: 'b.ts', line: 22, title: 'Missing test' },
+        ],
+        new: [],
+        carriedOver: [
+          { file: 'c.ts', line: 42, title: 'Prompt injection concern' },
+        ],
+      },
+    }));
+    expect(result).toContain('Previously reported findings');
+    expect(result).toContain('Resolved on this commit');
+    expect(result).toContain('Still present');
+    expect(result).toContain('a.ts:10');
+    expect(result).toContain('Stale comment');
+    expect(result).toContain('c.ts:42');
+    expect(result).toContain('Prompt injection concern');
+  });
+
+  it('omits the "Previously reported findings" section when there are no prior findings', () => {
+    const result = formatReviewComment(baseOptions({ delta: null }));
+    expect(result).not.toContain('Previously reported findings');
   });
 
   // reviewDetailUrl
