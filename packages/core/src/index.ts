@@ -101,7 +101,7 @@ export type { Finding, WorkDoneSection } from './comment-formatter.js';
 
 // ─── Review delta ────────────────────────────────────────────────────────────
 export { computeReviewDelta } from './review-delta.js';
-export type { ReviewDelta } from './review-delta.js';
+export type { ReviewDelta, FindingLike } from './review-delta.js';
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 export { DEFAULT_CONFIG, DEFAULT_UX_CONFIG, DEFAULT_RULES_CONFIG, mergeConfig } from './config/defaults.js';
