@@ -12,7 +12,16 @@
 import { Octokit } from "@octokit/rest";
 import yaml from 'js-yaml';
 import type { PRContext } from "../types/github.js";
-import type { MergeWatchConfig, CustomAgentDef, UXConfig, RulesConfig } from '../config/defaults.js';
+import type {
+  MergeWatchConfig,
+  CustomAgentDef,
+  UXConfig,
+  RulesConfig,
+  AgentReviewConfig,
+  AgentReviewDetectionConfig,
+  PassThreshold,
+} from '../config/defaults.js';
+import { PASS_THRESHOLDS } from '../config/defaults.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -815,6 +824,45 @@ export function parseRepoConfigYaml(content: string): Partial<MergeWatchConfig> 
         rules.ignoreLabels = r.ignoreLabels.filter((l: unknown) => typeof l === 'string');
       }
       config.rules = rules as RulesConfig;
+    }
+
+    // Agent review config
+    if (parsed.agentReview && typeof parsed.agentReview === 'object') {
+      const ar = parsed.agentReview as Record<string, unknown>;
+      const agentReview: Partial<AgentReviewConfig> = {};
+      if (typeof ar.enabled === 'boolean') agentReview.enabled = ar.enabled;
+      if (typeof ar.strictChecks === 'boolean') agentReview.strictChecks = ar.strictChecks;
+      if (typeof ar.autoIterate === 'boolean') agentReview.autoIterate = ar.autoIterate;
+      if (
+        typeof ar.maxIterations === 'number' &&
+        Number.isInteger(ar.maxIterations) &&
+        ar.maxIterations >= 1 &&
+        ar.maxIterations <= 20
+      ) {
+        agentReview.maxIterations = ar.maxIterations;
+      }
+      if (typeof ar.passThreshold === 'string' && (PASS_THRESHOLDS as readonly string[]).includes(ar.passThreshold)) {
+        agentReview.passThreshold = ar.passThreshold as PassThreshold;
+      }
+      if (ar.detection && typeof ar.detection === 'object') {
+        const d = ar.detection as Record<string, unknown>;
+        const detection: Partial<AgentReviewDetectionConfig> = {};
+        if (Array.isArray(d.commitTrailers)) {
+          detection.commitTrailers = d.commitTrailers.filter((t: unknown) => typeof t === 'string');
+        }
+        if (Array.isArray(d.branchPrefixes)) {
+          detection.branchPrefixes = d.branchPrefixes.filter((p: unknown) => typeof p === 'string');
+        }
+        if (Array.isArray(d.labels)) {
+          detection.labels = d.labels.filter((l: unknown) => typeof l === 'string');
+        }
+        if (Object.keys(detection).length > 0) {
+          agentReview.detection = detection as AgentReviewDetectionConfig;
+        }
+      }
+      if (Object.keys(agentReview).length > 0) {
+        config.agentReview = agentReview as AgentReviewConfig;
+      }
     }
 
   return config;

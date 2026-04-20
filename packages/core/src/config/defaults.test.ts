@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_CONFIG, DEFAULT_RULES_CONFIG, mergeConfig } from './defaults.js';
+import {
+  DEFAULT_CONFIG,
+  DEFAULT_RULES_CONFIG,
+  DEFAULT_AGENT_REVIEW_CONFIG,
+  mergeConfig,
+} from './defaults.js';
 
 describe('DEFAULT_CONFIG', () => {
   it('has all agent flags as booleans', () => {
@@ -96,5 +101,33 @@ describe('mergeConfig', () => {
     const result = mergeConfig({ rules: { ignorePatterns: ['*.generated.ts'] } });
     expect(result.rules.ignorePatterns).toEqual(['*.generated.ts']);
     expect(result.rules.maxFiles).toBe(DEFAULT_RULES_CONFIG.maxFiles);
+  });
+
+  it('leaves agentReview undefined when partial omits it', () => {
+    const result = mergeConfig({});
+    expect(result.agentReview).toBeUndefined();
+  });
+
+  it('deep-merges partial agentReview with DEFAULT_AGENT_REVIEW_CONFIG', () => {
+    const result = mergeConfig({
+      agentReview: {
+        enabled: false,
+        maxIterations: 7,
+        detection: { labels: ['bot-pr'] },
+      },
+    });
+    expect(result.agentReview).toBeDefined();
+    expect(result.agentReview!.enabled).toBe(false);
+    expect(result.agentReview!.maxIterations).toBe(7);
+    expect(result.agentReview!.strictChecks).toBe(DEFAULT_AGENT_REVIEW_CONFIG.strictChecks);
+    expect(result.agentReview!.autoIterate).toBe(DEFAULT_AGENT_REVIEW_CONFIG.autoIterate);
+    expect(result.agentReview!.passThreshold).toBe(DEFAULT_AGENT_REVIEW_CONFIG.passThreshold);
+    expect(result.agentReview!.detection.labels).toEqual(['bot-pr']);
+    expect(result.agentReview!.detection.commitTrailers).toEqual(
+      DEFAULT_AGENT_REVIEW_CONFIG.detection.commitTrailers,
+    );
+    expect(result.agentReview!.detection.branchPrefixes).toEqual(
+      DEFAULT_AGENT_REVIEW_CONFIG.detection.branchPrefixes,
+    );
   });
 });

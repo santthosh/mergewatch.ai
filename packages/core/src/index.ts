@@ -106,8 +106,23 @@ export { computeReviewDelta } from './review-delta.js';
 export type { ReviewDelta, FindingLike } from './review-delta.js';
 
 // ─── Config ─────────────────────────────────────────────────────────────────
-export { DEFAULT_CONFIG, DEFAULT_UX_CONFIG, DEFAULT_RULES_CONFIG, mergeConfig } from './config/defaults.js';
-export type { MergeWatchConfig, CustomAgentDef, UXConfig, RulesConfig } from './config/defaults.js';
+export {
+  DEFAULT_CONFIG,
+  DEFAULT_UX_CONFIG,
+  DEFAULT_RULES_CONFIG,
+  DEFAULT_AGENT_REVIEW_CONFIG,
+  PASS_THRESHOLDS,
+  mergeConfig,
+} from './config/defaults.js';
+export type {
+  MergeWatchConfig,
+  CustomAgentDef,
+  UXConfig,
+  RulesConfig,
+  AgentReviewConfig,
+  AgentReviewDetectionConfig,
+  PassThreshold,
+} from './config/defaults.js';
 export {
   fetchConventions,
   truncateConventions,

@@ -64,6 +64,48 @@ export const DEFAULT_RULES_CONFIG: RulesConfig = {
   ignoreLabels: ['skip-review'],
 };
 
+/** Valid values for agentReview.passThreshold. */
+export const PASS_THRESHOLDS = ['noCritical', 'noFindings', 'scoreAtLeast4', 'scoreAtLeast5'] as const;
+
+export type PassThreshold = (typeof PASS_THRESHOLDS)[number];
+
+export interface AgentReviewDetectionConfig {
+  /** Commit trailer substrings that identify agent-authored commits */
+  commitTrailers: string[];
+  /** Branch name prefixes that identify agent-authored PRs */
+  branchPrefixes: string[];
+  /** Labels that mark a PR as agent-authored */
+  labels: string[];
+}
+
+export interface AgentReviewConfig {
+  /** Master switch for agent-authored PR handling */
+  enabled: boolean;
+  /** Inject agent-mode prompt suffix when source='agent' */
+  strictChecks: boolean;
+  /** Gate iteration tracking + reviewer whisper */
+  autoIterate: boolean;
+  /** Cap re-reviews per PR for iteration metadata (1..20) */
+  maxIterations: number;
+  /** Threshold required for an agent-authored PR to pass */
+  passThreshold: PassThreshold;
+  /** Heuristics for detecting agent-authored PRs */
+  detection: AgentReviewDetectionConfig;
+}
+
+export const DEFAULT_AGENT_REVIEW_CONFIG: AgentReviewConfig = {
+  enabled: true,
+  strictChecks: true,
+  autoIterate: true,
+  maxIterations: 3,
+  passThreshold: 'noCritical',
+  detection: {
+    commitTrailers: ['Co-authored-by: Claude'],
+    branchPrefixes: ['claude/'],
+    labels: ['ai-generated'],
+  },
+};
+
 export interface MergeWatchConfig {
   /** Primary model used for review agents */
   model: string;
@@ -114,6 +156,8 @@ export interface MergeWatchConfig {
   rules: RulesConfig;
   /** Custom pricing overrides (model ID → USD per 1M tokens) for cost estimation */
   pricing?: Record<string, { inputPer1M: number; outputPer1M: number }>;
+  /** Agent-authored PR detection + strict-mode review settings */
+  agentReview?: AgentReviewConfig;
 }
 
 export const DEFAULT_CONFIG: MergeWatchConfig = {
@@ -156,23 +200,50 @@ export const DEFAULT_CONFIG: MergeWatchConfig = {
  * Merges a partial user config (from .mergewatch.yml / DynamoDB) with defaults.
  * Only defined fields in the partial override the defaults.
  */
-export function mergeConfig(partial: Partial<Omit<MergeWatchConfig, 'agents' | 'ux' | 'rules'>> & { agents?: Partial<MergeWatchConfig['agents']>; ux?: Partial<UXConfig>; rules?: Partial<RulesConfig> }): MergeWatchConfig {
-  return {
+export function mergeConfig(
+  partial: Partial<Omit<MergeWatchConfig, 'agents' | 'ux' | 'rules' | 'agentReview'>> & {
+    agents?: Partial<MergeWatchConfig['agents']>;
+    ux?: Partial<UXConfig>;
+    rules?: Partial<RulesConfig>;
+    agentReview?: Partial<Omit<AgentReviewConfig, 'detection'>> & {
+      detection?: Partial<AgentReviewDetectionConfig>;
+    };
+  },
+): MergeWatchConfig {
+  const { agentReview, ...rest } = partial;
+  const merged: MergeWatchConfig = {
     ...DEFAULT_CONFIG,
-    ...partial,
+    ...rest,
     agents: {
       ...DEFAULT_CONFIG.agents,
-      ...(partial.agents ?? {}),
+      ...(rest.agents ?? {}),
     },
-    customAgents: partial.customAgents ?? DEFAULT_CONFIG.customAgents,
-    pricing: partial.pricing ?? DEFAULT_CONFIG.pricing,
+    customAgents: rest.customAgents ?? DEFAULT_CONFIG.customAgents,
+    pricing: rest.pricing ?? DEFAULT_CONFIG.pricing,
     ux: {
       ...DEFAULT_UX_CONFIG,
-      ...(partial.ux ?? {}),
+      ...(rest.ux ?? {}),
     },
     rules: {
       ...DEFAULT_RULES_CONFIG,
-      ...(partial.rules ?? {}),
+      ...(rest.rules ?? {}),
     },
   };
+  if (agentReview !== undefined) {
+    const a = agentReview;
+    const d = a.detection ?? {};
+    merged.agentReview = {
+      enabled: a.enabled ?? DEFAULT_AGENT_REVIEW_CONFIG.enabled,
+      strictChecks: a.strictChecks ?? DEFAULT_AGENT_REVIEW_CONFIG.strictChecks,
+      autoIterate: a.autoIterate ?? DEFAULT_AGENT_REVIEW_CONFIG.autoIterate,
+      maxIterations: a.maxIterations ?? DEFAULT_AGENT_REVIEW_CONFIG.maxIterations,
+      passThreshold: a.passThreshold ?? DEFAULT_AGENT_REVIEW_CONFIG.passThreshold,
+      detection: {
+        commitTrailers: d.commitTrailers ?? DEFAULT_AGENT_REVIEW_CONFIG.detection.commitTrailers,
+        branchPrefixes: d.branchPrefixes ?? DEFAULT_AGENT_REVIEW_CONFIG.detection.branchPrefixes,
+        labels: d.labels ?? DEFAULT_AGENT_REVIEW_CONFIG.detection.labels,
+      },
+    };
+  }
+  return merged;
 }
