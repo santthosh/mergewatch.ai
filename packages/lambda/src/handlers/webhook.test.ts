@@ -1,8 +1,58 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createHmac } from 'node:crypto';
-import { verifySignature, parseReviewMode, shouldHandleReviewCommentEvent } from './webhook.js';
+
+// ---------------------------------------------------------------------------
+// Mocks — must be declared before importing the handler so the module sees
+// mocked versions of @mergewatch/core, the AWS SDKs, and the SSM auth provider.
+// ---------------------------------------------------------------------------
+
+const mockEnqueue = vi.fn().mockResolvedValue({});
+const mockFindExistingBotComment = vi.fn().mockResolvedValue(null);
+const mockFetchRepoConfig = vi.fn();
+const mockClassifyPrSource = vi.fn();
+const mockGetInstallationOctokit = vi.fn();
+
+vi.mock('@mergewatch/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@mergewatch/core')>();
+  return {
+    ...actual,
+    findExistingBotComment: (...args: unknown[]) => mockFindExistingBotComment(...args),
+    fetchRepoConfig: (...args: unknown[]) => mockFetchRepoConfig(...args),
+    classifyPrSource: (...args: unknown[]) => mockClassifyPrSource(...args),
+  };
+});
+
+vi.mock('@aws-sdk/client-lambda', () => ({
+  LambdaClient: class {
+    send(cmd: unknown) { return mockEnqueue(cmd); }
+  },
+  InvokeCommand: class {
+    input: unknown;
+    constructor(input: unknown) { this.input = input; }
+  },
+  InvocationType: { Event: 'Event' },
+}));
+
+vi.mock('@aws-sdk/client-dynamodb', () => ({
+  DynamoDBClient: class { send() { return Promise.resolve({}); } },
+}));
+vi.mock('@aws-sdk/lib-dynamodb', () => ({
+  DynamoDBDocumentClient: {
+    from: () => ({ send: () => Promise.resolve({}) }),
+  },
+  PutCommand: class { input: unknown; constructor(input: unknown) { this.input = input; } },
+}));
+
+vi.mock('../github-auth-ssm.js', () => ({
+  SSMGitHubAuthProvider: class {
+    getInstallationOctokit(id: number) { return mockGetInstallationOctokit(id); }
+  },
+  getWebhookSecret: () => Promise.resolve('test-secret'),
+}));
+
+import { verifySignature, parseReviewMode, shouldHandleReviewCommentEvent, handler } from './webhook.js';
 import { REVIEW_TRIGGERING_ACTIONS, COMMENT_LOOKUP_ACTIONS } from '@mergewatch/core';
-import type { PullRequestReviewCommentEvent } from '@mergewatch/core';
+import type { PullRequestReviewCommentEvent, PullRequestEvent } from '@mergewatch/core';
 
 // ---------------------------------------------------------------------------
 // verifySignature
@@ -161,5 +211,169 @@ describe('shouldHandleReviewCommentEvent', () => {
     const evt = makeEvent();
     evt.installation = undefined;
     expect(shouldHandleReviewCommentEvent(evt)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// handler — agent-source classification on pull_request events
+// ---------------------------------------------------------------------------
+
+function signBody(body: string, secret = 'test-secret'): string {
+  return 'sha256=' + createHmac('sha256', secret).update(body).digest('hex');
+}
+
+function makePullRequestEvent(overrides: Partial<PullRequestEvent> = {}): PullRequestEvent {
+  return {
+    action: 'opened',
+    number: 7,
+    pull_request: {
+      number: 7,
+      title: 'Automated change',
+      body: null,
+      state: 'open',
+      html_url: 'https://github.com/octo/repo/pull/7',
+      head: {
+        label: 'octo:claude/fix-bug',
+        ref: 'claude/fix-bug',
+        sha: 'abc123',
+        repo: {
+          id: 1,
+          name: 'repo',
+          full_name: 'octo/repo',
+          owner: { login: 'octo', id: 1, avatar_url: '', type: 'User' },
+          private: false,
+          html_url: '',
+          default_branch: 'main',
+        },
+      },
+      base: {
+        label: 'octo:main',
+        ref: 'main',
+        sha: 'def456',
+        repo: {
+          id: 1,
+          name: 'repo',
+          full_name: 'octo/repo',
+          owner: { login: 'octo', id: 1, avatar_url: '', type: 'User' },
+          private: false,
+          html_url: '',
+          default_branch: 'main',
+        },
+      },
+      user: { login: 'alice', id: 1, avatar_url: '', type: 'User' },
+      draft: false,
+      labels: [],
+      created_at: '2026-04-01T00:00:00Z',
+      updated_at: '2026-04-01T00:00:00Z',
+    },
+    repository: {
+      id: 1,
+      name: 'repo',
+      full_name: 'octo/repo',
+      owner: { login: 'octo', id: 1, avatar_url: '', type: 'User' },
+      private: false,
+      html_url: '',
+      default_branch: 'main',
+    },
+    installation: { id: 999 },
+    sender: { login: 'alice', id: 1, avatar_url: '', type: 'User' },
+    ...overrides,
+  };
+}
+
+function makeApiGatewayEvent(body: string): any {
+  return {
+    body,
+    headers: {
+      'x-hub-signature-256': signBody(body),
+      'x-github-event': 'pull_request',
+    },
+  };
+}
+
+describe('handler — agent-source classification', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetInstallationOctokit.mockResolvedValue({});
+    mockFetchRepoConfig.mockResolvedValue(null);
+  });
+
+  it('propagates source=agent and agentKind into the enqueued payload', async () => {
+    mockFetchRepoConfig.mockResolvedValue({
+      agentReview: { enabled: true, detection: { branchPrefixes: ['claude/'] } },
+    });
+    mockClassifyPrSource.mockResolvedValue({
+      source: 'agent',
+      agentKind: 'claude',
+      matchedRule: 'branch',
+    });
+
+    const body = JSON.stringify(makePullRequestEvent());
+    const res = await handler(makeApiGatewayEvent(body));
+
+    expect(res.statusCode).toBe(200);
+    expect(mockClassifyPrSource).toHaveBeenCalledTimes(1);
+    expect(mockEnqueue).toHaveBeenCalledTimes(1);
+    const invokeInput = (mockEnqueue.mock.calls[0][0] as { input: { Payload: Buffer } }).input;
+    const payload = JSON.parse(invokeInput.Payload.toString());
+    expect(payload.source).toBe('agent');
+    expect(payload.agentKind).toBe('claude');
+  });
+
+  it('passes undefined agentReview config when repo YAML has no agentReview block', async () => {
+    mockFetchRepoConfig.mockResolvedValue(null);
+    mockClassifyPrSource.mockResolvedValue({ source: 'human' });
+
+    const body = JSON.stringify(makePullRequestEvent());
+    await handler(makeApiGatewayEvent(body));
+
+    expect(mockClassifyPrSource).toHaveBeenCalledTimes(1);
+    // Third argument to classifyPrSource is the agentReview config.
+    const callArgs = mockClassifyPrSource.mock.calls[0];
+    expect(callArgs[2]).toBeUndefined();
+  });
+
+  it('populates agentReview config when repo YAML opts in', async () => {
+    mockFetchRepoConfig.mockResolvedValue({
+      agentReview: { enabled: true },
+    });
+    mockClassifyPrSource.mockResolvedValue({ source: 'human' });
+
+    const body = JSON.stringify(makePullRequestEvent());
+    await handler(makeApiGatewayEvent(body));
+
+    const callArgs = mockClassifyPrSource.mock.calls[0];
+    expect(callArgs[2]).toBeDefined();
+    expect(callArgs[2].enabled).toBe(true);
+    // mergeConfig fills the detection block with defaults.
+    expect(callArgs[2].detection).toBeDefined();
+  });
+
+  it('propagates source=human when classifier returns human', async () => {
+    mockFetchRepoConfig.mockResolvedValue(null);
+    mockClassifyPrSource.mockResolvedValue({ source: 'human' });
+
+    const body = JSON.stringify(makePullRequestEvent());
+    await handler(makeApiGatewayEvent(body));
+
+    const invokeInput = (mockEnqueue.mock.calls[0][0] as { input: { Payload: Buffer } }).input;
+    const payload = JSON.parse(invokeInput.Payload.toString());
+    expect(payload.source).toBe('human');
+    expect(payload.agentKind).toBeUndefined();
+  });
+
+  it('runs classification on synchronize events (not only opened)', async () => {
+    mockFetchRepoConfig.mockResolvedValue(null);
+    mockClassifyPrSource.mockResolvedValue({ source: 'human' });
+    mockFindExistingBotComment.mockResolvedValue(123);
+
+    const body = JSON.stringify(makePullRequestEvent({ action: 'synchronize' }));
+    await handler(makeApiGatewayEvent(body));
+
+    expect(mockClassifyPrSource).toHaveBeenCalledTimes(1);
+    const invokeInput = (mockEnqueue.mock.calls[0][0] as { input: { Payload: Buffer } }).input;
+    const payload = JSON.parse(invokeInput.Payload.toString());
+    expect(payload.source).toBe('human');
+    expect(payload.existingCommentId).toBe(123);
   });
 });

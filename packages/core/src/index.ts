@@ -146,6 +146,10 @@ export type { FileFetchOptions, AgenticInvokeResult } from './context/agentic-fe
 // ─── Skip logic ─────────────────────────────────────────────────────────────
 export { shouldSkipPR, shouldSkipByRules, SKIP_PATTERNS } from './skip-logic.js';
 
+// ─── Agent-authored PR detection ────────────────────────────────────────────
+export { classifyPrSource } from './agent-detection.js';
+export type { AgentKind, ClassificationResult } from './agent-detection.js';
+
 // ─── Diff filtering ─────────────────────────────────────────────────────────
 export { filterDiff, extractChangedLines, isLineNearChange } from './diff-filter.js';
 

@@ -197,6 +197,8 @@ export async function processReviewJob(
     headBranch: prContext.headBranch,
     baseBranch: prContext.baseBranch,
     installationId: instId,
+    source: job.source,
+    agentKind: job.agentKind,
   });
   if (!claimed) {
     console.log(`Review already in progress for ${repoFullName}#${prNumber}@${shortSha}, skipping`);
@@ -353,6 +355,7 @@ export async function processReviewJob(
         previousDiagram,
         previousFindings: prevComplete?.findings,
         conventions: conventionsResult?.content,
+        agentAuthored: job.source === 'agent',
       },
       { llm: deps.llm },
     );

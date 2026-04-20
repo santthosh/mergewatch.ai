@@ -1,8 +1,8 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { Request, Response } from 'express';
-import type { IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider } from '@mergewatch/core';
+import type { IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider, AgentReviewConfig } from '@mergewatch/core';
 import type { ReviewJobPayload, ReviewMode, PullRequestEvent, IssueCommentEvent, PullRequestReviewCommentEvent, InstallationEvent } from '@mergewatch/core';
-import { REVIEW_TRIGGERING_ACTIONS, COMMENT_LOOKUP_ACTIONS, findExistingBotComment } from '@mergewatch/core';
+import { REVIEW_TRIGGERING_ACTIONS, COMMENT_LOOKUP_ACTIONS, findExistingBotComment, classifyPrSource, fetchRepoConfig, mergeConfig } from '@mergewatch/core';
 import { processReviewJob } from './review-processor.js';
 
 export interface WebhookDeps {
@@ -64,30 +64,58 @@ async function handlePullRequest(payload: PullRequestEvent, deps: WebhookDeps) {
   const { action, pull_request, repository, installation } = payload;
   if (!installation || !(REVIEW_TRIGGERING_ACTIONS as readonly string[]).includes(action)) return;
 
-  // Look for existing bot comment to update (not on first open)
+  const owner = repository.owner.login;
+  const repo = repository.name;
+  const prNumber = pull_request.number;
+
+  // Resolve an Octokit up front — we need it for classification and,
+  // conditionally, for the existing-comment lookup on re-open / sync.
+  let octokit: Awaited<ReturnType<IGitHubAuthProvider['getInstallationOctokit']>> | null = null;
+  try {
+    octokit = await deps.authProvider.getInstallationOctokit(installation.id);
+  } catch (err) {
+    console.warn('Failed to obtain installation Octokit for classification:', err);
+  }
+
   let existingCommentId: number | undefined;
-  if ((COMMENT_LOOKUP_ACTIONS as readonly string[]).includes(action)) {
+  if (octokit && (COMMENT_LOOKUP_ACTIONS as readonly string[]).includes(action)) {
     try {
-      const octokit = await deps.authProvider.getInstallationOctokit(installation.id);
-      const commentId = await findExistingBotComment(
-        octokit, repository.owner.login, repository.name, pull_request.number,
-      );
+      const commentId = await findExistingBotComment(octokit, owner, repo, prNumber);
       if (commentId) existingCommentId = commentId;
     } catch (err) {
       console.warn('Failed to look up existing bot comment:', err);
     }
   }
 
+  // Classify PR source when we have an Octokit. The classifier itself handles
+  // API failures internally and falls back to 'human'.
+  let source: 'agent' | 'human' | undefined;
+  let agentKind: ReviewJobPayload['agentKind'];
+  if (octokit) {
+    const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch(() => null);
+    const agentReviewConfig: AgentReviewConfig | undefined = yamlConfig?.agentReview
+      ? mergeConfig(yamlConfig).agentReview
+      : undefined;
+    const classification = await classifyPrSource(pull_request, octokit, agentReviewConfig);
+    source = classification.source;
+    agentKind = classification.agentKind;
+    console.log(
+      `Classified ${owner}/${repo}#${prNumber} as ${classification.source}${classification.agentKind ? ' (' + classification.agentKind + ')' : ''} via ${classification.matchedRule ?? 'default'}`,
+    );
+  }
+
   const job: ReviewJobPayload = {
     installationId: installation.id,
-    owner: repository.owner.login,
-    repo: repository.name,
-    prNumber: pull_request.number,
+    owner,
+    repo,
+    prNumber,
     mode: 'review',
     existingCommentId,
     isDraft: pull_request.draft ?? false,
     prLabels: pull_request.labels?.map((l) => l.name) ?? [],
     changedFileCount: pull_request.changed_files,
+    source,
+    agentKind,
   };
 
   // Process in background

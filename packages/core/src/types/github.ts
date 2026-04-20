@@ -256,4 +256,12 @@ export interface ReviewJobPayload {
    * root to reconstruct conversation context.
    */
   inlineReplyCommentId?: number;
+  /**
+   * PR source classification populated by the webhook handler via
+   * classifyPrSource. When 'agent', the review agent injects the agent-mode
+   * prompt suffix and persists source/agentKind onto the ReviewItem.
+   */
+  source?: 'agent' | 'human';
+  /** Agent kind when source='agent' (derived from whichever detection rule matched). */
+  agentKind?: 'claude' | 'cursor' | 'codex' | 'other';
 }

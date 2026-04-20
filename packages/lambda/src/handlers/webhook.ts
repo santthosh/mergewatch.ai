@@ -18,6 +18,9 @@ import {
   findExistingBotComment,
   REVIEW_TRIGGERING_ACTIONS,
   COMMENT_LOOKUP_ACTIONS,
+  classifyPrSource,
+  fetchRepoConfig,
+  mergeConfig,
 } from '@mergewatch/core';
 import type {
   PullRequestEvent,
@@ -26,6 +29,7 @@ import type {
   InstallationEvent,
   ReviewMode,
   ReviewJobPayload,
+  AgentReviewConfig,
 } from '@mergewatch/core';
 import { SSMGitHubAuthProvider, getWebhookSecret } from '../github-auth-ssm.js';
 
@@ -155,14 +159,27 @@ async function handlePullRequestEvent(
   const repo = repository.name;
   const prNumber = pr.number;
 
+  // We always need an Octokit now for classification (and, for re-open /
+  // synchronize actions, also for the existing-comment lookup).
+  const octokit = await authProvider.getInstallationOctokit(installationId);
+
   let existingCommentId: number | undefined;
   if ((COMMENT_LOOKUP_ACTIONS as readonly string[]).includes(action)) {
-    const octokit = await authProvider.getInstallationOctokit(installationId);
     const commentId = await findExistingBotComment(octokit, owner, repo, prNumber);
     if (commentId) {
       existingCommentId = commentId;
     }
   }
+
+  // Resolve agentReview config (repo YAML overrides defaults) and classify
+  // the PR source. Only opt-in via .mergewatch.yml triggers detection —
+  // when the repo has no agentReview block we pass undefined, which short-
+  // circuits the classifier to 'human'.
+  const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch(() => null);
+  const agentReviewConfig: AgentReviewConfig | undefined = yamlConfig?.agentReview
+    ? mergeConfig(yamlConfig).agentReview
+    : undefined;
+  const classification = await classifyPrSource(pr, octokit, agentReviewConfig);
 
   await enqueueReviewJob({
     installationId,
@@ -174,8 +191,13 @@ async function handlePullRequestEvent(
     isDraft: pr.draft ?? false,
     prLabels: pr.labels?.map((l) => l.name) ?? [],
     changedFileCount: pr.changed_files,
+    source: classification.source,
+    agentKind: classification.agentKind,
   });
 
+  console.log(
+    `Classified ${owner}/${repo}#${prNumber} as ${classification.source}${classification.agentKind ? ' (' + classification.agentKind + ')' : ''} via ${classification.matchedRule ?? 'default'}`,
+  );
   console.log(
     `Enqueued review job: ${owner}/${repo}#${prNumber} (action=${action}, existingComment=${existingCommentId ?? "none"})`
   );
