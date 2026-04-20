@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronRight,
   Search,
+  Bot,
 } from "lucide-react";
 
 // -- Types ------------------------------------------------------------------
@@ -24,6 +25,8 @@ interface ReviewListItem {
   completedAt?: string;
   prAuthor?: string;
   prAuthorAvatar?: string;
+  source?: "agent" | "human";
+  agentKind?: "claude" | "cursor" | "codex" | "other";
   headBranch?: string;
   baseBranch?: string;
   findingCount?: number;
@@ -72,6 +75,28 @@ function SeverityDot({ severity }: { severity?: string }) {
   return (
     <span className="inline-flex items-center gap-1" title={s.label}>
       <span className={`inline-block h-2 w-2 rounded-full ${s.dot}`} />
+    </span>
+  );
+}
+
+function AgentBadge({
+  source,
+  agentKind,
+}: {
+  source?: string;
+  agentKind?: string;
+}) {
+  if (source !== "agent") return null;
+  const label = agentKind && agentKind !== "other"
+    ? agentKind.charAt(0).toUpperCase() + agentKind.slice(1)
+    : "Agent";
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full bg-primer-purple/15 px-2 py-0.5 text-xs font-medium text-primer-purple"
+      title={`Authored by ${label}`}
+    >
+      <Bot size={11} />
+      {label}
     </span>
   );
 }
@@ -233,6 +258,7 @@ function PRCardGroup({
               <p className="mt-0.5 truncate text-xs text-fg-tertiary">{latest.repoFullName}</p>
             </div>
             <div className="flex items-center gap-2">
+              <AgentBadge source={latest.source} agentKind={latest.agentKind} />
               <MergeScoreCompact score={latest.mergeScore} />
               <StatusBadge status={latest.status} />
             </div>
@@ -306,8 +332,11 @@ function PRTableGroup({
           ) : null}
         </td>
         <td className="px-4 py-3">
-          <div className="font-medium text-fg-primary">
-            #{latest.prNumber} {latest.prTitle}
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-fg-primary">
+              #{latest.prNumber} {latest.prTitle}
+            </span>
+            <AgentBadge source={latest.source} agentKind={latest.agentKind} />
           </div>
           <div className="mt-0.5 text-xs text-fg-tertiary">{latest.repoFullName}</div>
         </td>
