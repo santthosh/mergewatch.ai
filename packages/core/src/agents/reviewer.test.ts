@@ -18,6 +18,7 @@ import {
   type AgentFinding,
   type ReviewPipelineOptions,
 } from './reviewer.js';
+import { AGENT_MODE_SUFFIX, AGENT_MODE_PLACEHOLDER } from './prompts.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -592,5 +593,138 @@ describe('runReviewPipeline', () => {
     // Token counts will be 0 since our mock doesn't return usage info
     expect(typeof result.inputTokens).toBe('number');
     expect(typeof result.outputTokens).toBe('number');
+  });
+});
+
+// ─── agentAuthored flag (AGENT_MODE_SUFFIX injection) ───────────────
+
+describe('agentAuthored flag', () => {
+  const allAgentsEnabled: ReviewPipelineOptions['enabledAgents'] = {
+    security: true,
+    bugs: true,
+    style: true,
+    summary: true,
+    diagram: true,
+    errorHandling: true,
+    testCoverage: true,
+    commentAccuracy: true,
+  };
+
+  const emptyAgentResponse = JSON.stringify({ findings: [] });
+  const summaryResponse = JSON.stringify({ summary: 'Clean.' });
+  const diagramResponse = '%% flow\nflowchart TD\n  A-->B';
+
+  function responsesForAllAgents(): string[] {
+    // 6 finding agents + summary + diagram (orchestrator skipped when findings empty)
+    return [
+      emptyAgentResponse, emptyAgentResponse, emptyAgentResponse,
+      emptyAgentResponse, emptyAgentResponse, emptyAgentResponse,
+      summaryResponse, diagramResponse,
+    ];
+  }
+
+  it('injects AGENT_MODE_SUFFIX into every finding-producing agent prompt when true', async () => {
+    const llm = createMockLLM(responsesForAllAgents());
+    await runReviewPipeline(
+      {
+        diff: sampleDiff,
+        context: sampleContext,
+        modelId: 'heavy-model',
+        lightModelId: 'light-model',
+        maxFindings: 25,
+        enabledAgents: allAgentsEnabled,
+        agentAuthored: true,
+      },
+      { llm },
+    );
+    // 8 calls: 6 finding agents + summary + diagram
+    expect(llm.calls).toHaveLength(8);
+    // All finding agents + summary should contain the suffix (diagram is exempt)
+    const findingAgentPrompts = llm.calls.slice(0, 7).map((c) => c.prompt);
+    for (const prompt of findingAgentPrompts) {
+      expect(prompt).toContain(AGENT_MODE_SUFFIX);
+      expect(prompt).not.toContain(AGENT_MODE_PLACEHOLDER);
+    }
+    // Diagram agent does not include the suffix
+    expect(llm.calls[7].prompt).not.toContain(AGENT_MODE_SUFFIX);
+  });
+
+  it('strips AGENT_MODE_PLACEHOLDER and does not inject suffix when false', async () => {
+    const llm = createMockLLM(responsesForAllAgents());
+    await runReviewPipeline(
+      {
+        diff: sampleDiff,
+        context: sampleContext,
+        modelId: 'heavy-model',
+        lightModelId: 'light-model',
+        maxFindings: 25,
+        enabledAgents: allAgentsEnabled,
+        agentAuthored: false,
+      },
+      { llm },
+    );
+    for (const call of llm.calls) {
+      expect(call.prompt).not.toContain(AGENT_MODE_SUFFIX);
+      expect(call.prompt).not.toContain(AGENT_MODE_PLACEHOLDER);
+    }
+  });
+
+  it('behaves like false when agentAuthored is undefined', async () => {
+    const llm = createMockLLM(responsesForAllAgents());
+    await runReviewPipeline(
+      {
+        diff: sampleDiff,
+        context: sampleContext,
+        modelId: 'heavy-model',
+        lightModelId: 'light-model',
+        maxFindings: 25,
+        enabledAgents: allAgentsEnabled,
+      },
+      { llm },
+    );
+    for (const call of llm.calls) {
+      expect(call.prompt).not.toContain(AGENT_MODE_SUFFIX);
+      expect(call.prompt).not.toContain(AGENT_MODE_PLACEHOLDER);
+    }
+  });
+
+  it('injects suffix into orchestrator prompt when agentAuthored is true', async () => {
+    const orchestratorResponse = JSON.stringify({ findings: [], mergeScore: 5, mergeScoreReason: 'clean' });
+    const llm = createMockLLM([orchestratorResponse]);
+    await runOrchestratorAgent(
+      [{ category: 'bug', findings: [{ file: 'a.ts', line: 1, severity: 'info', title: 't', description: 'd', suggestion: 's' }] }],
+      'model-1', 25, llm, undefined, undefined, true,
+    );
+    expect(llm.calls[0].prompt).toContain(AGENT_MODE_SUFFIX);
+    expect(llm.calls[0].prompt).not.toContain(AGENT_MODE_PLACEHOLDER);
+  });
+
+  it('strips placeholder from orchestrator prompt when agentAuthored is false/undefined', async () => {
+    const orchestratorResponse = JSON.stringify({ findings: [], mergeScore: 5, mergeScoreReason: 'clean' });
+    const llm = createMockLLM([orchestratorResponse]);
+    await runOrchestratorAgent(
+      [{ category: 'bug', findings: [{ file: 'a.ts', line: 1, severity: 'info', title: 't', description: 'd', suggestion: 's' }] }],
+      'model-1', 25, llm,
+    );
+    expect(llm.calls[0].prompt).not.toContain(AGENT_MODE_SUFFIX);
+    expect(llm.calls[0].prompt).not.toContain(AGENT_MODE_PLACEHOLDER);
+  });
+
+  it('injects suffix into individual security agent prompt when passed directly', async () => {
+    const llm = createMockLLM([emptyAgentResponse]);
+    await runSecurityAgent(sampleDiff, sampleContext, 'model-1', llm, undefined, undefined, undefined, true);
+    expect(llm.calls[0].prompt).toContain(AGENT_MODE_SUFFIX);
+  });
+
+  it('injects suffix into custom agent prompt when passed directly', async () => {
+    const agentDef: CustomAgentDef = {
+      name: 'perf',
+      prompt: 'Check perf issues.',
+      severityDefault: 'info',
+      enabled: true,
+    };
+    const llm = createMockLLM([emptyAgentResponse]);
+    await runCustomAgent(agentDef, sampleDiff, sampleContext, 'model-1', llm, undefined, undefined, true);
+    expect(llm.calls[0].prompt).toContain(AGENT_MODE_SUFFIX);
   });
 });

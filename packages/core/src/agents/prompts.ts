@@ -23,10 +23,25 @@ export const TONE_PLACEHOLDER = '{{TONE_DIRECTIVE}}';
  */
 export const CONVENTIONS_PLACEHOLDER = '{{CONVENTIONS}}';
 
+/**
+ * Placeholder substituted at runtime with AGENT_MODE_SUFFIX when the diff is
+ * known to be agent-authored (e.g. via the MCP server pre-commit path, or the
+ * webhook path when source detection flips to 'agent'). Stripped otherwise.
+ */
+export const AGENT_MODE_PLACEHOLDER = '{{AGENT_MODE}}';
+
+/**
+ * Suffix injected into finding-producing agent prompts when the diff is
+ * agent-authored. Warns the model about patterns common in AI-generated code
+ * so it doesn't lower its bar just because the output looks plausible.
+ */
+export const AGENT_MODE_SUFFIX = `This diff is agent-authored. Be extra suspicious of: (1) hallucinated or non-existent imports/APIs; (2) tests that pass without meaningful assertions; (3) unused code, dead branches, or over-abstraction; (4) references to deprecated or stale patterns the repo has moved past. Do not lower your bar for these categories just because the code looks plausible.`;
+
 // ─── Shared preamble inserted into every agent prompt ──────────────────────
 const SHARED_PREAMBLE = `You are a senior software engineer performing an automated code review.
 ${TONE_PLACEHOLDER}
 ${CONVENTIONS_PLACEHOLDER}
+${AGENT_MODE_PLACEHOLDER}
 Rules:
 - Be concise and high-signal. Do NOT nitpick formatting, whitespace, or trivial naming.
 - Only report issues you are confident about.
@@ -423,6 +438,8 @@ Preserve the "confidence" score (1-100) from the original agent findings. If two
 
 // ─── Custom agent response format ──────────────────────────────────────────
 export const CUSTOM_AGENT_RESPONSE_FORMAT = `
+
+${AGENT_MODE_PLACEHOLDER}
 
 Return a JSON object with this exact shape:
 {
