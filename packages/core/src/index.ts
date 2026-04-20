@@ -3,7 +3,14 @@ export type { ILLMProvider, TokenUsage, LLMInvokeResult } from './llm/types.js';
 export { normalizeLLMResult } from './llm/types.js';
 export { TokenAccumulator, TrackingLLMProvider } from './llm/token-accumulator.js';
 export { estimateCost, DEFAULT_PRICING } from './llm/pricing.js';
-export type { IInstallationStore, IReviewStore } from './storage/types.js';
+export type {
+  IInstallationStore,
+  IReviewStore,
+  IApiKeyStore,
+  IMcpSessionStore,
+  ApiKeyRecord,
+  McpSessionRecord,
+} from './storage/types.js';
 export type { IGitHubAuthProvider } from './github/auth.js';
 export type {
   IDashboardStore,
@@ -104,8 +111,23 @@ export { computeReviewDelta } from './review-delta.js';
 export type { ReviewDelta, FindingLike } from './review-delta.js';
 
 // ─── Config ─────────────────────────────────────────────────────────────────
-export { DEFAULT_CONFIG, DEFAULT_UX_CONFIG, DEFAULT_RULES_CONFIG, mergeConfig } from './config/defaults.js';
-export type { MergeWatchConfig, CustomAgentDef, UXConfig, RulesConfig } from './config/defaults.js';
+export {
+  DEFAULT_CONFIG,
+  DEFAULT_UX_CONFIG,
+  DEFAULT_RULES_CONFIG,
+  DEFAULT_AGENT_REVIEW_CONFIG,
+  PASS_THRESHOLDS,
+  mergeConfig,
+} from './config/defaults.js';
+export type {
+  MergeWatchConfig,
+  CustomAgentDef,
+  UXConfig,
+  RulesConfig,
+  AgentReviewConfig,
+  AgentReviewDetectionConfig,
+  PassThreshold,
+} from './config/defaults.js';
 export {
   fetchConventions,
   truncateConventions,

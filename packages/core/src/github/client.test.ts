@@ -385,4 +385,115 @@ customAgents:
     expect(result!.customAgents![0].name).toBe('perf');
     expect(result!.customAgents![0].severityDefault).toBe('warning');
   });
+
+  // ─── Agent review parsing ────────────────────────────────────────────────
+  it('parses a full agentReview block', () => {
+    const yaml = `
+agentReview:
+  enabled: true
+  strictChecks: true
+  autoIterate: false
+  maxIterations: 5
+  passThreshold: scoreAtLeast4
+  detection:
+    commitTrailers:
+      - "Co-authored-by: Claude"
+      - "Co-authored-by: Cursor"
+    branchPrefixes:
+      - "claude/"
+      - "cursor/"
+    labels:
+      - ai-generated
+      - bot
+`;
+    const result = parseRepoConfigYaml(yaml);
+    expect(result?.agentReview).toBeDefined();
+    expect(result!.agentReview!.enabled).toBe(true);
+    expect(result!.agentReview!.strictChecks).toBe(true);
+    expect(result!.agentReview!.autoIterate).toBe(false);
+    expect(result!.agentReview!.maxIterations).toBe(5);
+    expect(result!.agentReview!.passThreshold).toBe('scoreAtLeast4');
+    expect(result!.agentReview!.detection!.commitTrailers).toEqual([
+      'Co-authored-by: Claude',
+      'Co-authored-by: Cursor',
+    ]);
+    expect(result!.agentReview!.detection!.branchPrefixes).toEqual(['claude/', 'cursor/']);
+    expect(result!.agentReview!.detection!.labels).toEqual(['ai-generated', 'bot']);
+  });
+
+  it('leaves agentReview undefined when block is missing', () => {
+    const result = parseRepoConfigYaml('model: foo');
+    expect(result?.agentReview).toBeUndefined();
+  });
+
+  it('parses partial agentReview (only enabled)', () => {
+    const yaml = `
+agentReview:
+  enabled: true
+`;
+    const result = parseRepoConfigYaml(yaml);
+    expect(result?.agentReview).toBeDefined();
+    expect(result!.agentReview!.enabled).toBe(true);
+    expect(result!.agentReview!.strictChecks).toBeUndefined();
+    expect(result!.agentReview!.autoIterate).toBeUndefined();
+    expect(result!.agentReview!.maxIterations).toBeUndefined();
+    expect(result!.agentReview!.passThreshold).toBeUndefined();
+    expect(result!.agentReview!.detection).toBeUndefined();
+  });
+
+  it('omits invalid passThreshold while keeping other valid fields', () => {
+    const yaml = `
+agentReview:
+  enabled: true
+  passThreshold: bogus
+`;
+    const result = parseRepoConfigYaml(yaml);
+    expect(result?.agentReview).toBeDefined();
+    expect(result!.agentReview!.enabled).toBe(true);
+    expect(result!.agentReview!.passThreshold).toBeUndefined();
+  });
+
+  it('omits invalid maxIterations (negative, zero, non-integer, >20)', () => {
+    const cases = [
+      'maxIterations: -1',
+      'maxIterations: 0',
+      'maxIterations: 2.5',
+      'maxIterations: 21',
+      'maxIterations: "3"',
+    ];
+    for (const line of cases) {
+      const result = parseRepoConfigYaml(`agentReview:\n  enabled: true\n  ${line}\n`);
+      expect(result?.agentReview).toBeDefined();
+      expect(result!.agentReview!.enabled).toBe(true);
+      expect(result!.agentReview!.maxIterations, line).toBeUndefined();
+    }
+  });
+
+  it('filters non-string entries from detection.commitTrailers', () => {
+    const yaml = `
+agentReview:
+  detection:
+    commitTrailers:
+      - "Co-authored-by: Claude"
+      - 123
+      - null
+      - "Co-authored-by: Cursor"
+`;
+    const result = parseRepoConfigYaml(yaml);
+    expect(result?.agentReview?.detection?.commitTrailers).toEqual([
+      'Co-authored-by: Claude',
+      'Co-authored-by: Cursor',
+    ]);
+  });
+
+  it('leaves detection undefined when absent', () => {
+    const yaml = `
+agentReview:
+  enabled: true
+  maxIterations: 3
+`;
+    const result = parseRepoConfigYaml(yaml);
+    expect(result?.agentReview).toBeDefined();
+    expect(result!.agentReview!.detection).toBeUndefined();
+  });
 });
