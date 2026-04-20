@@ -30,6 +30,8 @@ export const reviews = pgTable('reviews', {
   prTitle: text('pr_title'),
   prAuthor: text('pr_author'),
   prAuthorAvatar: text('pr_author_avatar'),
+  source: text('source'),
+  agentKind: text('agent_kind'),
   headBranch: text('head_branch'),
   baseBranch: text('base_branch'),
   commentId: integer('comment_id'),

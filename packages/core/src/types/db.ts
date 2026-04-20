@@ -281,6 +281,11 @@ export interface ReviewItem {
   prAuthor?: string;
   /** PR author avatar URL. */
   prAuthorAvatar?: string;
+  /** Who authored the PR this review covers. Populated by the webhook handler via
+   *  agentReview.detection, or hardcoded 'agent' for MCP-triggered reviews. */
+  source?: 'agent' | 'human';
+  /** Which agent, when source='agent'. Derived from whichever detection rule matched. */
+  agentKind?: 'claude' | 'cursor' | 'codex' | 'other';
   /** Head branch name (e.g. "feature/foo"). */
   headBranch?: string;
   /** Base branch name (e.g. "main"). */
