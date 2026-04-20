@@ -210,31 +210,38 @@ export function mergeConfig(
     };
   },
 ): MergeWatchConfig {
+  const { agentReview, ...rest } = partial;
   const merged: MergeWatchConfig = {
     ...DEFAULT_CONFIG,
-    ...partial,
+    ...rest,
     agents: {
       ...DEFAULT_CONFIG.agents,
-      ...(partial.agents ?? {}),
+      ...(rest.agents ?? {}),
     },
-    customAgents: partial.customAgents ?? DEFAULT_CONFIG.customAgents,
-    pricing: partial.pricing ?? DEFAULT_CONFIG.pricing,
+    customAgents: rest.customAgents ?? DEFAULT_CONFIG.customAgents,
+    pricing: rest.pricing ?? DEFAULT_CONFIG.pricing,
     ux: {
       ...DEFAULT_UX_CONFIG,
-      ...(partial.ux ?? {}),
+      ...(rest.ux ?? {}),
     },
     rules: {
       ...DEFAULT_RULES_CONFIG,
-      ...(partial.rules ?? {}),
+      ...(rest.rules ?? {}),
     },
   };
-  if (partial.agentReview !== undefined) {
+  if (agentReview !== undefined) {
+    const a = agentReview;
+    const d = a.detection ?? {};
     merged.agentReview = {
-      ...DEFAULT_AGENT_REVIEW_CONFIG,
-      ...partial.agentReview,
+      enabled: a.enabled ?? DEFAULT_AGENT_REVIEW_CONFIG.enabled,
+      strictChecks: a.strictChecks ?? DEFAULT_AGENT_REVIEW_CONFIG.strictChecks,
+      autoIterate: a.autoIterate ?? DEFAULT_AGENT_REVIEW_CONFIG.autoIterate,
+      maxIterations: a.maxIterations ?? DEFAULT_AGENT_REVIEW_CONFIG.maxIterations,
+      passThreshold: a.passThreshold ?? DEFAULT_AGENT_REVIEW_CONFIG.passThreshold,
       detection: {
-        ...DEFAULT_AGENT_REVIEW_CONFIG.detection,
-        ...(partial.agentReview.detection ?? {}),
+        commitTrailers: d.commitTrailers ?? DEFAULT_AGENT_REVIEW_CONFIG.detection.commitTrailers,
+        branchPrefixes: d.branchPrefixes ?? DEFAULT_AGENT_REVIEW_CONFIG.detection.branchPrefixes,
+        labels: d.labels ?? DEFAULT_AGENT_REVIEW_CONFIG.detection.labels,
       },
     };
   }
