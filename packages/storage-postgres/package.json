@@ -7,6 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "migrations:generate": "drizzle-kit generate",
     "migrations:check": "drizzle-kit check"
   },
