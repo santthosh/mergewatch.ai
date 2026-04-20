@@ -29,6 +29,8 @@ import {
   CUSTOM_AGENT_RESPONSE_FORMAT,
   TONE_DIRECTIVES,
   TONE_PLACEHOLDER,
+  AGENT_MODE_PLACEHOLDER,
+  AGENT_MODE_SUFFIX,
 } from './prompts.js';
 import type { CustomAgentDef, UXConfig } from '../config/defaults.js';
 import { FILE_REQUEST_INSTRUCTION, invokeWithFileFetching } from '../context/agentic-fetcher.js';
@@ -82,6 +84,14 @@ ${conventions.trim()}
 }
 
 /**
+ * Build the agent-mode block injected when the diff is agent-authored. Returns
+ * AGENT_MODE_SUFFIX when true, empty string otherwise (strips the placeholder).
+ */
+function buildAgentModeBlock(agentAuthored: boolean | undefined): string {
+  return agentAuthored ? AGENT_MODE_SUFFIX : '';
+}
+
+/**
  * Build the user-facing prompt by combining the system prompt with the diff
  * and optional PR context. When agentic file fetching is enabled, injects
  * the FILE_REQUEST_INSTRUCTION via the FILE_REQUEST_PLACEHOLDER in prompts.
@@ -93,6 +103,7 @@ function buildPrompt(
   agenticFetch: boolean,
   tone?: UXConfig['tone'],
   conventions?: string,
+  agentAuthored?: boolean,
 ): string {
   // Inject tone directive or strip placeholder
   const toneDirective = tone ? (TONE_DIRECTIVES[tone] ?? '') : '';
@@ -101,10 +112,13 @@ function buildPrompt(
   // Inject or strip the conventions block
   const withConventions = tonedPrompt.replace(CONVENTIONS_PLACEHOLDER, buildConventionsBlock(conventions));
 
+  // Inject or strip the agent-mode block
+  const withAgentMode = withConventions.replace(AGENT_MODE_PLACEHOLDER, buildAgentModeBlock(agentAuthored));
+
   // Inject or strip the file request instruction placeholder
   const resolvedPrompt = agenticFetch
-    ? withConventions.replace('FILE_REQUEST_PLACEHOLDER', FILE_REQUEST_INSTRUCTION)
-    : withConventions.replace('FILE_REQUEST_PLACEHOLDER', '');
+    ? withAgentMode.replace('FILE_REQUEST_PLACEHOLDER', FILE_REQUEST_INSTRUCTION)
+    : withAgentMode.replace('FILE_REQUEST_PLACEHOLDER', '');
 
   const contextBlock = [
     `Current date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
@@ -177,8 +191,9 @@ export async function runSecurityAgent(
   fileFetchOptions?: FileFetchOptions,
   tone?: UXConfig['tone'],
   conventions?: string,
+  agentAuthored?: boolean,
 ): Promise<AgentFinding[]> {
-  const prompt = buildPrompt(SECURITY_REVIEWER_PROMPT, diff, context, !!fileFetchOptions, tone, conventions);
+  const prompt = buildPrompt(SECURITY_REVIEWER_PROMPT, diff, context, !!fileFetchOptions, tone, conventions, agentAuthored);
   const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   return parsed.findings ?? [];
@@ -193,8 +208,9 @@ export async function runBugAgent(
   fileFetchOptions?: FileFetchOptions,
   tone?: UXConfig['tone'],
   conventions?: string,
+  agentAuthored?: boolean,
 ): Promise<AgentFinding[]> {
-  const prompt = buildPrompt(BUG_REVIEWER_PROMPT, diff, context, !!fileFetchOptions, tone, conventions);
+  const prompt = buildPrompt(BUG_REVIEWER_PROMPT, diff, context, !!fileFetchOptions, tone, conventions, agentAuthored);
   const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   return parsed.findings ?? [];
@@ -210,6 +226,7 @@ export async function runStyleAgent(
   fileFetchOptions?: FileFetchOptions,
   tone?: UXConfig['tone'],
   conventions?: string,
+  agentAuthored?: boolean,
 ): Promise<AgentFinding[]> {
   let systemPrompt = STYLE_REVIEWER_PROMPT;
 
@@ -224,7 +241,7 @@ export async function runStyleAgent(
     systemPrompt = systemPrompt.replace('CUSTOM_RULES_PLACEHOLDER', '');
   }
 
-  const prompt = buildPrompt(systemPrompt, diff, context, !!fileFetchOptions, tone, conventions);
+  const prompt = buildPrompt(systemPrompt, diff, context, !!fileFetchOptions, tone, conventions, agentAuthored);
   const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   return parsed.findings ?? [];
@@ -394,8 +411,9 @@ export async function runErrorHandlingAgent(
   fileFetchOptions?: FileFetchOptions,
   tone?: UXConfig['tone'],
   conventions?: string,
+  agentAuthored?: boolean,
 ): Promise<AgentFinding[]> {
-  const prompt = buildPrompt(ERROR_HANDLING_REVIEWER_PROMPT, diff, context, !!fileFetchOptions, tone, conventions);
+  const prompt = buildPrompt(ERROR_HANDLING_REVIEWER_PROMPT, diff, context, !!fileFetchOptions, tone, conventions, agentAuthored);
   const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   return parsed.findings ?? [];
@@ -410,8 +428,9 @@ export async function runTestCoverageAgent(
   fileFetchOptions?: FileFetchOptions,
   tone?: UXConfig['tone'],
   conventions?: string,
+  agentAuthored?: boolean,
 ): Promise<AgentFinding[]> {
-  const prompt = buildPrompt(TEST_COVERAGE_REVIEWER_PROMPT, diff, context, !!fileFetchOptions, tone, conventions);
+  const prompt = buildPrompt(TEST_COVERAGE_REVIEWER_PROMPT, diff, context, !!fileFetchOptions, tone, conventions, agentAuthored);
   const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   return parsed.findings ?? [];
@@ -426,8 +445,9 @@ export async function runCommentAccuracyAgent(
   fileFetchOptions?: FileFetchOptions,
   tone?: UXConfig['tone'],
   conventions?: string,
+  agentAuthored?: boolean,
 ): Promise<AgentFinding[]> {
-  const prompt = buildPrompt(COMMENT_ACCURACY_REVIEWER_PROMPT, diff, context, !!fileFetchOptions, tone, conventions);
+  const prompt = buildPrompt(COMMENT_ACCURACY_REVIEWER_PROMPT, diff, context, !!fileFetchOptions, tone, conventions, agentAuthored);
   const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   return parsed.findings ?? [];
@@ -440,8 +460,9 @@ export async function runSummaryAgent(
   modelId: string,
   llm: ILLMProvider,
   conventions?: string,
+  agentAuthored?: boolean,
 ): Promise<string> {
-  const prompt = buildPrompt(SUMMARY_PROMPT, diff, context, false, undefined, conventions);
+  const prompt = buildPrompt(SUMMARY_PROMPT, diff, context, false, undefined, conventions, agentAuthored);
   const raw = normalizeLLMResult(await llm.invoke(modelId, prompt)).text;
   const parsed = safeParseJson<{ summary: string }>(raw, { summary: '' });
   return parsed.summary;
@@ -458,9 +479,10 @@ export async function runCustomAgent(
   llm: ILLMProvider,
   fileFetchOptions?: FileFetchOptions,
   conventions?: string,
+  agentAuthored?: boolean,
 ): Promise<AgentFinding[]> {
   const systemPrompt = `${agentDef.prompt}\n${CUSTOM_AGENT_RESPONSE_FORMAT}`;
-  const prompt = buildPrompt(systemPrompt, diff, context, !!fileFetchOptions, undefined, conventions);
+  const prompt = buildPrompt(systemPrompt, diff, context, !!fileFetchOptions, undefined, conventions, agentAuthored);
   const raw = await invokeAgent(llm, modelId, prompt, fileFetchOptions);
   const parsed = safeParseJson<{ findings: AgentFinding[] }>(raw, { findings: [] });
   // Apply default severity if agent didn't specify
@@ -550,6 +572,7 @@ export async function runOrchestratorAgent(
   llm: ILLMProvider,
   previousFindings?: PreviousFinding[],
   conventions?: string,
+  agentAuthored?: boolean,
 ): Promise<OrchestratorResult> {
   // Build a combined findings list with category tags for the orchestrator
   const allFindings = taggedFindings.flatMap(({ category, findings }) =>
@@ -568,6 +591,7 @@ export async function runOrchestratorAgent(
   const prompt = ORCHESTRATOR_PROMPT
     .replace(TONE_PLACEHOLDER, '')
     .replace(CONVENTIONS_PLACEHOLDER, buildConventionsBlock(conventions))
+    .replace(AGENT_MODE_PLACEHOLDER, buildAgentModeBlock(agentAuthored))
     .replace('MAX_FINDINGS_PLACEHOLDER', String(maxFindings))
     .replace(PREVIOUS_FINDINGS_PLACEHOLDER, buildPreviousFindingsBlock(previousFindings))
     + `\n\n--- Findings from all agents (new on this commit) ---\n${JSON.stringify(allFindings, null, 2)}`;
@@ -628,6 +652,13 @@ export interface ReviewPipelineOptions {
    * generic best practices.
    */
   conventions?: string;
+  /**
+   * When true, injects AGENT_MODE_SUFFIX into every finding-producing agent
+   * prompt warning the model about patterns common in AI-generated code
+   * (hallucinated imports, unasserted tests, dead code, stale patterns).
+   * Used by the MCP pre-commit path and webhook source='agent' detection.
+   */
+  agentAuthored?: boolean;
 }
 
 export interface ReviewPipelineResult {
@@ -676,6 +707,7 @@ export async function runReviewPipeline(
     previousDiagram,
     previousFindings,
     conventions,
+    agentAuthored,
   } = options;
 
   // Wrap the LLM provider to track token usage across all agents
@@ -690,25 +722,25 @@ export async function runReviewPipeline(
     summary, diagramResult,
   ] = await Promise.all([
     enabledAgents.security
-      ? runSecurityAgent(diff, context, modelId, llm, fileFetchOptions, tone, conventions)
+      ? runSecurityAgent(diff, context, modelId, llm, fileFetchOptions, tone, conventions, agentAuthored)
       : Promise.resolve([]),
     enabledAgents.bugs
-      ? runBugAgent(diff, context, modelId, llm, fileFetchOptions, tone, conventions)
+      ? runBugAgent(diff, context, modelId, llm, fileFetchOptions, tone, conventions, agentAuthored)
       : Promise.resolve([]),
     enabledAgents.style
-      ? runStyleAgent(diff, context, modelId, llm, customStyleRules, fileFetchOptions, tone, conventions)
+      ? runStyleAgent(diff, context, modelId, llm, customStyleRules, fileFetchOptions, tone, conventions, agentAuthored)
       : Promise.resolve([]),
     enabledAgents.errorHandling
-      ? runErrorHandlingAgent(diff, context, modelId, llm, fileFetchOptions, tone, conventions)
+      ? runErrorHandlingAgent(diff, context, modelId, llm, fileFetchOptions, tone, conventions, agentAuthored)
       : Promise.resolve([]),
     enabledAgents.testCoverage
-      ? runTestCoverageAgent(diff, context, modelId, llm, fileFetchOptions, tone, conventions)
+      ? runTestCoverageAgent(diff, context, modelId, llm, fileFetchOptions, tone, conventions, agentAuthored)
       : Promise.resolve([]),
     enabledAgents.commentAccuracy
-      ? runCommentAccuracyAgent(diff, context, lightModelId, llm, fileFetchOptions, tone, conventions)
+      ? runCommentAccuracyAgent(diff, context, lightModelId, llm, fileFetchOptions, tone, conventions, agentAuthored)
       : Promise.resolve([]),
     enabledAgents.summary
-      ? runSummaryAgent(diff, context, lightModelId, llm, conventions)
+      ? runSummaryAgent(diff, context, lightModelId, llm, conventions, agentAuthored)
       : Promise.resolve(''),
     enabledAgents.diagram
       ? runDiagramAgent(diff, context, lightModelId, llm, previousDiagram)
@@ -720,7 +752,7 @@ export async function runReviewPipeline(
   const customResults = enabledCustomAgents.length > 0
     ? await Promise.all(
         enabledCustomAgents.map((agentDef) =>
-          runCustomAgent(agentDef, diff, context, modelId, llm, fileFetchOptions, conventions)
+          runCustomAgent(agentDef, diff, context, modelId, llm, fileFetchOptions, conventions, agentAuthored)
             .catch((err) => {
               console.warn(`Custom agent "${agentDef.name}" failed:`, err);
               return [] as AgentFinding[];
@@ -756,6 +788,7 @@ export async function runReviewPipeline(
     llm,
     previousFindings,
     conventions,
+    agentAuthored,
   );
 
   // Count enabled finding agents (exclude summary + diagram)

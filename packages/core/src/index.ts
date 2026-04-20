@@ -63,6 +63,8 @@ export {
   CUSTOM_AGENT_RESPONSE_FORMAT,
   TONE_DIRECTIVES,
   TONE_PLACEHOLDER,
+  AGENT_MODE_SUFFIX,
+  AGENT_MODE_PLACEHOLDER,
 } from './agents/prompts.js';
 
 // ─── GitHub client (portable Octokit ops) ───────────────────────────────────
