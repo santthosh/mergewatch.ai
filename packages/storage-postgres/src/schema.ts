@@ -1,4 +1,4 @@
-import { pgTable, text, integer, jsonb, boolean, primaryKey, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, jsonb, boolean, timestamp, primaryKey, index } from 'drizzle-orm/pg-core';
 
 export const installations = pgTable('installations', {
   installationId: text('installation_id').notNull(),
@@ -57,3 +57,24 @@ export const reviews = pgTable('reviews', {
   installationIdx: index('reviews_installation_idx').on(t.installationId),
   prIdx: index('reviews_pr_idx').on(t.repoFullName),
 }));
+
+export const apiKeys = pgTable('api_keys', {
+  keyHash: text('key_hash').primaryKey(),
+  installationId: text('installation_id').notNull(),
+  label: text('label').notNull(),
+  scope: jsonb('scope').notNull(),
+  createdBy: text('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+}, (t) => ({
+  installationIdx: index('api_keys_installation_idx').on(t.installationId),
+}));
+
+export const mcpSessions = pgTable('mcp_sessions', {
+  sessionId: text('session_id').primaryKey(),
+  installationId: text('installation_id').notNull(),
+  firstBilledAt: timestamp('first_billed_at', { withTimezone: true }).notNull(),
+  maxBilledCents: integer('max_billed_cents').notNull(),
+  iteration: integer('iteration').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+});

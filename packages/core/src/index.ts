@@ -3,7 +3,14 @@ export type { ILLMProvider, TokenUsage, LLMInvokeResult } from './llm/types.js';
 export { normalizeLLMResult } from './llm/types.js';
 export { TokenAccumulator, TrackingLLMProvider } from './llm/token-accumulator.js';
 export { estimateCost, DEFAULT_PRICING } from './llm/pricing.js';
-export type { IInstallationStore, IReviewStore } from './storage/types.js';
+export type {
+  IInstallationStore,
+  IReviewStore,
+  IApiKeyStore,
+  IMcpSessionStore,
+  ApiKeyRecord,
+  McpSessionRecord,
+} from './storage/types.js';
 export type { IGitHubAuthProvider } from './github/auth.js';
 export type {
   IDashboardStore,
