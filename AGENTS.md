@@ -14,7 +14,7 @@ separate cleanup.
 
 ## Dashboard API route tests
 
-Routes under `packages/dashboard/app/api/**` do not have unit tests yet — no
-test harness is configured for the dashboard package. Do not flag missing
-test coverage for new routes here until the MCP auth work lands, which is
-when the dashboard test harness will be introduced.
+Do NOT flag missing test coverage for files under
+`packages/dashboard/app/api/**` or `packages/dashboard/app/dashboard/**`.
+The dashboard package has no test harness configured — these findings are
+not actionable until one is introduced with the MCP auth work.
