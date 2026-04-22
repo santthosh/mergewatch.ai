@@ -66,6 +66,41 @@ export interface ReviewContext {
   prBody?: string;
 }
 
+// ─── Concurrency control ───────────────────────────────────────────────────
+
+/**
+ * Cap on concurrent LLM calls inside the review pipeline. Bursting 8 parallel
+ * Bedrock InvokeModel calls on a large diff exceeds the per-minute TPM quota
+ * for claude-sonnet-4, producing "Too many tokens" throttling that the SDK's
+ * 3-attempt retry can't smooth over. Three parallel is a conservative default
+ * that still keeps end-to-end latency within typical targets.
+ */
+const AGENT_CONCURRENCY = 3;
+
+/**
+ * Run task factories with a bounded concurrency. Results are returned in the
+ * same order as the input. Any rejected task rejects the whole call — match
+ * Promise.all semantics so existing error handling still fires.
+ */
+async function withConcurrency<T>(
+  tasks: Array<() => Promise<T>>,
+  limit: number,
+): Promise<T[]> {
+  if (tasks.length === 0) return [];
+  const results: T[] = new Array(tasks.length);
+  let next = 0;
+  const workerCount = Math.min(limit, tasks.length);
+  const worker = async () => {
+    while (true) {
+      const i = next++;
+      if (i >= tasks.length) return;
+      results[i] = await tasks[i]();
+    }
+  };
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 /**
@@ -714,50 +749,55 @@ export async function runReviewPipeline(
   const accumulator = new TokenAccumulator();
   const llm = new TrackingLLMProvider(deps.llm, accumulator);
 
-  // Launch all enabled agents in parallel
+  // Launch all enabled agents with bounded concurrency (see AGENT_CONCURRENCY).
   // Note: summary and diagram agents don't get file fetching (they benefit less from deep context)
   const [
     securityFindings, bugFindings, styleFindings,
     errorHandlingFindings, testCoverageFindings, commentAccuracyFindings,
     summary, diagramResult,
-  ] = await Promise.all([
-    enabledAgents.security
+  ] = await withConcurrency<AgentFinding[] | string | DiagramResult>([
+    () => enabledAgents.security
       ? runSecurityAgent(diff, context, modelId, llm, fileFetchOptions, tone, conventions, agentAuthored)
       : Promise.resolve([]),
-    enabledAgents.bugs
+    () => enabledAgents.bugs
       ? runBugAgent(diff, context, modelId, llm, fileFetchOptions, tone, conventions, agentAuthored)
       : Promise.resolve([]),
-    enabledAgents.style
+    () => enabledAgents.style
       ? runStyleAgent(diff, context, modelId, llm, customStyleRules, fileFetchOptions, tone, conventions, agentAuthored)
       : Promise.resolve([]),
-    enabledAgents.errorHandling
+    () => enabledAgents.errorHandling
       ? runErrorHandlingAgent(diff, context, modelId, llm, fileFetchOptions, tone, conventions, agentAuthored)
       : Promise.resolve([]),
-    enabledAgents.testCoverage
+    () => enabledAgents.testCoverage
       ? runTestCoverageAgent(diff, context, modelId, llm, fileFetchOptions, tone, conventions, agentAuthored)
       : Promise.resolve([]),
-    enabledAgents.commentAccuracy
+    () => enabledAgents.commentAccuracy
       ? runCommentAccuracyAgent(diff, context, lightModelId, llm, fileFetchOptions, tone, conventions, agentAuthored)
       : Promise.resolve([]),
-    enabledAgents.summary
+    () => enabledAgents.summary
       ? runSummaryAgent(diff, context, lightModelId, llm, conventions, agentAuthored)
       : Promise.resolve(''),
-    enabledAgents.diagram
+    () => enabledAgents.diagram
       ? runDiagramAgent(diff, context, lightModelId, llm, previousDiagram)
       : Promise.resolve({ diagram: '', caption: '' } as DiagramResult),
-  ]);
+  ], AGENT_CONCURRENCY) as [
+    AgentFinding[], AgentFinding[], AgentFinding[],
+    AgentFinding[], AgentFinding[], AgentFinding[],
+    string, DiagramResult,
+  ];
 
-  // Run enabled custom agents in parallel
+  // Run enabled custom agents with the same concurrency cap.
   const enabledCustomAgents = customAgents.filter((a) => a.enabled);
   const customResults = enabledCustomAgents.length > 0
-    ? await Promise.all(
-        enabledCustomAgents.map((agentDef) =>
+    ? await withConcurrency<AgentFinding[]>(
+        enabledCustomAgents.map((agentDef) => () =>
           runCustomAgent(agentDef, diff, context, modelId, llm, fileFetchOptions, conventions, agentAuthored)
             .catch((err) => {
               console.warn(`Custom agent "${agentDef.name}" failed:`, err);
               return [] as AgentFinding[];
             })
         ),
+        AGENT_CONCURRENCY,
       )
     : [];
 

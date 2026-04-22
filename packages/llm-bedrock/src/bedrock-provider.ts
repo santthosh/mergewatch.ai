@@ -121,7 +121,14 @@ export class BedrockLLMProvider implements ILLMProvider {
   }
 
   private createClient(): BedrockRuntimeClient {
-    return new BedrockRuntimeClient({ region: this.region });
+    // maxAttempts: 10 with standard retry mode yields cumulative exponential
+    // backoff of ~30-45s (with jitter) across a 429 burst — enough to span a
+    // Bedrock TPM window where the SDK default of 3 attempts / ~0.6s is not.
+    return new BedrockRuntimeClient({
+      region: this.region,
+      maxAttempts: 10,
+      retryMode: 'standard',
+    });
   }
 
   async invoke(modelId: string, prompt: string, maxTokens = 4096): Promise<LLMInvokeResult> {
