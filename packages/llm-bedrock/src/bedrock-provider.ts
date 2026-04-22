@@ -113,11 +113,15 @@ function parseResponse(modelId: string, raw: string): ParsedResponse {
 
 export class BedrockLLMProvider implements ILLMProvider {
   private client: BedrockRuntimeClient;
+  private readonly region: string;
 
   constructor(region?: string) {
-    this.client = new BedrockRuntimeClient({
-      region: region ?? process.env.AWS_REGION ?? 'us-east-1',
-    });
+    this.region = region ?? process.env.AWS_REGION ?? 'us-east-1';
+    this.client = this.createClient();
+  }
+
+  private createClient(): BedrockRuntimeClient {
+    return new BedrockRuntimeClient({ region: this.region });
   }
 
   async invoke(modelId: string, prompt: string, maxTokens = 4096): Promise<LLMInvokeResult> {
@@ -130,9 +134,23 @@ export class BedrockLLMProvider implements ILLMProvider {
       accept,
     });
 
-    const response = await this.client.send(command);
+    const response = await this.sendWithSignatureRecovery(command);
     const rawResponse = new TextDecoder().decode(response.body);
     const parsed = parseResponse(modelId, rawResponse);
     return { text: parsed.text, usage: parsed.usage };
+  }
+
+  // Recover from SDK v3's poisoned systemClockOffset in long-lived warm Lambdas.
+  private async sendWithSignatureRecovery(command: InvokeModelCommand) {
+    try {
+      return await this.client.send(command);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'InvalidSignatureException') {
+        console.warn('[bedrock] InvalidSignatureException — recreating client and retrying');
+        this.client = this.createClient();
+        return await this.client.send(command);
+      }
+      throw err;
+    }
   }
 }
