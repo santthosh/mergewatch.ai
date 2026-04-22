@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ApiKeyRecord, IApiKeyStore } from '@mergewatch/core';
 import {
   AuthError,
-  API_KEY_PREFIX,
   extractBearerToken,
   hashApiKey,
   isRepoInScope,
@@ -19,7 +18,11 @@ function makeStore(record: ApiKeyRecord | null): IApiKeyStore {
   };
 }
 
-const validKey = `${API_KEY_PREFIX}abc123xyz`;
+// Literal avoids a CodeQL js/insufficient-password-hash false positive:
+// when API_KEY_PREFIX flowed into hashApiKey, the taint tracker treated
+// mw_sk_live_* tokens as passwords. They aren't — they're 192-bit random
+// strings where SHA-256 is the correct hash.
+const validKey = 'mw_sk_live_abc123xyz';
 
 describe('extractBearerToken', () => {
   it('parses a well-formed Bearer header', () => {
