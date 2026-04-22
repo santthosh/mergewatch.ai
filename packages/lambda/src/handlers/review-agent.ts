@@ -278,6 +278,8 @@ export async function handler(
       baseBranch: prContext.baseBranch,
       installationId: String(installationId),
       skipReason,
+      source: event.source,
+      agentKind: event.agentKind,
     };
     await reviewStore.upsert(skippedRecord);
 
@@ -329,6 +331,8 @@ export async function handler(
     headBranch: prContext.headBranch,
     baseBranch: prContext.baseBranch,
     installationId: String(installationId),
+    source: event.source,
+    agentKind: event.agentKind,
   };
   const claimed = await reviewStore.claimReview(reviewRecord);
   if (!claimed) {
@@ -476,6 +480,7 @@ export async function handler(
       previousDiagram,
       previousFindings: prevComplete?.findings,
       conventions: conventionsResult?.content,
+      agentAuthored: event.source === 'agent',
     }, { llm });
 
     const reviewDetailUrl = `${DASHBOARD_BASE_URL}/dashboard/reviews/${encodeURIComponent(`${repoFullName}:${prNumberCommitSha}`)}`;

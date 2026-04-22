@@ -538,3 +538,58 @@ describe('processReviewJob — inline_reply mode', () => {
     expect(runReviewPipeline).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// agent-authored PR wiring — source/agentKind persisted + agentAuthored passed
+// ---------------------------------------------------------------------------
+
+describe('processReviewJob — agent-authored wiring', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (getPRContext as any).mockResolvedValue(basePRContext);
+    (getPRDiff as any).mockResolvedValue('diff content');
+    (shouldSkipPR as any).mockReturnValue(null);
+    (shouldSkipByRules as any).mockReturnValue(null);
+    (runReviewPipeline as any).mockResolvedValue(basePipelineResult);
+  });
+
+  it('persists source and agentKind on the claimed review record', async () => {
+    const deps = makeDeps();
+    await processReviewJob(
+      makeJob({ source: 'agent', agentKind: 'claude' }),
+      deps,
+    );
+
+    expect(deps.reviewStore.claimReview).toHaveBeenCalledTimes(1);
+    const claimed = (deps.reviewStore.claimReview as any).mock.calls[0][0];
+    expect(claimed.source).toBe('agent');
+    expect(claimed.agentKind).toBe('claude');
+  });
+
+  it('passes agentAuthored=true into runReviewPipeline when source is agent', async () => {
+    const deps = makeDeps();
+    await processReviewJob(
+      makeJob({ source: 'agent', agentKind: 'claude' }),
+      deps,
+    );
+
+    const pipelineOptions = (runReviewPipeline as any).mock.calls[0][0];
+    expect(pipelineOptions.agentAuthored).toBe(true);
+  });
+
+  it('passes agentAuthored=false into runReviewPipeline when source is human', async () => {
+    const deps = makeDeps();
+    await processReviewJob(makeJob({ source: 'human' }), deps);
+
+    const pipelineOptions = (runReviewPipeline as any).mock.calls[0][0];
+    expect(pipelineOptions.agentAuthored).toBe(false);
+  });
+
+  it('passes agentAuthored=false when source is missing (back-compat)', async () => {
+    const deps = makeDeps();
+    await processReviewJob(makeJob(), deps);
+
+    const pipelineOptions = (runReviewPipeline as any).mock.calls[0][0];
+    expect(pipelineOptions.agentAuthored).toBe(false);
+  });
+});
