@@ -160,6 +160,37 @@ describe('BedrockLLMProvider', () => {
     expect(provider).toBeDefined();
   });
 
+  it('self-heals from InvalidSignatureException with a client retry', async () => {
+    const sigErr = new Error('Signature expired: 20260422T222327Z is now earlier than ...');
+    sigErr.name = 'InvalidSignatureException';
+    mockSend
+      .mockRejectedValueOnce(sigErr)
+      .mockResolvedValueOnce(makeResponse({
+        content: [{ type: 'text', text: 'after retry' }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      }));
+
+    const provider = new BedrockLLMProvider();
+    const result = await provider.invoke(
+      'us.anthropic.claude-sonnet-4-20250514-v1:0', 'prompt',
+    );
+
+    expect(result.text).toBe('after retry');
+    expect(mockSend).toHaveBeenCalledTimes(2);
+  });
+
+  it('rethrows non-signature errors without retry', async () => {
+    const err = new Error('ThrottlingException: Rate exceeded');
+    err.name = 'ThrottlingException';
+    mockSend.mockRejectedValueOnce(err);
+
+    const provider = new BedrockLLMProvider();
+    await expect(
+      provider.invoke('us.anthropic.claude-sonnet-4-20250514-v1:0', 'prompt'),
+    ).rejects.toThrow('ThrottlingException: Rate exceeded');
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
   it('handles Anthropic response with missing usage gracefully', async () => {
     mockSend.mockResolvedValueOnce(makeResponse({
       content: [{ type: 'text', text: 'no usage' }],
