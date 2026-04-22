@@ -90,6 +90,8 @@ export async function GET(req: NextRequest) {
         completedAt: item.completedAt ?? undefined,
         prAuthor: item.prAuthor ?? undefined,
         prAuthorAvatar: item.prAuthorAvatar ?? undefined,
+        source: item.source ?? undefined,
+        agentKind: item.agentKind ?? undefined,
         headBranch: item.headBranch ?? undefined,
         baseBranch: item.baseBranch ?? undefined,
         findingCount: item.findingCount ?? undefined,
