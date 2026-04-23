@@ -50,9 +50,9 @@ vi.mock('../github-auth-ssm.js', () => ({
   getWebhookSecret: () => Promise.resolve('test-secret'),
 }));
 
-import { verifySignature, parseReviewMode, shouldHandleReviewCommentEvent, handler } from './webhook.js';
-import { REVIEW_TRIGGERING_ACTIONS, COMMENT_LOOKUP_ACTIONS } from '@mergewatch/core';
-import type { PullRequestReviewCommentEvent, PullRequestEvent } from '@mergewatch/core';
+import { verifySignature, parseReviewMode, shouldHandleReviewCommentEvent, isMergeWatchCheckRun, handler } from './webhook.js';
+import { REVIEW_TRIGGERING_ACTIONS, COMMENT_LOOKUP_ACTIONS, MERGEWATCH_CHECK_RUN_NAME } from '@mergewatch/core';
+import type { PullRequestReviewCommentEvent, PullRequestEvent, CheckRunEvent } from '@mergewatch/core';
 
 // ---------------------------------------------------------------------------
 // verifySignature
@@ -375,5 +375,166 @@ describe('handler — agent-source classification', () => {
     const payload = JSON.parse(invokeInput.Payload.toString());
     expect(payload.source).toBe('human');
     expect(payload.existingCommentId).toBe(123);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// check_run.rerequested dispatch
+// ---------------------------------------------------------------------------
+
+function makeCheckRunEvent(overrides: {
+  action?: CheckRunEvent['action'];
+  name?: string;
+  pullRequests?: CheckRunEvent['check_run']['pull_requests'];
+  installation?: CheckRunEvent['installation'];
+} = {}): CheckRunEvent {
+  return {
+    action: overrides.action ?? 'rerequested',
+    check_run: {
+      id: 9001,
+      name: overrides.name ?? MERGEWATCH_CHECK_RUN_NAME,
+      head_sha: 'abc123',
+      status: 'completed',
+      conclusion: 'failure',
+      app: { id: 42, slug: 'mergewatch-ai', name: 'MergeWatch' },
+      pull_requests: overrides.pullRequests ?? [
+        {
+          number: 42,
+          head: {
+            label: 'user:feat',
+            ref: 'feat',
+            sha: 'abc123',
+            repo: {
+              id: 1,
+              name: 'repo',
+              full_name: 'octo/repo',
+              owner: { login: 'octo', id: 1, avatar_url: '', type: 'User' },
+              private: false,
+              html_url: '',
+              default_branch: 'main',
+            },
+          },
+          base: {
+            label: 'octo:main',
+            ref: 'main',
+            sha: 'def456',
+            repo: {
+              id: 1,
+              name: 'repo',
+              full_name: 'octo/repo',
+              owner: { login: 'octo', id: 1, avatar_url: '', type: 'User' },
+              private: false,
+              html_url: '',
+              default_branch: 'main',
+            },
+          },
+        },
+      ],
+    },
+    repository: {
+      id: 1,
+      name: 'repo',
+      full_name: 'octo/repo',
+      owner: { login: 'octo', id: 1, avatar_url: '', type: 'User' },
+      private: false,
+      html_url: '',
+      default_branch: 'main',
+    },
+    installation: 'installation' in overrides ? overrides.installation : { id: 999 },
+    sender: { login: 'alice', id: 1, avatar_url: '', type: 'User' },
+  };
+}
+
+function makeCheckRunApiEvent(body: string) {
+  return {
+    body,
+    headers: {
+      'x-hub-signature-256': signBody(body),
+      'x-github-event': 'check_run',
+    },
+  } as any;
+}
+
+describe('isMergeWatchCheckRun', () => {
+  it('returns true when check_run.name is MergeWatch Review', () => {
+    expect(isMergeWatchCheckRun(makeCheckRunEvent())).toBe(true);
+  });
+
+  it('returns false for unrelated check runs (e.g., CodeQL)', () => {
+    expect(isMergeWatchCheckRun(makeCheckRunEvent({ name: 'CodeQL' }))).toBe(false);
+  });
+
+  it('returns false when name is missing', () => {
+    const event = makeCheckRunEvent();
+    (event.check_run as unknown as { name: undefined }).name = undefined;
+    expect(isMergeWatchCheckRun(event)).toBe(false);
+  });
+});
+
+describe('handler — check_run.rerequested', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetInstallationOctokit.mockResolvedValue({
+      pulls: {
+        get: vi.fn().mockResolvedValue({
+          data: {
+            draft: false,
+            labels: [{ name: 'needs-review' }],
+            changed_files: 3,
+          },
+        }),
+      },
+    });
+    mockFetchRepoConfig.mockResolvedValue(null);
+    mockClassifyPrSource.mockResolvedValue({ source: 'human' });
+  });
+
+  it('enqueues a review job with existingCommentId', async () => {
+    mockFindExistingBotComment.mockResolvedValue(555);
+    const body = JSON.stringify(makeCheckRunEvent());
+    const res = await handler(makeCheckRunApiEvent(body));
+
+    expect(res.statusCode).toBe(200);
+    expect(mockEnqueue).toHaveBeenCalledTimes(1);
+    const invokeInput = (mockEnqueue.mock.calls[0][0] as { input: { Payload: Buffer } }).input;
+    const payload = JSON.parse(invokeInput.Payload.toString());
+    expect(payload.prNumber).toBe(42);
+    expect(payload.mode).toBe('review');
+    expect(payload.existingCommentId).toBe(555);
+    expect(payload.prLabels).toEqual(['needs-review']);
+    expect(payload.changedFileCount).toBe(3);
+  });
+
+  it('ignores check_run actions other than rerequested', async () => {
+    const body = JSON.stringify(makeCheckRunEvent({ action: 'created' }));
+    const res = await handler(makeCheckRunApiEvent(body));
+
+    expect(res.statusCode).toBe(200);
+    expect(mockEnqueue).not.toHaveBeenCalled();
+  });
+
+  it('ignores check runs from other apps (name mismatch)', async () => {
+    const body = JSON.stringify(makeCheckRunEvent({ name: 'CodeQL' }));
+    const res = await handler(makeCheckRunApiEvent(body));
+
+    expect(res.statusCode).toBe(200);
+    expect(mockEnqueue).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when installation id is missing', async () => {
+    const body = JSON.stringify(makeCheckRunEvent({ installation: undefined }));
+    const res = await handler(makeCheckRunApiEvent(body));
+
+    expect(res.statusCode).toBe(200);
+    expect(mockGetInstallationOctokit).not.toHaveBeenCalled();
+    expect(mockEnqueue).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when the check is not attached to any PR', async () => {
+    const body = JSON.stringify(makeCheckRunEvent({ pullRequests: [] }));
+    const res = await handler(makeCheckRunApiEvent(body));
+
+    expect(res.statusCode).toBe(200);
+    expect(mockEnqueue).not.toHaveBeenCalled();
   });
 });

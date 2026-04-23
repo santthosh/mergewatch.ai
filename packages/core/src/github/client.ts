@@ -261,6 +261,13 @@ export async function getCommentReactions(
 // ---------------------------------------------------------------------------
 
 /**
+ * Check Run name reported to GitHub. Also used by the webhook handler to
+ * identify MergeWatch check runs in check_run.rerequested events so the
+ * native "Re-run" button in the PR Checks UI triggers a fresh review.
+ */
+export const MERGEWATCH_CHECK_RUN_NAME = 'MergeWatch Review';
+
+/**
  * Create or update a GitHub Check Run on a specific commit.
  *
  * Used to show pass/fail status directly in the PR merge box.
@@ -285,7 +292,7 @@ export async function createCheckRun(
       owner,
       repo,
       head_sha: headSha,
-      name: 'MergeWatch Review',
+      name: MERGEWATCH_CHECK_RUN_NAME,
       status: params.status,
       ...(params.conclusion && { conclusion: params.conclusion }),
       ...(params.detailsUrl && { details_url: params.detailsUrl }),
