@@ -1,63 +1,70 @@
-/** Inline SVG logo — "The Merge Eye" */
-export function LogoMark({ size = 24, className }: { size?: number; className?: string }) {
-  const h = size;
-  const w = Math.round(size * (200 / 110));
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 200 110"
-      fill="none"
-      width={w}
-      height={h}
-      className={className}
-    >
-      <path d="M10 55 C10 55, 50 5, 100 5 C150 5, 190 55, 190 55 C190 55, 150 105, 100 105 C50 105, 10 55, 10 55 Z" stroke="#00ff88" strokeWidth="4" fill="none" strokeLinejoin="round"/>
-      <path d="M25 55 C25 55, 55 15, 100 15 C145 15, 175 55, 175 55" stroke="#00ff88" strokeWidth="2" fill="none" opacity="0.3"/>
-      <circle cx="100" cy="55" r="28" stroke="#00ff88" strokeWidth="3" fill="none"/>
-      <circle cx="100" cy="55" r="14" fill="#00ff88"/>
-      <circle cx="107" cy="48" r="4" fill="#000"/>
-      <circle cx="107" cy="48" r="3" fill="#fff" opacity="0.9"/>
-      <circle cx="16" cy="55" r="5" fill="#00ff88"/>
-      <circle cx="184" cy="55" r="5" fill="#00ff88"/>
-      <line x1="16" y1="55" x2="40" y2="30" stroke="#00ff88" strokeWidth="2" opacity="0.4"/>
-      <line x1="16" y1="55" x2="40" y2="80" stroke="#00ff88" strokeWidth="2" opacity="0.4"/>
-      <line x1="184" y1="55" x2="160" y2="30" stroke="#00ff88" strokeWidth="2" opacity="0.4"/>
-      <line x1="184" y1="55" x2="160" y2="80" stroke="#00ff88" strokeWidth="2" opacity="0.4"/>
-    </svg>
-  );
-}
+import { Nunito } from "next/font/google";
 
-/** Small icon variant for favicon-sized contexts */
-export function LogoIcon({ size = 20, className }: { size?: number; className?: string }) {
+// Loaded via next/font so the Nunito 800 glyphs are self-hosted at build
+// time — no runtime Google Fonts request and no FOUT on the wordmark.
+const nunito = Nunito({
+  subsets: ["latin"],
+  weight: ["800"],
+  display: "swap",
+});
+
+/**
+ * Logomark glyph — arc + filled dot with a cream-highlight "eye".
+ * Geometry is a 1:1 port of assets/mergewatch-wordmark.svg: arc stroke-
+ * width 82, dot r=108, highlight r=32.4 at (474.2, 601.2). Arc + dot
+ * inherit currentColor so the mark takes on the surrounding text color;
+ * the highlight stays fixed at #F4F2EA per the brand spec.
+ *
+ * `size` sets the rendered height; width auto-scales to the glyph's
+ * ~1.89:1 aspect ratio.
+ */
+export function LogoMark({ size = 28, className }: { size?: number; className?: string }) {
+  const width = Math.round(size * (692 / 366));
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 32 32"
-      fill="none"
-      width={size}
+      viewBox="166 386 692 366"
+      width={width}
       height={size}
+      role="img"
+      aria-label="MergeWatch logomark"
       className={className}
     >
-      <path d="M2 16 C2 16, 8 4, 16 4 C24 4, 30 16, 30 16 C30 16, 24 28, 16 28 C8 28, 2 16, 2 16 Z" stroke="#00ff88" strokeWidth="2.5" fill="none" strokeLinejoin="round"/>
-      <circle cx="16" cy="16" r="6" fill="#00ff88"/>
-      <circle cx="18" cy="14" r="1.5" fill="#000"/>
-      <circle cx="4" cy="16" r="2" fill="#00ff88"/>
+      <path
+        d="M 207 579.4 Q 512 274.4 817 579.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={82}
+        strokeLinecap="round"
+      />
+      <circle cx={512} cy={644.4} r={108} fill="currentColor" />
+      {/* Highlight is the page-background color so it always reads as the
+          inverse of the eye — dark on light-theme, light on dark-theme. */}
+      <circle cx={474.2} cy={601.2} r={32.4} fill="var(--bg-page)" />
     </svg>
   );
 }
 
-/** Full wordmark: logo icon + "merge" white + "watch" green + ".ai" */
-export function Wordmark({ iconSize = 20, className }: { iconSize?: number; className?: string }) {
+/** Small icon variant for tight contexts (favicons, compact chrome). */
+export function LogoIcon({ size = 20, className }: { size?: number; className?: string }) {
+  return <LogoMark size={size} className={className} />;
+}
+
+/**
+ * Full wordmark: logomark + "mergewatch" + dimmed ".ai".
+ * Matches assets/mergewatch-wordmark.svg visually while adapting to the
+ * active theme via currentColor — whatever `text-*` class the consumer
+ * provides also sets the glyph fill.
+ */
+export function Wordmark({ iconSize = 28, className }: { iconSize?: number; className?: string }) {
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1.5 ${className ?? ""}`}>
-      <LogoIcon
-        size={iconSize}
-        className="shrink-0"
-      />
-      <span className="whitespace-nowrap text-lg font-bold tracking-tight">
-        <span className="text-fg-primary">merge</span>
-        <span className="text-accent-green">watch</span>
-        <span className="text-fg-tertiary">.ai</span>
+    <span className={`inline-flex shrink-0 items-center gap-2 text-fg-primary ${className ?? ""}`}>
+      <LogoMark size={iconSize} className="shrink-0" />
+      <span
+        className={`whitespace-nowrap text-xl tracking-tight ${nunito.className}`}
+        style={{ fontWeight: 800, letterSpacing: "-0.02em" }}
+      >
+        mergewatch<span className="opacity-55">.ai</span>
       </span>
     </span>
   );

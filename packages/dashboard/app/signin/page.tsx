@@ -28,8 +28,8 @@ export default async function SignInPage() {
             <LogoMark size={60} />
           </div>
 
-          <h1 className="text-center text-2xl font-bold tracking-tight">
-            Sign in to <span className="text-fg-primary">merge</span><span className="text-accent-green">watch</span><span className="text-fg-tertiary">.ai</span>
+          <h1 className="text-center text-2xl font-bold tracking-tight text-fg-primary">
+            Sign in to mergewatch<span className="opacity-55">.ai</span>
           </h1>
           <p className="mt-2 text-center text-sm text-primer-muted">
             AI-powered PR reviews — your models, your cloud.

@@ -31,7 +31,7 @@ describe('formatReviewComment', () => {
   // Header
   it('contains the mergewatch header image', () => {
     const result = formatReviewComment(baseOptions());
-    expect(result).toContain('wordmark-fit.png');
+    expect(result).toContain('mergewatch-wordmark.svg');
   });
 
   // Zero findings
