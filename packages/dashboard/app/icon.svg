@@ -1,6 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <path d="M2 16 C2 16, 8 4, 16 4 C24 4, 30 16, 30 16 C30 16, 24 28, 16 28 C8 28, 2 16, 2 16 Z" stroke="#00ff88" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
-  <circle cx="16" cy="16" r="6" fill="#00ff88"/>
-  <circle cx="18" cy="14" r="1.5" fill="#000"/>
-  <circle cx="4" cy="16" r="2" fill="#00ff88"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Mergewatch">
+  <style>
+    :root { color: #0D1117; }
+    @media (prefers-color-scheme: dark) { :root { color: #F4F2EA; } }
+  </style>
+  <path d="M 207 579.4 Q 512 274.4 817 579.4" fill="none" stroke="currentColor" stroke-width="82" stroke-linecap="round" />
+  <circle cx="512" cy="644.4" r="108" fill="currentColor" />
+  <circle cx="474.2" cy="601.1999999999999" r="32.4" fill="#F4F2EA" />
 </svg>
