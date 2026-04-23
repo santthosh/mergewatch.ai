@@ -64,3 +64,18 @@ export {
   parseConventionsUri,
 } from './resources/conventions.js';
 export type { ConventionsResourceOutput } from './resources/conventions.js';
+
+// ─── HTTP transport ─────────────────────────────────────────────────────────
+export {
+  dispatchMcpRequest,
+  dispatchMcpBatch,
+  ERROR_CODES,
+  MCP_PROTOCOL_VERSION,
+} from './http-dispatcher.js';
+export type {
+  JsonRpcId,
+  JsonRpcRequest,
+  JsonRpcResponse,
+  JsonRpcSuccess,
+  JsonRpcErrorResponse,
+} from './http-dispatcher.js';

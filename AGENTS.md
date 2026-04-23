@@ -18,3 +18,12 @@ Do NOT flag missing test coverage for files under
 `packages/dashboard/app/api/**` or `packages/dashboard/app/dashboard/**`.
 The dashboard package has no test harness configured — these findings are
 not actionable until one is introduced with the MCP auth work.
+
+## AWS SAM FunctionUrl references
+
+When `AWS::Serverless::Function` has a `FunctionUrlConfig` property, SAM
+auto-generates an `AWS::Lambda::Url` resource with logical ID
+`<FunctionLogicalId>Url`. So `!GetAtt MyFunctionUrl.FunctionUrl` in an
+Outputs block is correct even when no `MyFunctionUrl` resource appears
+explicitly in the source template — it exists after the SAM transform.
+Do NOT flag these as missing-resource references.

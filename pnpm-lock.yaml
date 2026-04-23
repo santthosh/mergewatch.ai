@@ -157,6 +157,9 @@ importers:
       '@mergewatch/llm-bedrock':
         specifier: workspace:*
         version: link:../llm-bedrock
+      '@mergewatch/mcp':
+        specifier: workspace:*
+        version: link:../mcp
       '@mergewatch/storage-dynamo':
         specifier: workspace:*
         version: link:../storage-dynamo

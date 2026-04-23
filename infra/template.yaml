@@ -300,6 +300,75 @@ Resources:
           - handlers/billing.ts
 
   # ===========================================================================
+  # Lambda Function: McpServer (MCP over Function URL)
+  # ===========================================================================
+  # Exposes the MergeWatch MCP server to external coding agents (Claude Code,
+  # Cursor, etc.) over HTTP via a Lambda Function URL. Auth is Bearer-based at
+  # the application layer (API key in Authorization header) — the Function URL
+  # itself is public (AuthType: NONE) so non-AWS clients can reach it.
+  #
+  # Wire protocol: JSON-RPC 2.0 (single + batch). Tools: review_diff,
+  # get_review_status. Resource: mergewatch://conventions/{owner}/{repo}.
+
+  McpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'mergewatch-mcp-${Stage}'
+      Description: MCP server over HTTP — tool + resource endpoints for coding agents
+
+      CodeUri: ../packages/lambda/src/
+      Handler: handlers/mcp.handler
+
+      # 1024MB matches ReviewAgent — review_diff runs the same pipeline and
+      # keeps the full diff in memory.
+      MemorySize: 1024
+
+      # 5 min timeout — review_diff can take tens of seconds on a large PR
+      # and we'd rather not cut off clients mid-review.
+      Timeout: 300
+
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+      # Public Function URL — AuthType: NONE because clients are coding
+      # agents (not AWS callers). Application-layer Bearer auth is enforced
+      # inside the handler via @mergewatch/mcp's resolveApiKey.
+      #
+      # CORS is wide open (AllowOrigins: '*') because MCP clients run in
+      # diverse environments (Claude Code, Cursor, other agents) with no
+      # fixed allowlist of origins. Auth is the security boundary here,
+      # not CORS — a wildcard origin does not weaken Bearer-token auth.
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - '*'
+          AllowMethods:
+            - '*'
+          AllowHeaders:
+            - content-type
+            - authorization
+
+      Environment:
+        Variables:
+          STAGE: !Ref Stage
+          INSTALLATIONS_TABLE: !Ref InstallationsTable
+          REVIEWS_TABLE: !Ref ReviewsTable
+          API_KEYS_TABLE: !Ref ApiKeysTable
+          SESSIONS_TABLE: !Ref SessionsTable
+          DEFAULT_BEDROCK_MODEL_ID: !Ref DefaultBedrockModelId
+          DASHBOARD_BASE_URL: !Ref DashboardBaseUrl
+          DEPLOYMENT_MODE: !Ref DeploymentMode
+
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - handlers/mcp.ts
+
+  # ===========================================================================
   # DynamoDB Table: Installations
   # ===========================================================================
   # Tracks GitHub App installations and per-repo configuration.
@@ -683,6 +752,14 @@ Outputs:
   BillingUrl:
     Description: Billing API base URL
     Value: !Sub 'https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}/billing'
+
+  McpFunctionArn:
+    Description: ARN of the MCP server Lambda function
+    Value: !GetAtt McpFunction.Arn
+
+  McpFunctionUrl:
+    Description: MCP server Function URL for coding agents (Bearer auth)
+    Value: !GetAtt McpFunctionUrl.FunctionUrl
 
   # Table names for use in scripts or other tooling
   InstallationsTableName:
