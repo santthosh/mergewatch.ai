@@ -9,6 +9,7 @@
   <g transform="translate(120 21.599999999999994) scale(0.13359375)">
     <path d="M 207 579.4 Q 512 274.4 817 579.4" fill="none" stroke="currentColor" stroke-width="82" stroke-linecap="round" />
     <circle cx="512" cy="644.4" r="108" fill="currentColor" />
+    <circle cx="474.2" cy="601.1999999999999" r="32.4" fill="#F4F2EA" />
   </g>
   <text x="289.2" y="119.376" class="wm" font-size="86.39999999999999">mergewatch<tspan class="wm-dim">.ai</tspan></text>
 </svg>
