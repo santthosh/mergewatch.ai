@@ -189,6 +189,38 @@ export interface InstallationEvent {
   sender: GitHubUser;
 }
 
+/**
+ * Minimal pull-request descriptor attached to a check_run event.
+ * The full PR object isn't delivered on check_run webhooks — only a ref
+ * pair + number. We resolve the full PR via the API when we need it.
+ */
+export interface CheckRunPullRequestRef {
+  number: number;
+  head: GitHubPullRequestRef;
+  base: GitHubPullRequestRef;
+}
+
+/**
+ * check_run webhook event — MergeWatch reacts to `rerequested` so the
+ * native "Re-run" button in GitHub's Checks UI triggers a fresh review.
+ */
+export interface CheckRunEvent {
+  action: "created" | "completed" | "rerequested" | "requested_action";
+  check_run: {
+    id: number;
+    name: string;
+    head_sha: string;
+    status: string;
+    conclusion: string | null;
+    /** The App that created the check — used to filter out other tools' check runs. */
+    app?: { id: number; slug: string; name: string };
+    pull_requests: CheckRunPullRequestRef[];
+  };
+  repository: GitHubRepository;
+  installation?: { id: number };
+  sender: GitHubUser;
+}
+
 // ---------------------------------------------------------------------------
 // Discriminated union for routing
 // ---------------------------------------------------------------------------
@@ -198,6 +230,7 @@ export type WebhookEvent =
   | { eventType: "pull_request"; payload: PullRequestEvent }
   | { eventType: "issue_comment"; payload: IssueCommentEvent }
   | { eventType: "pull_request_review_comment"; payload: PullRequestReviewCommentEvent }
+  | { eventType: "check_run"; payload: CheckRunEvent }
   | { eventType: "installation"; payload: InstallationEvent };
 
 // ---------------------------------------------------------------------------

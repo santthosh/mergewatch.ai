@@ -18,6 +18,7 @@ import {
   findExistingBotComment,
   REVIEW_TRIGGERING_ACTIONS,
   COMMENT_LOOKUP_ACTIONS,
+  MERGEWATCH_CHECK_RUN_NAME,
   classifyPrSource,
   fetchRepoConfig,
   mergeConfig,
@@ -27,6 +28,7 @@ import type {
   IssueCommentEvent,
   PullRequestReviewCommentEvent,
   InstallationEvent,
+  CheckRunEvent,
   ReviewMode,
   ReviewJobPayload,
   AgentReviewConfig,
@@ -306,6 +308,81 @@ async function handleReviewCommentEvent(
 }
 
 // ---------------------------------------------------------------------------
+// Check run event handler
+// ---------------------------------------------------------------------------
+
+/**
+ * True when a check_run event describes a MergeWatch-created check.
+ * Exported for unit testing. We match by name (stable across deploys) since
+ * check_run.app.id requires knowing our GitHub App ID at runtime.
+ */
+export function isMergeWatchCheckRun(event: CheckRunEvent): boolean {
+  return event.check_run?.name === MERGEWATCH_CHECK_RUN_NAME;
+}
+
+/**
+ * Handle the "Re-run" button in GitHub's PR Checks UI. GitHub fires a
+ * check_run.rerequested event on our App; we treat it the same as a
+ * `pull_request.synchronize` on the PR the check was created for.
+ */
+async function handleCheckRunEvent(event: CheckRunEvent): Promise<void> {
+  if (event.action !== 'rerequested') return;
+  if (!isMergeWatchCheckRun(event)) return;
+
+  const installationId = event.installation?.id;
+  if (!installationId) {
+    console.warn('check_run event missing installation ID — skipping');
+    return;
+  }
+
+  const prRef = event.check_run.pull_requests?.[0];
+  if (!prRef) {
+    // Check was created on a commit not associated with any PR (rare for
+    // MergeWatch checks, but guard anyway so we don't throw).
+    console.warn(
+      `check_run rerequested with no attached PR on ${event.repository.full_name} @ ${event.check_run.head_sha}`,
+    );
+    return;
+  }
+
+  const owner = event.repository.owner.login;
+  const repo = event.repository.name;
+  const prNumber = prRef.number;
+
+  const octokit = await authProvider.getInstallationOctokit(installationId);
+
+  // Classification: refetch the PR so we get a full object + labels for
+  // agentReview detection, mirroring the pull_request.synchronize path.
+  const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch(() => null);
+  const agentReviewConfig: AgentReviewConfig | undefined = yamlConfig?.agentReview
+    ? mergeConfig(yamlConfig).agentReview
+    : undefined;
+  const { data: pr } = await octokit.pulls.get({ owner, repo, pull_number: prNumber });
+  const classification = await classifyPrSource(pr as never, octokit, agentReviewConfig);
+
+  const existingCommentId =
+    (await findExistingBotComment(octokit, owner, repo, prNumber)) ?? undefined;
+
+  await enqueueReviewJob({
+    installationId,
+    owner,
+    repo,
+    prNumber,
+    mode: 'review',
+    existingCommentId,
+    isDraft: pr.draft ?? false,
+    prLabels: pr.labels?.map((l: { name: string }) => l.name) ?? [],
+    changedFileCount: pr.changed_files,
+    source: classification.source,
+    agentKind: classification.agentKind,
+  });
+
+  console.log(
+    `Enqueued review job from check_run rerequested: ${owner}/${repo}#${prNumber} (existingComment=${existingCommentId ?? 'none'})`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Installation event handler
 // ---------------------------------------------------------------------------
 
@@ -363,6 +440,10 @@ export async function handler(
 
       case "pull_request_review_comment":
         await handleReviewCommentEvent(payload as PullRequestReviewCommentEvent);
+        break;
+
+      case "check_run":
+        await handleCheckRunEvent(payload as CheckRunEvent);
         break;
 
       case "installation":

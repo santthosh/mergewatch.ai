@@ -22,9 +22,10 @@ vi.mock('@mergewatch/core', async (importOriginal) => {
   };
 });
 
-import { verifySignature, parseReviewMode, createWebhookHandler } from './webhook-handler.js';
+import { verifySignature, parseReviewMode, isMergeWatchCheckRun, createWebhookHandler } from './webhook-handler.js';
 import type { WebhookDeps } from './webhook-handler.js';
-import type { IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider, PullRequestEvent } from '@mergewatch/core';
+import { MERGEWATCH_CHECK_RUN_NAME } from '@mergewatch/core';
+import type { IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider, PullRequestEvent, CheckRunEvent } from '@mergewatch/core';
 
 // ---------------------------------------------------------------------------
 // verifySignature
@@ -280,5 +281,156 @@ describe('createWebhookHandler — pull_request classification', () => {
     expect(callArgs[2]).toBeDefined();
     expect(callArgs[2].enabled).toBe(true);
     expect(callArgs[2].detection).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// check_run.rerequested dispatch
+// ---------------------------------------------------------------------------
+
+function makeCheckRunEvent(overrides: {
+  action?: CheckRunEvent['action'];
+  name?: string;
+  pullRequests?: CheckRunEvent['check_run']['pull_requests'];
+  installation?: CheckRunEvent['installation'];
+} = {}): CheckRunEvent {
+  const prRef = {
+    number: 42,
+    head: {
+      label: 'octo:feat',
+      ref: 'feat',
+      sha: 'abc123',
+      repo: {
+        id: 1,
+        name: 'repo',
+        full_name: 'octo/repo',
+        owner: { login: 'octo', id: 1, avatar_url: '', type: 'User' as const },
+        private: false,
+        html_url: '',
+        default_branch: 'main',
+      },
+    },
+    base: {
+      label: 'octo:main',
+      ref: 'main',
+      sha: 'def456',
+      repo: {
+        id: 1,
+        name: 'repo',
+        full_name: 'octo/repo',
+        owner: { login: 'octo', id: 1, avatar_url: '', type: 'User' as const },
+        private: false,
+        html_url: '',
+        default_branch: 'main',
+      },
+    },
+  };
+  return {
+    action: overrides.action ?? 'rerequested',
+    check_run: {
+      id: 9001,
+      name: overrides.name ?? MERGEWATCH_CHECK_RUN_NAME,
+      head_sha: 'abc123',
+      status: 'completed',
+      conclusion: 'failure',
+      app: { id: 42, slug: 'mergewatch-ai', name: 'MergeWatch' },
+      pull_requests: overrides.pullRequests ?? [prRef],
+    },
+    repository: {
+      id: 1,
+      name: 'repo',
+      full_name: 'octo/repo',
+      owner: { login: 'octo', id: 1, avatar_url: '', type: 'User' },
+      private: false,
+      html_url: '',
+      default_branch: 'main',
+    },
+    installation: 'installation' in overrides ? overrides.installation : { id: 999 },
+    sender: { login: 'alice', id: 1, avatar_url: '', type: 'User' },
+  };
+}
+
+describe('isMergeWatchCheckRun', () => {
+  it('returns true when check_run.name is MergeWatch Review', () => {
+    expect(isMergeWatchCheckRun(makeCheckRunEvent())).toBe(true);
+  });
+
+  it('returns false for a check run from another tool', () => {
+    expect(isMergeWatchCheckRun(makeCheckRunEvent({ name: 'CodeQL' }))).toBe(false);
+  });
+});
+
+describe('createWebhookHandler — check_run.rerequested', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchRepoConfig.mockResolvedValue(null);
+    mockClassifyPrSource.mockResolvedValue({ source: 'human' });
+    mockFindExistingBotComment.mockResolvedValue(null);
+  });
+
+  function makeDepsWithPR() {
+    const deps = makeDeps();
+    (deps.authProvider.getInstallationOctokit as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValue({
+        pulls: {
+          get: vi.fn().mockResolvedValue({
+            data: { draft: false, labels: [{ name: 'needs-review' }], changed_files: 3 },
+          }),
+        },
+      });
+    return deps;
+  }
+
+  it('enqueues a review job on rerequested for a MergeWatch check', async () => {
+    const deps = makeDepsWithPR();
+    const handler = createWebhookHandler(deps);
+    const body = JSON.stringify(makeCheckRunEvent());
+    const { req, res } = makeReqRes(body, 'check_run');
+
+    await handler(req, res);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockProcessReviewJob).toHaveBeenCalledTimes(1);
+    const job = mockProcessReviewJob.mock.calls[0][0];
+    expect(job.prNumber).toBe(42);
+    expect(job.mode).toBe('review');
+    expect(job.changedFileCount).toBe(3);
+    expect(job.prLabels).toEqual(['needs-review']);
+  });
+
+  it('ignores non-rerequested check_run actions', async () => {
+    const deps = makeDepsWithPR();
+    const handler = createWebhookHandler(deps);
+    const body = JSON.stringify(makeCheckRunEvent({ action: 'created' }));
+    const { req, res } = makeReqRes(body, 'check_run');
+
+    await handler(req, res);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockProcessReviewJob).not.toHaveBeenCalled();
+  });
+
+  it('ignores check runs from other tools', async () => {
+    const deps = makeDepsWithPR();
+    const handler = createWebhookHandler(deps);
+    const body = JSON.stringify(makeCheckRunEvent({ name: 'CodeQL' }));
+    const { req, res } = makeReqRes(body, 'check_run');
+
+    await handler(req, res);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockProcessReviewJob).not.toHaveBeenCalled();
+  });
+
+  it('skips when no PR is attached to the check', async () => {
+    const deps = makeDepsWithPR();
+    const handler = createWebhookHandler(deps);
+    const body = JSON.stringify(makeCheckRunEvent({ pullRequests: [] }));
+    const { req, res } = makeReqRes(body, 'check_run');
+
+    await handler(req, res);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockProcessReviewJob).not.toHaveBeenCalled();
   });
 });
