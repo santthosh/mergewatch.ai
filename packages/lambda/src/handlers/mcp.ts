@@ -52,11 +52,13 @@ const authProvider = new SSMGitHubAuthProvider();
 
 // Stripe is optional — resolved lazily on first authenticated request so the
 // MCP Function URL doesn't pay SSM cost on health pings or discovery calls.
-let cachedStripe: Awaited<ReturnType<typeof getStripe>> | undefined;
+// Cache the promise (not the resolved value) so concurrent first-callers
+// share one getStripe() round-trip instead of racing to SSM.
+let stripePromise: ReturnType<typeof getStripe> | undefined;
 async function stripeClient() {
   if (!isSaas()) return undefined;
-  if (!cachedStripe) cachedStripe = await getStripe();
-  return cachedStripe;
+  if (!stripePromise) stripePromise = getStripe();
+  return stripePromise;
 }
 
 async function buildDeps(): Promise<McpServerDeps> {
@@ -138,7 +140,8 @@ export async function handler(
   let body: unknown;
   try {
     body = parseBody(event.body);
-  } catch {
+  } catch (err) {
+    console.error('[mcp] invalid JSON body:', err instanceof Error ? err.message : err);
     return httpJson(400, { error: 'Invalid JSON body' });
   }
 

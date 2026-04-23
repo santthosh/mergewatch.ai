@@ -332,6 +332,11 @@ Resources:
       # Public Function URL — AuthType: NONE because clients are coding
       # agents (not AWS callers). Application-layer Bearer auth is enforced
       # inside the handler via @mergewatch/mcp's resolveApiKey.
+      #
+      # CORS is wide open (AllowOrigins: '*') because MCP clients run in
+      # diverse environments (Claude Code, Cursor, other agents) with no
+      # fixed allowlist of origins. Auth is the security boundary here,
+      # not CORS — a wildcard origin does not weaken Bearer-token auth.
       FunctionUrlConfig:
         AuthType: NONE
         Cors:
