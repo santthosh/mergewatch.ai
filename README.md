@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/wordmark-fit.png" alt="mergewatch" height="48" />
+  <img src="assets/mergewatch-wordmark.svg" alt="mergewatch" height="48" />
 </p>
 
 <p align="center">
