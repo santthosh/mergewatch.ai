@@ -315,7 +315,11 @@ ${previousDiagram}
     diagramPrompt = diagramPrompt.replace(PREVIOUS_DIAGRAM_PLACEHOLDER, '');
   }
   const prompt = buildPrompt(diagramPrompt, diff, context, false);
-  const raw = normalizeLLMResult(await llm.invoke(modelId, prompt)).text;
+  // Slight temperature so Mermaid diagrams don't read as a carbon copy across
+  // re-reviews of the same PR. Still low enough that structure is stable.
+  const raw = normalizeLLMResult(
+    await llm.invoke(modelId, prompt, undefined, { temperature: 0.2 }),
+  ).text;
   return parseDiagramResponse(raw);
 }
 
@@ -498,7 +502,12 @@ export async function runSummaryAgent(
   agentAuthored?: boolean,
 ): Promise<string> {
   const prompt = buildPrompt(SUMMARY_PROMPT, diff, context, false, undefined, conventions, agentAuthored);
-  const raw = normalizeLLMResult(await llm.invoke(modelId, prompt)).text;
+  // Generative prose — a small bump off 0 avoids re-review summaries that
+  // read like carbon copies. The finding agents (security/bugs/style/...)
+  // stay at temperature 0 so they flag issues consistently across re-runs.
+  const raw = normalizeLLMResult(
+    await llm.invoke(modelId, prompt, undefined, { temperature: 0.3 }),
+  ).text;
   const parsed = safeParseJson<{ summary: string }>(raw, { summary: '' });
   return parsed.summary;
 }

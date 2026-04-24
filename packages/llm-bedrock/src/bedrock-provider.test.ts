@@ -160,6 +160,41 @@ describe('BedrockLLMProvider', () => {
     expect(provider).toBeDefined();
   });
 
+  it('forwards sampling config (temperature, top_p, top_k) to Anthropic bodies', async () => {
+    mockSend.mockResolvedValueOnce(makeResponse({
+      content: [{ type: 'text', text: 'ok' }],
+      usage: { input_tokens: 1, output_tokens: 1 },
+    }));
+
+    const provider = new BedrockLLMProvider();
+    await provider.invoke(
+      'us.anthropic.claude-sonnet-4-6',
+      'prompt',
+      2048,
+      { temperature: 0.3, topP: 0.95, topK: 40 },
+    );
+
+    const body = getLastCommandBody();
+    expect(body.temperature).toBe(0.3);
+    expect(body.top_p).toBe(0.95);
+    expect(body.top_k).toBe(40);
+  });
+
+  it('defaults sampling to temperature 0 when no config passed', async () => {
+    mockSend.mockResolvedValueOnce(makeResponse({
+      content: [{ type: 'text', text: 'ok' }],
+      usage: { input_tokens: 1, output_tokens: 1 },
+    }));
+
+    const provider = new BedrockLLMProvider();
+    await provider.invoke('us.anthropic.claude-sonnet-4-6', 'prompt');
+
+    const body = getLastCommandBody();
+    expect(body.temperature).toBe(0);
+    expect(body.top_p).toBeUndefined();
+    expect(body.top_k).toBeUndefined();
+  });
+
   it('self-heals from InvalidSignatureException with a client retry', async () => {
     const sigErr = new Error('Signature expired: 20260422T222327Z is now earlier than ...');
     sigErr.name = 'InvalidSignatureException';
