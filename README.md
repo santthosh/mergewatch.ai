@@ -16,6 +16,10 @@
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square" alt="PRs Welcome">
 </p>
 
+<p align="center">
+  <strong>We&rsquo;re onboarding our first design partners</strong> &mdash; free through GA, direct line to the founder. <a href="https://tally.so/r/GxolrQ"><strong>Join &rarr;</strong></a>
+</p>
+
 ---
 
 MergeWatch is a GitHub App that reviews every pull request with a team of specialized AI agents running in parallel. Security, bugs, style, error handling, test coverage, and comment accuracy are each reviewed independently, then an orchestrator deduplicates findings and scores merge readiness from 1 to 5.
