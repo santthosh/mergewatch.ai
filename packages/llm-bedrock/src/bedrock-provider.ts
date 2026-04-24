@@ -16,7 +16,7 @@ import {
   BedrockRuntimeClient,
   InvokeModelCommand,
 } from '@aws-sdk/client-bedrock-runtime';
-import type { ILLMProvider, LLMInvokeResult, TokenUsage } from '@mergewatch/core';
+import type { ILLMProvider, LLMInvokeResult, LLMSamplingConfig, TokenUsage } from '@mergewatch/core';
 
 // ─── Supported model IDs ───────────────────────────────────────────────────
 export const SUPPORTED_MODELS = {
@@ -36,27 +36,38 @@ interface ModelRequestBody {
   accept: string;
 }
 
-function buildAnthropicBody(prompt: string, maxTokens: number): ModelRequestBody {
+function buildAnthropicBody(
+  prompt: string,
+  maxTokens: number,
+  sampling: LLMSamplingConfig,
+): ModelRequestBody {
+  const body: Record<string, unknown> = {
+    anthropic_version: 'bedrock-2023-05-31',
+    max_tokens: maxTokens,
+    temperature: sampling.temperature ?? 0,
+    messages: [{ role: 'user', content: prompt }],
+  };
+  if (sampling.topP !== undefined) body.top_p = sampling.topP;
+  if (sampling.topK !== undefined) body.top_k = sampling.topK;
   return {
-    body: JSON.stringify({
-      anthropic_version: 'bedrock-2023-05-31',
-      max_tokens: maxTokens,
-      temperature: 0,
-      messages: [{ role: 'user', content: prompt }],
-    }),
+    body: JSON.stringify(body),
     contentType: 'application/json',
     accept: 'application/json',
   };
 }
 
-function buildTitanBody(prompt: string, maxTokens: number): ModelRequestBody {
+function buildTitanBody(
+  prompt: string,
+  maxTokens: number,
+  sampling: LLMSamplingConfig,
+): ModelRequestBody {
   return {
     body: JSON.stringify({
       inputText: prompt,
       textGenerationConfig: {
         maxTokenCount: maxTokens,
-        temperature: 0,
-        topP: 1,
+        temperature: sampling.temperature ?? 0,
+        topP: sampling.topP ?? 1,
       },
     }),
     contentType: 'application/json',
@@ -72,14 +83,19 @@ function isTitanModel(modelId: string): boolean {
   return modelId.includes('amazon.titan');
 }
 
-function buildRequestBody(modelId: string, prompt: string, maxTokens: number): ModelRequestBody {
+function buildRequestBody(
+  modelId: string,
+  prompt: string,
+  maxTokens: number,
+  sampling: LLMSamplingConfig,
+): ModelRequestBody {
   if (isAnthropicModel(modelId)) {
-    return buildAnthropicBody(prompt, maxTokens);
+    return buildAnthropicBody(prompt, maxTokens, sampling);
   }
   if (isTitanModel(modelId)) {
-    return buildTitanBody(prompt, maxTokens);
+    return buildTitanBody(prompt, maxTokens, sampling);
   }
-  return buildAnthropicBody(prompt, maxTokens);
+  return buildAnthropicBody(prompt, maxTokens, sampling);
 }
 
 // ─── Response parsers per model family ─────────────────────────────────────
@@ -131,8 +147,13 @@ export class BedrockLLMProvider implements ILLMProvider {
     });
   }
 
-  async invoke(modelId: string, prompt: string, maxTokens = 4096): Promise<LLMInvokeResult> {
-    const { body, contentType, accept } = buildRequestBody(modelId, prompt, maxTokens);
+  async invoke(
+    modelId: string,
+    prompt: string,
+    maxTokens = 4096,
+    sampling: LLMSamplingConfig = {},
+  ): Promise<LLMInvokeResult> {
+    const { body, contentType, accept } = buildRequestBody(modelId, prompt, maxTokens, sampling);
 
     const command = new InvokeModelCommand({
       modelId,

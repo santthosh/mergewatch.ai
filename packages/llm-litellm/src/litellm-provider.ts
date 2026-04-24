@@ -1,4 +1,4 @@
-import type { ILLMProvider, LLMInvokeResult } from '@mergewatch/core';
+import type { ILLMProvider, LLMInvokeResult, LLMSamplingConfig } from '@mergewatch/core';
 
 export class LiteLLMProvider implements ILLMProvider {
   constructor(
@@ -6,7 +6,12 @@ export class LiteLLMProvider implements ILLMProvider {
     private apiKey?: string,
   ) {}
 
-  async invoke(modelId: string, prompt: string, maxTokens = 4096): Promise<LLMInvokeResult> {
+  async invoke(
+    modelId: string,
+    prompt: string,
+    maxTokens = 4096,
+    sampling: LLMSamplingConfig = {},
+  ): Promise<LLMInvokeResult> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -15,13 +20,18 @@ export class LiteLLMProvider implements ILLMProvider {
     }
 
     const url = `${this.baseUrl.replace(/\/$/, '')}/chat/completions`;
+    // top_k is not part of the OpenAI chat-completions spec — LiteLLM proxies
+    // it through to providers that support it when present, so we forward it
+    // rather than drop it.
     const response = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify({
         model: modelId,
         max_tokens: maxTokens,
-        temperature: 0,
+        temperature: sampling.temperature ?? 0,
+        ...(sampling.topP !== undefined ? { top_p: sampling.topP } : {}),
+        ...(sampling.topK !== undefined ? { top_k: sampling.topK } : {}),
         messages: [{ role: 'user', content: prompt }],
       }),
     });

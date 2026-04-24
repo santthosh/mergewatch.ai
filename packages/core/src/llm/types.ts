@@ -20,8 +20,29 @@ export interface LLMInvokeResult {
   usage?: TokenUsage;
 }
 
+/**
+ * Sampling controls for a single invocation. Individual providers map these
+ * to their own parameter names and silently drop anything they don't support
+ * (e.g. OpenAI-compatible endpoints have no top_k). When omitted, providers
+ * default to temperature 0 / greedy decode — the right call for structured
+ * finding agents where re-run consistency matters more than output variety.
+ */
+export interface LLMSamplingConfig {
+  /** 0 (default) = deterministic. Bump for generative agents (summary, diagram). */
+  temperature?: number;
+  /** Nucleus sampling cutoff. Provider-dependent effect; ignored by some. */
+  topP?: number;
+  /** Top-k sampling. Provider-dependent; ignored by OpenAI-spec endpoints. */
+  topK?: number;
+}
+
 export interface ILLMProvider {
-  invoke(modelId: string, prompt: string, maxTokens?: number): Promise<string | LLMInvokeResult>;
+  invoke(
+    modelId: string,
+    prompt: string,
+    maxTokens?: number,
+    sampling?: LLMSamplingConfig,
+  ): Promise<string | LLMInvokeResult>;
 }
 
 /** Normalize a string or LLMInvokeResult to always get an LLMInvokeResult. */
