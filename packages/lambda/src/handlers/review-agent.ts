@@ -410,11 +410,9 @@ export async function handler(
     }
 
     // ── Filter excluded files from the diff ────
-    const allExcludePatterns = [
-      ...runtimeConfig.excludePatterns,
-      ...runtimeConfig.rules.ignorePatterns,
-    ];
-    const { filteredDiff, excludedFiles } = filterDiff(diff, allExcludePatterns);
+    // mergeConfig has already folded any deprecated rules.ignorePatterns
+    // entries into excludePatterns, so this single list is authoritative.
+    const { filteredDiff, excludedFiles } = filterDiff(diff, runtimeConfig.excludePatterns);
     if (excludedFiles.length > 0) {
       console.log(`Excluded ${excludedFiles.length} file(s) from diff: ${excludedFiles.join(', ')}`);
     }

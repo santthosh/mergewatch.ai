@@ -43,7 +43,12 @@ export const DEFAULT_UX_CONFIG: UXConfig = {
 export interface RulesConfig {
   /** Maximum number of changed files before skipping review */
   maxFiles: number;
-  /** Glob patterns for files to ignore during review */
+  /**
+   * @deprecated Use top-level `excludePatterns` instead. When set on a user
+   *   YAML, mergeConfig appends entries here into `excludePatterns` and emits
+   *   a one-time deprecation warning. The field remains in the type only so
+   *   existing `.mergewatch.yml` files continue to parse without errors.
+   */
   ignorePatterns: string[];
   /** Whether to automatically review PRs on open/synchronize */
   autoReview: boolean;
@@ -57,7 +62,11 @@ export interface RulesConfig {
 
 export const DEFAULT_RULES_CONFIG: RulesConfig = {
   maxFiles: 50,
-  ignorePatterns: ['*.lock', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'dist/**', 'node_modules/**'],
+  // Empty by default — file-pattern exclusions live on top-level
+  // excludePatterns (the canonical field). Kept on the type for back-compat
+  // with older .mergewatch.yml files; mergeConfig folds any user-provided
+  // entries here into excludePatterns at parse time.
+  ignorePatterns: [],
   autoReview: true,
   reviewOnMention: true,
   skipDrafts: true,
@@ -229,6 +238,19 @@ export function mergeConfig(
       ...(rest.rules ?? {}),
     },
   };
+
+  // Soft-deprecation: fold rules.ignorePatterns into top-level excludePatterns
+  // so existing .mergewatch.yml files keep working. After this merge the
+  // ignorePatterns array is cleared — call sites should read excludePatterns
+  // exclusively.
+  const userIgnorePatterns = rest.rules?.ignorePatterns;
+  if (Array.isArray(userIgnorePatterns) && userIgnorePatterns.length > 0) {
+    console.warn(
+      '[mergewatch] rules.ignorePatterns is deprecated; move these entries to top-level excludePatterns. Auto-merging for now.',
+    );
+    merged.excludePatterns = [...merged.excludePatterns, ...userIgnorePatterns];
+    merged.rules.ignorePatterns = [];
+  }
   if (agentReview !== undefined) {
     const a = agentReview;
     const d = a.detection ?? {};

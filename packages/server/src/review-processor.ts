@@ -286,11 +286,9 @@ export async function processReviewJob(
   }
 
   // ── Filter excluded files from the diff ────
-  const allExcludePatterns = [
-    ...config.excludePatterns,
-    ...config.rules.ignorePatterns,
-  ];
-  const { filteredDiff, excludedFiles } = filterDiff(diff, allExcludePatterns);
+  // mergeConfig folds the deprecated rules.ignorePatterns into excludePatterns
+  // at parse time — this is the authoritative single list.
+  const { filteredDiff, excludedFiles } = filterDiff(diff, config.excludePatterns);
   if (excludedFiles.length > 0) {
     console.log(`Excluded ${excludedFiles.length} file(s) from diff: ${excludedFiles.join(', ')}`);
   }
