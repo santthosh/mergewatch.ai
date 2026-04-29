@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   DEFAULT_CONFIG,
   DEFAULT_RULES_CONFIG,
@@ -97,10 +97,27 @@ describe('mergeConfig', () => {
     expect(result.rules.ignoreLabels).toEqual(['wip', 'draft']);
   });
 
-  it('overrides rules.ignorePatterns array', () => {
+  it('folds deprecated rules.ignorePatterns into top-level excludePatterns', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const result = mergeConfig({ rules: { ignorePatterns: ['*.generated.ts'] } });
-    expect(result.rules.ignorePatterns).toEqual(['*.generated.ts']);
+    // The deprecated field is cleared on the merged config…
+    expect(result.rules.ignorePatterns).toEqual([]);
+    // …and its entries appended to the canonical excludePatterns list.
+    expect(result.excludePatterns).toContain('*.generated.ts');
+    // Defaults still preserved.
     expect(result.rules.maxFiles).toBe(DEFAULT_RULES_CONFIG.maxFiles);
+    // One-time deprecation warning emitted.
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('rules.ignorePatterns is deprecated'),
+    );
+    warn.mockRestore();
+  });
+
+  it('does not warn when rules.ignorePatterns is unset', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mergeConfig({});
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('leaves agentReview undefined when partial omits it', () => {
