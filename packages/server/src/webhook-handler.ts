@@ -1,8 +1,8 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { Request, Response } from 'express';
 import type { IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider, AgentReviewConfig } from '@mergewatch/core';
-import type { ReviewJobPayload, ReviewMode, PullRequestEvent, IssueCommentEvent, PullRequestReviewCommentEvent, InstallationEvent } from '@mergewatch/core';
-import { REVIEW_TRIGGERING_ACTIONS, COMMENT_LOOKUP_ACTIONS, findExistingBotComment, classifyPrSource, fetchRepoConfig, mergeConfig } from '@mergewatch/core';
+import type { ReviewJobPayload, ReviewMode, PullRequestEvent, IssueCommentEvent, PullRequestReviewCommentEvent, InstallationEvent, CheckRunEvent } from '@mergewatch/core';
+import { REVIEW_TRIGGERING_ACTIONS, COMMENT_LOOKUP_ACTIONS, MERGEWATCH_CHECK_RUN_NAME, findExistingBotComment, classifyPrSource, fetchRepoConfig, mergeConfig } from '@mergewatch/core';
 import { processReviewJob } from './review-processor.js';
 
 export interface WebhookDeps {
@@ -51,6 +51,8 @@ export function createWebhookHandler(deps: WebhookDeps) {
         await handleIssueComment(payload as IssueCommentEvent, deps);
       } else if (event === 'pull_request_review_comment') {
         await handleReviewComment(payload as PullRequestReviewCommentEvent, deps);
+      } else if (event === 'check_run') {
+        await handleCheckRun(payload as CheckRunEvent, deps);
       } else if (event === 'installation') {
         await handleInstallation(payload as InstallationEvent, deps);
       }
@@ -168,6 +170,77 @@ async function handleReviewComment(payload: PullRequestReviewCommentEvent, deps:
 
   processReviewJob(job, deps).catch((err) => {
     console.error('Inline reply job failed for %s#%d:', repository.full_name, pull_request.number, err);
+  });
+}
+
+/**
+ * True when a check_run event describes a MergeWatch-created check. Matches
+ * by name since check_run.app.id requires knowing the GitHub App ID at runtime.
+ */
+export function isMergeWatchCheckRun(event: CheckRunEvent): boolean {
+  return event.check_run?.name === MERGEWATCH_CHECK_RUN_NAME;
+}
+
+/**
+ * Handle the "Re-run" button in GitHub's PR Checks UI. GitHub fires
+ * check_run.rerequested on our App — we run the same dispatch as a
+ * pull_request.synchronize on the PR the check was created for.
+ */
+async function handleCheckRun(payload: CheckRunEvent, deps: WebhookDeps) {
+  if (payload.action !== 'rerequested') return;
+  if (!isMergeWatchCheckRun(payload)) return;
+
+  const installationId = payload.installation?.id;
+  if (!installationId) return;
+
+  const prRef = payload.check_run.pull_requests?.[0];
+  if (!prRef) {
+    console.warn(
+      `check_run rerequested with no attached PR on ${payload.repository.full_name} @ ${payload.check_run.head_sha}`,
+    );
+    return;
+  }
+
+  const owner = payload.repository.owner.login;
+  const repo = payload.repository.name;
+  const prNumber = prRef.number;
+
+  let octokit: Awaited<ReturnType<IGitHubAuthProvider['getInstallationOctokit']>> | null = null;
+  try {
+    octokit = await deps.authProvider.getInstallationOctokit(installationId);
+  } catch (err) {
+    console.warn('Failed to obtain installation Octokit for check_run dispatch:', err);
+    return;
+  }
+
+  // Refetch the PR so we get labels/draft/changed_files for the job payload.
+  const { data: pr } = await octokit.pulls.get({ owner, repo, pull_number: prNumber });
+
+  const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch(() => null);
+  const agentReviewConfig: AgentReviewConfig | undefined = yamlConfig?.agentReview
+    ? mergeConfig(yamlConfig).agentReview
+    : undefined;
+  const classification = await classifyPrSource(pr as never, octokit, agentReviewConfig);
+
+  const existingCommentId =
+    (await findExistingBotComment(octokit, owner, repo, prNumber).catch(() => null)) ?? undefined;
+
+  const job: ReviewJobPayload = {
+    installationId,
+    owner,
+    repo,
+    prNumber,
+    mode: 'review',
+    existingCommentId,
+    isDraft: pr.draft ?? false,
+    prLabels: pr.labels?.map((l: { name: string }) => l.name) ?? [],
+    changedFileCount: pr.changed_files,
+    source: classification.source,
+    agentKind: classification.agentKind,
+  };
+
+  processReviewJob(job, deps).catch((err) => {
+    console.error('Review job (check_run rerequested) failed for %s#%d:', payload.repository.full_name, prNumber, err);
   });
 }
 
