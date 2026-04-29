@@ -145,6 +145,19 @@ export interface MergeWatchConfig {
   conventions?: string;
   /** File patterns to exclude from review (glob syntax) */
   excludePatterns: string[];
+  /**
+   * File patterns that override the internal SKIP_PATTERNS list, forcing
+   * MergeWatch to review the PR even when it would otherwise be skipped
+   * as "trivial." Use this to opt docs-only PRs (or any other normally
+   * skipped category) back into review for specific paths — for example,
+   * a critical-docs subdirectory or a top-level SECURITY markdown file.
+   *
+   * Operates at the PR-skip layer, NOT the diff-filter layer. It does
+   * not modify what's sent to the agents on a PR that's already being
+   * reviewed — that's `excludePatterns`. It only decides whether the
+   * PR gets reviewed at all when every file is otherwise trivial.
+   */
+  includePatterns: string[];
   /** Minimum severity to report: 'info' | 'warning' | 'critical' */
   minSeverity: 'info' | 'warning' | 'critical';
   /** Maximum number of findings to include in the comment */
@@ -194,6 +207,7 @@ export const DEFAULT_CONFIG: MergeWatchConfig = {
     '**/build/**',
     '**/node_modules/**',
   ],
+  includePatterns: [],
   minSeverity: 'info',
   maxFindings: 25,
   postSummaryOnClean: true,

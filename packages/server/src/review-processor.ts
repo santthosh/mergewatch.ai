@@ -2,7 +2,7 @@ import type { ReviewJobPayload, IInstallationStore, IReviewStore, IGitHubAuthPro
 import {
   getPRDiff, getPRContext, addPRReaction, postReviewComment, updateReviewComment,
   findExistingBotComment, getCommentReactions, createCheckRun,
-  formatReviewComment, runReviewPipeline, shouldSkipPR, shouldSkipByRules,
+  formatReviewComment, runReviewPipeline, shouldSkipPR, shouldSkipByRules, extractIncludePatterns,
   filterDiff,
   DEFAULT_CONFIG, mergeConfig,
   BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
@@ -215,8 +215,21 @@ export async function processReviewJob(
     summary: `MergeWatch is reviewing PR #${prNumber}...`,
   }).catch((err) => console.warn('Failed to create in-progress check run:', err));
 
+  // Load .mergewatch.yml once. Used for the smart-skip includePatterns
+  // override and reused below when building the full runtimeConfig — avoids
+  // a second GitHub round-trip per review.
+  const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch((err) => {
+    // Static format string; user-controlled values pass as separate args
+    // to avoid feeding repo names through Node's printf-style formatter.
+    console.warn('Failed to fetch .mergewatch.yml — proceeding without YAML config:', `${repoFullName}#${prNumber}`, err);
+    return null;
+  });
+  const includePatterns = extractIncludePatterns(yamlConfig);
+
   // Smart skip check — bypass when user explicitly requested a review via @mergewatch
-  const skipReason = job.mentionTriggered ? null : shouldSkipPR(prContext.files || []);
+  const skipReason = job.mentionTriggered
+    ? null
+    : shouldSkipPR(prContext.files || [], includePatterns);
   if (skipReason) {
     await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: now, skipReason });
     await createCheckRun(octokit, owner, repo, headSha, {
@@ -255,8 +268,8 @@ export async function processReviewJob(
       : [],
   };
 
-  // Merge config: YAML provides base, dashboard settings override, env var model overrides all
-  const yamlConfig = await fetchRepoConfig(octokit, owner, repo);
+  // Merge config: YAML provides base, dashboard settings override, env var model overrides all.
+  // yamlConfig was fetched earlier for the smart-skip includePatterns override; reuse it here.
   const modelOverride = process.env.LLM_MODEL;
   const config = mergeConfig({
     ...(yamlConfig ?? {}),

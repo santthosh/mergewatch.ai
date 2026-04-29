@@ -9,7 +9,7 @@
  */
 
 import { minimatch } from 'minimatch';
-import type { RulesConfig } from './config/defaults.js';
+import type { MergeWatchConfig, RulesConfig } from './config/defaults.js';
 
 /**
  * File patterns that indicate a trivial PR not worth reviewing.
@@ -62,12 +62,41 @@ export const SKIP_PATTERNS = [
 /**
  * Check if a PR should be skipped because all changed files are trivial.
  * Returns a skip reason string if skipped, or null if the PR should be reviewed.
+ *
+ * `includePatterns` is the user-configured override list: any file matching
+ * one of these patterns is treated as non-trivial regardless of whether it
+ * also matches SKIP_PATTERNS. This is how a docs-only PR can opt itself
+ * back into review — set `includePatterns: ["docs/architecture/star-star"]`
+ * (real glob `**` star-star) and a PR that only touches that path will be
+ * reviewed even though all-markdown is otherwise considered trivial.
  */
-export function shouldSkipPR(files: string[]): string | null {
+/**
+ * Extract a sanitized `includePatterns` list from a possibly-null parsed
+ * YAML config. Centralized here so the Lambda and Express transports share
+ * one defensive parse — string-only entries, empty fallback when the field
+ * is missing or malformed.
+ */
+export function extractIncludePatterns(
+  yamlConfig: Partial<MergeWatchConfig> | null | undefined,
+): string[] {
+  const raw = (yamlConfig as { includePatterns?: unknown } | null | undefined)?.includePatterns;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((p): p is string => typeof p === 'string');
+}
+
+export function shouldSkipPR(
+  files: string[],
+  includePatterns: string[] = [],
+): string | null {
   if (files.length === 0) return 'No changed files';
 
+  const isForceIncluded = (file: string) =>
+    includePatterns.some((pattern) => minimatch(file, pattern));
+
   const nonTrivialFiles = files.filter(
-    (file) => !SKIP_PATTERNS.some((pattern) => minimatch(file, pattern)),
+    (file) =>
+      isForceIncluded(file) ||
+      !SKIP_PATTERNS.some((pattern) => minimatch(file, pattern)),
   );
 
   if (nonTrivialFiles.length === 0) {
