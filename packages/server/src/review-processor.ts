@@ -410,6 +410,7 @@ export async function processReviewJob(
       ux: config.ux,
       workDone,
       delta,
+      deltaCaption: result.deltaCaption,
       suppressedCount: result.suppressedCount,
       enabledAgentCount: result.enabledAgentCount,
       inputTokens: result.inputTokens,

@@ -26,6 +26,7 @@ import {
   ORCHESTRATOR_PROMPT,
   PREVIOUS_FINDINGS_PLACEHOLDER,
   CONVENTIONS_PLACEHOLDER,
+  DELTA_CAPTION_PROMPT,
   CUSTOM_AGENT_RESPONSE_FORMAT,
   TONE_DIRECTIVES,
   TONE_PLACEHOLDER,
@@ -33,6 +34,8 @@ import {
   AGENT_MODE_SUFFIX,
 } from './prompts.js';
 import type { CustomAgentDef, UXConfig } from '../config/defaults.js';
+import type { ReviewDelta } from '../review-delta.js';
+import { computeReviewDelta } from '../review-delta.js';
 import { FILE_REQUEST_INSTRUCTION, invokeWithFileFetching } from '../context/agentic-fetcher.js';
 import type { FileFetchOptions } from '../context/agentic-fetcher.js';
 import { extractChangedLines, isLineNearChange } from '../diff-filter.js';
@@ -512,6 +515,53 @@ export async function runSummaryAgent(
   return parsed.summary;
 }
 
+// ─── Delta caption agent (re-review only) ──────────────────────────────────
+
+/**
+ * Build the input block for the delta-caption prompt. Three plain lists
+ * keyed by title. Truncates titles defensively to bound prompt size.
+ */
+function buildDeltaCaptionInput(delta: ReviewDelta): string {
+  const cap = (s: string) => (s.length > 120 ? s.slice(0, 117) + '…' : s);
+  const fmt = (label: string, items: { title: string }[]) =>
+    items.length === 0
+      ? `${label}: (none)`
+      : `${label}:\n${items.map((f) => `- ${cap(f.title)}`).join('\n')}`;
+  return [
+    fmt('RESOLVED', delta.resolved),
+    fmt('NEW', delta.new),
+    fmt('CARRIED_OVER', delta.carriedOver),
+  ].join('\n\n');
+}
+
+/**
+ * Generate a one-sentence caption summarising what changed on the current
+ * commit relative to the prior review. Returns null when there's nothing
+ * meaningful to say (no resolved + no new findings, e.g. an unchanged
+ * re-review). Failures inside the agent return null too — the caption is
+ * advisory and must never fail a review.
+ */
+export async function runDeltaCaptionAgent(
+  delta: ReviewDelta,
+  modelId: string,
+  llm: ILLMProvider,
+): Promise<string | null> {
+  if (delta.resolved.length === 0 && delta.new.length === 0) return null;
+  const input = buildDeltaCaptionInput(delta);
+  const prompt = `${DELTA_CAPTION_PROMPT}\n\n--- Delta ---\n${input}`;
+  try {
+    const raw = normalizeLLMResult(
+      await llm.invoke(modelId, prompt, undefined, { temperature: 0.2 }),
+    ).text;
+    const parsed = safeParseJson<{ caption: string }>(raw, { caption: '' });
+    const caption = (parsed.caption ?? '').trim();
+    return caption.length > 0 ? caption : null;
+  } catch (err) {
+    console.warn('[delta-caption] agent failed; rendering comment without caption:', err);
+    return null;
+  }
+}
+
 // ─── Custom agents ──────────────────────────────────────────────────────────
 
 /** Run a user-defined custom review agent. */
@@ -726,6 +776,13 @@ export interface ReviewPipelineResult {
   estimatedCostUsd: number | null;
   /** True when conventions were loaded and injected into agent prompts. */
   conventionsUsed: boolean;
+  /**
+   * One-sentence caption summarising what changed on this commit relative
+   * to the prior review. Present only when this is a re-review with at
+   * least one resolved-or-new finding; null otherwise. Renders between
+   * the delta strip and the merge-readiness verdict in the comment.
+   */
+  deltaCaption: string | null;
 }
 
 /**
@@ -854,6 +911,13 @@ export async function runReviewPipeline(
     (f) => isLineNearChange(changedLines, f.file, f.line, CHANGED_LINE_TOLERANCE),
   );
 
+  // Delta caption — only on re-reviews where something actually changed
+  // commit-to-commit. Uses lightModel to match the other prose agents.
+  const delta = computeReviewDelta(filteredFindings, previousFindings);
+  const deltaCaption = delta
+    ? await runDeltaCaptionAgent(delta, lightModelId, llm)
+    : null;
+
   return {
     summary,
     findings: filteredFindings,
@@ -868,5 +932,6 @@ export async function runReviewPipeline(
     outputTokens: accumulator.totalOutputTokens,
     estimatedCostUsd: accumulator.estimateTotalCost(customPricing),
     conventionsUsed: !!(conventions && conventions.trim()),
+    deltaCaption,
   };
 }

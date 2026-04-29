@@ -179,6 +179,25 @@ Return a JSON object:
   "summary": "Plain prose summary text, 2-3 sentences max."
 }`;
 
+// ─── Delta caption (re-review only) ───────────────────────────────────────
+export const DELTA_CAPTION_PROMPT = `You are summarising what changed on the latest commit of a pull request that MergeWatch has already reviewed at least once.
+
+You will be given three lists of findings, by title:
+- RESOLVED: findings present in the prior review that are no longer reported.
+- NEW: findings reported only on this commit.
+- CARRIED_OVER: findings unchanged across both reviews.
+
+Write ONE sentence (≤ 30 words) that tells a human reviewer what shifted on this commit. Lead with the change in net state — "Resolved …", "Introduced …", "Cleared … but introduced …" — then mention the most notable category if it's clear from the titles. Do NOT mention carried-over findings; the reader can see those in the existing strip.
+
+Rules:
+- Exactly one sentence.
+- No emoji, no markdown, no code fences.
+- No quoted finding titles — paraphrase the categories.
+- If RESOLVED and NEW are both empty, return an empty string.
+
+Return JSON:
+{ "caption": "single sentence here" }`;
+
 // ─── Diagram agent ────────────────────────────────────────────────────────
 // Placeholder used in DIAGRAM_PROMPT; see runDiagramAgent() in reviewer.ts for replacement logic
 export const PREVIOUS_DIAGRAM_PLACEHOLDER = '{{PREVIOUS_DIAGRAM}}';

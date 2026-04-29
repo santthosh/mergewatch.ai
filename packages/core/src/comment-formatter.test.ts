@@ -247,6 +247,30 @@ describe('formatReviewComment', () => {
     expect(result).toContain('1 issue found');
     expect(result).not.toContain('Requires your attention');
   });
+
+  // deltaCaption — re-review summary line
+  it('renders deltaCaption with the 📝 lead between delta strip and merge score', () => {
+    const result = formatReviewComment(baseOptions({
+      deltaCaption: 'Resolved 2 prior style findings; introduced 1 new logic bug.',
+      mergeScore: 3,
+    }));
+    expect(result).toContain('📝 Resolved 2 prior style findings; introduced 1 new logic bug.');
+    // The caption appears before the merge-score line
+    const captionIdx = result.indexOf('📝 Resolved');
+    const scoreIdx = result.indexOf('3/5');
+    expect(captionIdx).toBeGreaterThan(-1);
+    expect(scoreIdx).toBeGreaterThan(captionIdx);
+  });
+
+  it('omits the deltaCaption block when caption is null', () => {
+    const result = formatReviewComment(baseOptions({ deltaCaption: null }));
+    expect(result).not.toContain('📝');
+  });
+
+  it('omits the deltaCaption block when caption is empty whitespace', () => {
+    const result = formatReviewComment(baseOptions({ deltaCaption: '   ' }));
+    expect(result).not.toContain('📝');
+  });
 });
 
 describe('buildWorkDoneSection', () => {
