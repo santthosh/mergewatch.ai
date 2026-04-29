@@ -304,7 +304,7 @@ describe('runDeltaCaptionAgent', () => {
     resolved: [],
     new: [],
     carriedOver: [],
-  } as const;
+  };
 
   it('returns null when delta has no resolved or new findings', async () => {
     const llm = createMockLLM(['unused']);
