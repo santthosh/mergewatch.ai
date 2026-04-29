@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import ThemeProvider from "@/components/ThemeProvider";
+import MaybeAnalytics from "@/components/MaybeAnalytics";
 import "./globals.css";
 
 const SITE_URL = "https://mergewatch.ai";
@@ -88,6 +89,7 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
         />
+        <MaybeAnalytics />
       </body>
     </html>
   );
