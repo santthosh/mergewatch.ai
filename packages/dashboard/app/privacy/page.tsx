@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function PrivacyPolicyPage() {
   return (
-    <LegalPage title="Privacy Policy" lastUpdated="April 13, 2026">
+    <LegalPage title="Privacy Policy" lastUpdated="April 29, 2026">
       <p>
         MergeWatch is an open-source GitHub App that reviews pull requests using
         AI. This Privacy Policy explains what data the hosted MergeWatch SaaS
@@ -101,6 +101,22 @@ export default function PrivacyPolicyPage() {
       <ul>
         <li><strong>Amazon Web Services</strong> &mdash; compute, storage, and LLM inference (Bedrock).</li>
         <li><strong>GitHub, Inc.</strong> &mdash; authentication and the source of all code data we process.</li>
+        <li>
+          <strong>Google Analytics</strong> (mergewatch.ai marketing pages only)
+          &mdash; aggregate page-view and traffic-source data for the public
+          landing, pricing, sign-in, and policy pages. Google Analytics is{" "}
+          <strong>not</strong> loaded on the authenticated dashboard or in the
+          self-hosted distribution. You can opt out via your browser&rsquo;s
+          Do Not Track setting, an ad blocker, or the official{" "}
+          <a
+            href="https://tools.google.com/dlpage/gaoptout"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Google Analytics opt-out browser add-on
+          </a>
+          .
+        </li>
       </ul>
 
       <h2>5. Retention and Deletion</h2>

@@ -9,11 +9,14 @@ const path = require('path');
  */
 const cspReportOnly = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  // Google Analytics gtag loads from googletagmanager.com.
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https://avatars.githubusercontent.com",
+  // GA tracking pixels are served from google-analytics.com / analytics.google.com.
+  "img-src 'self' data: https://avatars.githubusercontent.com https://www.google-analytics.com https://*.analytics.google.com",
   "font-src 'self' data:",
-  "connect-src 'self' https://api.github.com",
+  // GA collect endpoint + Region 1 endpoints used for measurement transport.
+  "connect-src 'self' https://api.github.com https://www.google-analytics.com https://*.analytics.google.com https://*.google-analytics.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -114,6 +117,7 @@ const nextConfig = {
     BILLING_API_URL: process.env.BILLING_API_URL,
     BILLING_API_SECRET: process.env.BILLING_API_SECRET,
     DATABASE_URL: process.env.DATABASE_URL,
+    NEXT_PUBLIC_GA_MEASUREMENT_ID: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID,
   },
 
   // Prevent Next.js from bundling native modules used by storage packages.
