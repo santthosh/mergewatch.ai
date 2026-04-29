@@ -219,7 +219,9 @@ export async function processReviewJob(
   // override and reused below when building the full runtimeConfig — avoids
   // a second GitHub round-trip per review.
   const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch((err) => {
-    console.warn(`Failed to fetch .mergewatch.yml for ${repoFullName}#${prNumber} — proceeding without YAML config:`, err);
+    // Static format string; user-controlled values pass as separate args
+    // to avoid feeding repo names through Node's printf-style formatter.
+    console.warn('Failed to fetch .mergewatch.yml — proceeding without YAML config:', `${repoFullName}#${prNumber}`, err);
     return null;
   });
   const includePatterns = extractIncludePatterns(yamlConfig);
