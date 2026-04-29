@@ -1,17 +1,28 @@
-import type { ILLMProvider, LLMInvokeResult } from '@mergewatch/core';
+import type { ILLMProvider, LLMInvokeResult, LLMSamplingConfig } from '@mergewatch/core';
 
 export class OllamaLLMProvider implements ILLMProvider {
   constructor(private baseUrl: string = 'http://localhost:11434') {}
 
-  async invoke(modelId: string, prompt: string, maxTokens = 4096): Promise<LLMInvokeResult> {
+  async invoke(
+    modelId: string,
+    prompt: string,
+    maxTokens = 4096,
+    sampling: LLMSamplingConfig = {},
+  ): Promise<LLMInvokeResult> {
     const url = `${this.baseUrl.replace(/\/$/, '')}/api/chat`;
+    const options: Record<string, unknown> = {
+      num_predict: maxTokens,
+      temperature: sampling.temperature ?? 0,
+    };
+    if (sampling.topP !== undefined) options.top_p = sampling.topP;
+    if (sampling.topK !== undefined) options.top_k = sampling.topK;
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: modelId,
         stream: false,
-        options: { num_predict: maxTokens, temperature: 0 },
+        options,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
