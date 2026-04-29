@@ -33,6 +33,7 @@ export {
   runSummaryAgent,
   runDiagramAgent,
   runOrchestratorAgent,
+  runDeltaCaptionAgent,
   runCustomAgent,
   isValidMermaidDiagram,
 } from './agents/reviewer.js';
@@ -59,6 +60,7 @@ export {
   STYLE_REVIEWER_PROMPT,
   SUMMARY_PROMPT,
   DIAGRAM_PROMPT,
+  DELTA_CAPTION_PROMPT,
   ERROR_HANDLING_REVIEWER_PROMPT,
   TEST_COVERAGE_REVIEWER_PROMPT,
   COMMENT_ACCURACY_REVIEWER_PROMPT,

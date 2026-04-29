@@ -13,6 +13,7 @@ import {
   runCommentAccuracyAgent,
   runCustomAgent,
   runOrchestratorAgent,
+  runDeltaCaptionAgent,
   runReviewPipeline,
   type ReviewContext,
   type AgentFinding,
@@ -290,6 +291,70 @@ describe('runCommentAccuracyAgent', () => {
     const findings = await runCommentAccuracyAgent(sampleDiff, sampleContext, 'model-1', llm);
     expect(findings).toHaveLength(1);
     expect(findings[0].title).toBe('Outdated JSDoc');
+  });
+});
+
+// ─── runDeltaCaptionAgent ───────────────────────────────────────────────────
+
+describe('runDeltaCaptionAgent', () => {
+  const emptyDelta = {
+    resolvedCount: 0,
+    newCount: 0,
+    carriedOverCount: 0,
+    resolved: [],
+    new: [],
+    carriedOver: [],
+  } as const;
+
+  it('returns null when delta has no resolved or new findings', async () => {
+    const llm = createMockLLM(['unused']);
+    const result = await runDeltaCaptionAgent(emptyDelta, 'light', llm);
+    expect(result).toBeNull();
+    // Critically — does not call the LLM at all
+    expect(llm.calls).toHaveLength(0);
+  });
+
+  it('returns parsed caption from valid JSON response', async () => {
+    const llm = createMockLLM([
+      JSON.stringify({ caption: 'Resolved 2 prior style findings; introduced 1 new bug.' }),
+    ]);
+    const delta = {
+      resolvedCount: 2,
+      newCount: 1,
+      carriedOverCount: 0,
+      resolved: [
+        { file: 'a.ts', line: 1, title: 'Style A' },
+        { file: 'b.ts', line: 2, title: 'Style B' },
+      ],
+      new: [{ file: 'c.ts', line: 3, title: 'Null deref' }],
+      carriedOver: [],
+    };
+    const result = await runDeltaCaptionAgent(delta, 'light', llm);
+    expect(result).toBe('Resolved 2 prior style findings; introduced 1 new bug.');
+    expect(llm.calls).toHaveLength(1);
+    expect(llm.calls[0].modelId).toBe('light');
+  });
+
+  it('returns null when LLM returns an empty caption', async () => {
+    const llm = createMockLLM([JSON.stringify({ caption: '' })]);
+    const delta = {
+      resolvedCount: 1, newCount: 0, carriedOverCount: 0,
+      resolved: [{ file: 'a.ts', line: 1, title: 'X' }],
+      new: [], carriedOver: [],
+    };
+    expect(await runDeltaCaptionAgent(delta, 'light', llm)).toBeNull();
+  });
+
+  it('returns null when the LLM call throws (advisory; never fails the review)', async () => {
+    const llm: ILLMProvider = {
+      async invoke() { throw new Error('rate limit'); },
+    };
+    const delta = {
+      resolvedCount: 1, newCount: 0, carriedOverCount: 0,
+      resolved: [{ file: 'a.ts', line: 1, title: 'X' }],
+      new: [], carriedOver: [],
+    };
+    expect(await runDeltaCaptionAgent(delta, 'light', llm)).toBeNull();
   });
 });
 

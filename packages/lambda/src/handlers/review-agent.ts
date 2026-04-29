@@ -532,6 +532,7 @@ export async function handler(
       ux: runtimeConfig.ux,
       workDone,
       delta,
+      deltaCaption: result.deltaCaption,
       suppressedCount: result.suppressedCount,
       enabledAgentCount: result.enabledAgentCount,
       inputTokens: result.inputTokens,
