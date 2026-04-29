@@ -264,7 +264,10 @@ export async function handler(
   // Load .mergewatch.yml once. Used both for the smart-skip includePatterns
   // override and later when building the full runtimeConfig — avoids two
   // GitHub fetches per review.
-  const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch(() => null);
+  const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch((err) => {
+    console.warn(`Failed to fetch .mergewatch.yml for ${repoFullName}#${prNumber} — proceeding without YAML config:`, err);
+    return null;
+  });
   const includePatterns = extractIncludePatterns(yamlConfig);
 
   // ── Smart skip — bypass when user explicitly requested a review via @mergewatch ────

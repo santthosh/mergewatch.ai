@@ -91,7 +91,6 @@ export function shouldSkipPR(
   if (files.length === 0) return 'No changed files';
 
   const isForceIncluded = (file: string) =>
-    includePatterns.length > 0 &&
     includePatterns.some((pattern) => minimatch(file, pattern));
 
   const nonTrivialFiles = files.filter(
