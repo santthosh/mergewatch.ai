@@ -115,6 +115,36 @@ describe('shouldSkipPR', () => {
     expect(SKIP_PATTERNS).toBeDefined();
     expect(SKIP_PATTERNS.length).toBeGreaterThan(0);
   });
+
+  // ─── includePatterns override ────────────────────────────────────────────
+  it('reviews a docs-only PR when includePatterns matches', () => {
+    const result = shouldSkipPR(['docs/architecture.md'], ['docs/**']);
+    expect(result).toBeNull();
+  });
+
+  it('still skips docs that do not match any includePatterns entry', () => {
+    const result = shouldSkipPR(['CHANGELOG.md'], ['docs/critical/**']);
+    expect(result).not.toBeNull();
+    expect(result).toContain('docs');
+  });
+
+  it('reviews a mixed lock + matching-include PR', () => {
+    const result = shouldSkipPR(
+      ['package-lock.json', 'docs/runbooks/oncall.md'],
+      ['docs/runbooks/**'],
+    );
+    expect(result).toBeNull();
+  });
+
+  it('empty includePatterns falls back to default skip behaviour', () => {
+    const result = shouldSkipPR(['README.md'], []);
+    expect(result).not.toBeNull();
+  });
+
+  it('omitted includePatterns argument falls back to default skip behaviour', () => {
+    const result = shouldSkipPR(['README.md']);
+    expect(result).not.toBeNull();
+  });
 });
 
 describe('shouldSkipByRules', () => {

@@ -62,12 +62,28 @@ export const SKIP_PATTERNS = [
 /**
  * Check if a PR should be skipped because all changed files are trivial.
  * Returns a skip reason string if skipped, or null if the PR should be reviewed.
+ *
+ * `includePatterns` is the user-configured override list: any file matching
+ * one of these patterns is treated as non-trivial regardless of whether it
+ * also matches SKIP_PATTERNS. This is how a docs-only PR can opt itself
+ * back into review — set `includePatterns: ["docs/architecture/star-star"]`
+ * (real glob `**` star-star) and a PR that only touches that path will be
+ * reviewed even though all-markdown is otherwise considered trivial.
  */
-export function shouldSkipPR(files: string[]): string | null {
+export function shouldSkipPR(
+  files: string[],
+  includePatterns: string[] = [],
+): string | null {
   if (files.length === 0) return 'No changed files';
 
+  const isForceIncluded = (file: string) =>
+    includePatterns.length > 0 &&
+    includePatterns.some((pattern) => minimatch(file, pattern));
+
   const nonTrivialFiles = files.filter(
-    (file) => !SKIP_PATTERNS.some((pattern) => minimatch(file, pattern)),
+    (file) =>
+      isForceIncluded(file) ||
+      !SKIP_PATTERNS.some((pattern) => minimatch(file, pattern)),
   );
 
   if (nonTrivialFiles.length === 0) {

@@ -260,8 +260,16 @@ export async function handler(
   const shortSha = headSha.slice(0, 7);
   const prNumberCommitSha = `${prNumber}#${shortSha}`;
 
+  // Load .mergewatch.yml once. Used both for the smart-skip includePatterns
+  // override and later when building the full runtimeConfig — avoids two
+  // GitHub fetches per review.
+  const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch(() => null);
+  const includePatterns = Array.isArray(yamlConfig?.includePatterns)
+    ? yamlConfig.includePatterns.filter((p): p is string => typeof p === 'string')
+    : [];
+
   // ── Smart skip — bypass when user explicitly requested a review via @mergewatch ────
-  const skipReason = event.mentionTriggered ? null : shouldSkipPR(prContext.files);
+  const skipReason = event.mentionTriggered ? null : shouldSkipPR(prContext.files, includePatterns);
   if (skipReason) {
     console.log(`Skipping ${repoFullName}#${prNumber}: ${skipReason}`);
 
@@ -377,7 +385,8 @@ export async function handler(
         : [],
     };
 
-    const yamlConfig = await fetchRepoConfig(octokit, owner, repo);
+    // yamlConfig was loaded earlier for the smart-skip includePatterns
+    // override; reuse it here instead of paying another GitHub round-trip.
     const runtimeConfig = mergeConfig({ ...(yamlConfig ?? {}), ...settingsOverrides });
 
     // ── Rules-based skip (skipDrafts, maxFiles, ignoreLabels, autoReview, reviewOnMention) ────
