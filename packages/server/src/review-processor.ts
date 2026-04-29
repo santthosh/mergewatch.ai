@@ -2,7 +2,7 @@ import type { ReviewJobPayload, IInstallationStore, IReviewStore, IGitHubAuthPro
 import {
   getPRDiff, getPRContext, addPRReaction, postReviewComment, updateReviewComment,
   findExistingBotComment, getCommentReactions, createCheckRun,
-  formatReviewComment, runReviewPipeline, shouldSkipPR, shouldSkipByRules,
+  formatReviewComment, runReviewPipeline, shouldSkipPR, shouldSkipByRules, extractIncludePatterns,
   filterDiff,
   DEFAULT_CONFIG, mergeConfig,
   BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
@@ -219,9 +219,7 @@ export async function processReviewJob(
   // override and reused below when building the full runtimeConfig — avoids
   // a second GitHub round-trip per review.
   const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch(() => null);
-  const includePatterns = Array.isArray(yamlConfig?.includePatterns)
-    ? yamlConfig.includePatterns.filter((p): p is string => typeof p === 'string')
-    : [];
+  const includePatterns = extractIncludePatterns(yamlConfig);
 
   // Smart skip check — bypass when user explicitly requested a review via @mergewatch
   const skipReason = job.mentionTriggered

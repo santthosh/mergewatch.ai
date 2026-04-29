@@ -9,7 +9,7 @@
  */
 
 import { minimatch } from 'minimatch';
-import type { RulesConfig } from './config/defaults.js';
+import type { MergeWatchConfig, RulesConfig } from './config/defaults.js';
 
 /**
  * File patterns that indicate a trivial PR not worth reviewing.
@@ -70,6 +70,20 @@ export const SKIP_PATTERNS = [
  * (real glob `**` star-star) and a PR that only touches that path will be
  * reviewed even though all-markdown is otherwise considered trivial.
  */
+/**
+ * Extract a sanitized `includePatterns` list from a possibly-null parsed
+ * YAML config. Centralized here so the Lambda and Express transports share
+ * one defensive parse — string-only entries, empty fallback when the field
+ * is missing or malformed.
+ */
+export function extractIncludePatterns(
+  yamlConfig: Partial<MergeWatchConfig> | null | undefined,
+): string[] {
+  const raw = (yamlConfig as { includePatterns?: unknown } | null | undefined)?.includePatterns;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((p): p is string => typeof p === 'string');
+}
+
 export function shouldSkipPR(
   files: string[],
   includePatterns: string[] = [],

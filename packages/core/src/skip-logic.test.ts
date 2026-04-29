@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldSkipPR, shouldSkipByRules, SKIP_PATTERNS } from './skip-logic.js';
+import { shouldSkipPR, shouldSkipByRules, extractIncludePatterns, SKIP_PATTERNS } from './skip-logic.js';
 import { DEFAULT_RULES_CONFIG } from './config/defaults.js';
 import type { RulesConfig } from './config/defaults.js';
 
@@ -144,6 +144,41 @@ describe('shouldSkipPR', () => {
   it('omitted includePatterns argument falls back to default skip behaviour', () => {
     const result = shouldSkipPR(['README.md']);
     expect(result).not.toBeNull();
+  });
+});
+
+describe('extractIncludePatterns', () => {
+  it('returns [] when yamlConfig is null', () => {
+    expect(extractIncludePatterns(null)).toEqual([]);
+  });
+
+  it('returns [] when yamlConfig is undefined', () => {
+    expect(extractIncludePatterns(undefined)).toEqual([]);
+  });
+
+  it('returns [] when includePatterns field is missing', () => {
+    expect(extractIncludePatterns({})).toEqual([]);
+  });
+
+  it('returns [] when includePatterns is not an array (string)', () => {
+    expect(extractIncludePatterns({ includePatterns: 'docs/**' } as never)).toEqual([]);
+  });
+
+  it('returns [] when includePatterns is not an array (number)', () => {
+    expect(extractIncludePatterns({ includePatterns: 42 } as never)).toEqual([]);
+  });
+
+  it('returns the array unchanged when all entries are strings', () => {
+    expect(
+      extractIncludePatterns({ includePatterns: ['docs/**', '**/SECURITY.md'] }),
+    ).toEqual(['docs/**', '**/SECURITY.md']);
+  });
+
+  it('filters out non-string entries from a mixed array', () => {
+    const out = extractIncludePatterns({
+      includePatterns: ['docs/**', 42, null, true, '**/RUNBOOK.md'] as never,
+    });
+    expect(out).toEqual(['docs/**', '**/RUNBOOK.md']);
   });
 });
 

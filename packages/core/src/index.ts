@@ -145,7 +145,7 @@ export { invokeWithFileFetching, FILE_REQUEST_INSTRUCTION } from './context/agen
 export type { FileFetchOptions, AgenticInvokeResult } from './context/agentic-fetcher.js';
 
 // ─── Skip logic ─────────────────────────────────────────────────────────────
-export { shouldSkipPR, shouldSkipByRules, SKIP_PATTERNS } from './skip-logic.js';
+export { shouldSkipPR, shouldSkipByRules, extractIncludePatterns, SKIP_PATTERNS } from './skip-logic.js';
 
 // ─── Agent-authored PR detection ────────────────────────────────────────────
 export { classifyPrSource } from './agent-detection.js';

@@ -26,6 +26,7 @@ import {
   formatReviewComment,
   mergeConfig,
   shouldSkipPR,
+  extractIncludePatterns,
   shouldSkipByRules,
   filterDiff,
   RESPOND_PROMPT,
@@ -264,9 +265,7 @@ export async function handler(
   // override and later when building the full runtimeConfig — avoids two
   // GitHub fetches per review.
   const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch(() => null);
-  const includePatterns = Array.isArray(yamlConfig?.includePatterns)
-    ? yamlConfig.includePatterns.filter((p): p is string => typeof p === 'string')
-    : [];
+  const includePatterns = extractIncludePatterns(yamlConfig);
 
   // ── Smart skip — bypass when user explicitly requested a review via @mergewatch ────
   const skipReason = event.mentionTriggered ? null : shouldSkipPR(prContext.files, includePatterns);

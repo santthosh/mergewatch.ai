@@ -359,6 +359,39 @@ rules:
     expect(result?.rules).toBeUndefined();
   });
 
+  // ─── includePatterns parsing ─────────────────────────────────────────────
+  it('parses includePatterns as a string array', () => {
+    const yaml = `
+includePatterns:
+  - "docs/runbooks/**"
+  - "**/SECURITY.md"
+`;
+    const result = parseRepoConfigYaml(yaml);
+    expect(result?.includePatterns).toEqual(['docs/runbooks/**', '**/SECURITY.md']);
+  });
+
+  it('filters non-string entries from includePatterns', () => {
+    const yaml = `
+includePatterns:
+  - "docs/**"
+  - 42
+  - null
+  - "RUNBOOK.md"
+`;
+    const result = parseRepoConfigYaml(yaml);
+    expect(result?.includePatterns).toEqual(['docs/**', 'RUNBOOK.md']);
+  });
+
+  it('ignores includePatterns when not an array', () => {
+    const result = parseRepoConfigYaml('includePatterns: "docs/**"');
+    expect(result?.includePatterns).toBeUndefined();
+  });
+
+  it('returns no includePatterns when field is absent', () => {
+    const result = parseRepoConfigYaml('model: my-model');
+    expect(result?.includePatterns).toBeUndefined();
+  });
+
   // ─── UX parsing ──────────────────────────────────────────────────────────
   it('parses ux config', () => {
     const yaml = `
