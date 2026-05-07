@@ -172,7 +172,7 @@ describe('processReviewJob — check runs', () => {
   });
 
   it('creates neutral check run on rules skip', async () => {
-    (shouldSkipByRules as any).mockReturnValue('Draft PR skipped');
+    (shouldSkipByRules as any).mockReturnValue({ kind: 'draft', reason: 'Draft PR skipped' });
     const deps = makeDeps();
     await processReviewJob(makeJob(), deps);
 
@@ -183,6 +183,25 @@ describe('processReviewJob — check runs', () => {
         conclusion: 'neutral',
         title: 'Review skipped',
         summary: 'Draft PR skipped',
+      }),
+    );
+  });
+
+  it('creates user-actionable check run on autoReviewOff skip', async () => {
+    (shouldSkipByRules as any).mockReturnValue({
+      kind: 'autoReviewOff',
+      reason: 'Automatic reviews disabled — use @mergewatch to trigger manually',
+    });
+    const deps = makeDeps();
+    await processReviewJob(makeJob(), deps);
+
+    expect(createCheckRun).toHaveBeenCalledWith(
+      mockOctokit, 'test', 'repo', basePRContext.headSha,
+      expect.objectContaining({
+        status: 'completed',
+        conclusion: 'neutral',
+        title: 'Auto-review is disabled for this repository',
+        summary: expect.stringContaining('@mergewatch review'),
       }),
     );
   });

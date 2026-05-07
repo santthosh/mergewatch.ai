@@ -279,22 +279,29 @@ export async function processReviewJob(
   });
 
   // ── Rules-based skip (skipDrafts, maxFiles, ignoreLabels, autoReview, reviewOnMention) ────
-  const rulesSkipReason = shouldSkipByRules(config.rules, {
+  const rulesSkip = shouldSkipByRules(config.rules, {
     isDraft: job.isDraft,
     labels: job.prLabels,
     changedFileCount: job.changedFileCount ?? prContext?.files?.length,
     mode,
     mentionTriggered: job.mentionTriggered,
   });
-  if (rulesSkipReason) {
-    await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: now, skipReason: rulesSkipReason });
+  if (rulesSkip) {
+    await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: now, skipReason: rulesSkip.reason });
+    // Surface autoReview=false as a user-actionable check run with the
+    // mention-trigger instructions; other skip kinds keep the generic title.
+    const checkRunCopy = rulesSkip.kind === 'autoReviewOff'
+      ? {
+          title: 'Auto-review is disabled for this repository',
+          summary: 'Comment `@mergewatch review` on this PR to run a review.',
+        }
+      : { title: 'Review skipped', summary: rulesSkip.reason };
     await createCheckRun(octokit, owner, repo, headSha, {
       status: 'completed',
       conclusion: 'neutral',
-      title: 'Review skipped',
-      summary: rulesSkipReason,
+      ...checkRunCopy,
     }).catch((err) => console.warn('Failed to create rules skip check run:', err));
-    console.log(`Rules skip ${repoFullName}#${prNumber}: ${rulesSkipReason}`);
+    console.log(`Rules skip ${repoFullName}#${prNumber} (${rulesSkip.kind}): ${rulesSkip.reason}`);
     return;
   }
 
