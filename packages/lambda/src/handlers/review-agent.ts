@@ -394,31 +394,38 @@ export async function handler(
     const runtimeConfig = mergeConfig({ ...(yamlConfig ?? {}), ...settingsOverrides });
 
     // ── Rules-based skip (skipDrafts, maxFiles, ignoreLabels, autoReview, reviewOnMention) ────
-    const rulesSkipReason = shouldSkipByRules(runtimeConfig.rules, {
+    const rulesSkip = shouldSkipByRules(runtimeConfig.rules, {
       isDraft: event.isDraft,
       labels: event.prLabels,
       changedFileCount: event.changedFileCount ?? prContext?.files?.length,
       mode,
       mentionTriggered: event.mentionTriggered,
     });
-    if (rulesSkipReason) {
-      console.log(`Rules skip ${repoFullName}#${prNumber}: ${rulesSkipReason}`);
+    if (rulesSkip) {
+      console.log(`Rules skip ${repoFullName}#${prNumber} (${rulesSkip.kind}): ${rulesSkip.reason}`);
 
       await reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', {
         completedAt: new Date().toISOString(),
-        skipReason: rulesSkipReason,
+        skipReason: rulesSkip.reason,
       });
 
+      // Surface autoReview=false as a user-actionable check run with the
+      // mention-trigger instructions; other skip kinds keep the generic title.
+      const checkRunCopy = rulesSkip.kind === 'autoReviewOff'
+        ? {
+            title: 'Auto-review is disabled for this repository',
+            summary: 'Comment `@mergewatch review` on this PR to run a review.',
+          }
+        : { title: 'Review skipped', summary: rulesSkip.reason };
       await createCheckRun(octokit, owner, repo, headSha, {
         status: 'completed',
         conclusion: 'neutral',
-        title: 'Review skipped',
-        summary: rulesSkipReason,
+        ...checkRunCopy,
       });
 
       return {
         statusCode: 200,
-        body: JSON.stringify({ message: 'Skipped', reason: rulesSkipReason }),
+        body: JSON.stringify({ message: 'Skipped', reason: rulesSkip.reason, kind: rulesSkip.kind }),
       };
     }
 

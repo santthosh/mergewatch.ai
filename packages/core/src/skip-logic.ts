@@ -118,39 +118,73 @@ export function shouldSkipPR(
 }
 
 /**
+ * Discriminator for the kind of rule-based skip. Callers branch on this when
+ * they want category-specific UX (e.g. posting a "how to enable" check run
+ * for `autoReviewOff` only) without string-matching the human-readable reason.
+ */
+export type RulesSkipKind =
+  | 'autoReviewOff'
+  | 'reviewOnMentionOff'
+  | 'draft'
+  | 'maxFiles'
+  | 'labelIgnored';
+
+export interface RulesSkipResult {
+  kind: RulesSkipKind;
+  /** Human-readable reason, used for logging and stored on the review record. */
+  reason: string;
+}
+
+/**
  * Check whether a PR should be skipped based on the rules config.
- * Returns a skip reason string if skipped, or null if the PR should be reviewed.
+ * Returns a result object describing the skip kind + reason if skipped, or
+ * null if the PR should be reviewed.
  */
 export function shouldSkipByRules(
   rules: RulesConfig,
   pr: { isDraft?: boolean; labels?: string[]; changedFileCount?: number; mode?: string; mentionTriggered?: boolean },
-): string | null {
+): RulesSkipResult | null {
   // mentionTriggered is the authoritative signal for whether a user explicitly
   // requested this review via an @mergewatch comment.  When true, the review
   // is treated as a force-review that bypasses autoReview/reviewOnMention gates.
   const isMentionTriggered = pr.mentionTriggered === true;
 
   if (!rules.autoReview && !isMentionTriggered) {
-    return 'Automatic reviews disabled — use @mergewatch to trigger manually';
+    return {
+      kind: 'autoReviewOff',
+      reason: 'Automatic reviews disabled — use @mergewatch to trigger manually',
+    };
   }
 
   if (!rules.reviewOnMention && isMentionTriggered) {
-    return 'Mention-triggered reviews disabled via reviewOnMention: false';
+    return {
+      kind: 'reviewOnMentionOff',
+      reason: 'Mention-triggered reviews disabled via reviewOnMention: false',
+    };
   }
 
   if (rules.skipDrafts && pr.isDraft) {
-    return 'Draft PR — set rules.skipDrafts: false to review drafts';
+    return {
+      kind: 'draft',
+      reason: 'Draft PR — set rules.skipDrafts: false to review drafts',
+    };
   }
 
   if (pr.changedFileCount != null && pr.changedFileCount > rules.maxFiles) {
-    return `PR has ${pr.changedFileCount} changed files (max: ${rules.maxFiles})`;
+    return {
+      kind: 'maxFiles',
+      reason: `PR has ${pr.changedFileCount} changed files (max: ${rules.maxFiles})`,
+    };
   }
 
   if (pr.labels && rules.ignoreLabels.length > 0) {
     const ignoreLabelSet = new Set(rules.ignoreLabels.map((l) => l.toLowerCase()));
     const matchedLabel = pr.labels.find((l) => ignoreLabelSet.has(l.toLowerCase()));
     if (matchedLabel) {
-      return `PR has label "${matchedLabel}" which is in ignoreLabels`;
+      return {
+        kind: 'labelIgnored',
+        reason: `PR has label "${matchedLabel}" which is in ignoreLabels`,
+      };
     }
   }
 

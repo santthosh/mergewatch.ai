@@ -188,8 +188,8 @@ describe('shouldSkipByRules', () => {
   // ─── skipDrafts ───────────────────────────────────────────────────────────
   it('skips draft PRs when skipDrafts is true (default)', () => {
     const result = shouldSkipByRules(defaults, { isDraft: true });
-    expect(result).not.toBeNull();
-    expect(result).toContain('Draft PR');
+    expect(result?.kind).toBe('draft');
+    expect(result?.reason).toContain('Draft PR');
   });
 
   it('does not skip draft PRs when skipDrafts is false', () => {
@@ -205,9 +205,9 @@ describe('shouldSkipByRules', () => {
   // ─── maxFiles ─────────────────────────────────────────────────────────────
   it('skips PRs exceeding maxFiles', () => {
     const result = shouldSkipByRules({ ...defaults, maxFiles: 10 }, { changedFileCount: 15 });
-    expect(result).not.toBeNull();
-    expect(result).toContain('15');
-    expect(result).toContain('max: 10');
+    expect(result?.kind).toBe('maxFiles');
+    expect(result?.reason).toContain('15');
+    expect(result?.reason).toContain('max: 10');
   });
 
   it('does not skip PRs at or below maxFiles', () => {
@@ -222,8 +222,8 @@ describe('shouldSkipByRules', () => {
   // ─── ignoreLabels ────────────────────────────────────────────────────────
   it('skips PRs with a matching ignore label', () => {
     const result = shouldSkipByRules(defaults, { labels: ['skip-review'] });
-    expect(result).not.toBeNull();
-    expect(result).toContain('skip-review');
+    expect(result?.kind).toBe('labelIgnored');
+    expect(result?.reason).toContain('skip-review');
   });
 
   it('matches labels case-insensitively', () => {
@@ -231,8 +231,8 @@ describe('shouldSkipByRules', () => {
       { ...defaults, ignoreLabels: ['WIP'] },
       { labels: ['wip'] },
     );
-    expect(result).not.toBeNull();
-    expect(result).toContain('wip');
+    expect(result?.kind).toBe('labelIgnored');
+    expect(result?.reason).toContain('wip');
   });
 
   it('does not skip when no labels match', () => {
@@ -256,8 +256,8 @@ describe('shouldSkipByRules', () => {
   // ─── autoReview ──────────────────────────────────────────────────────────
   it('skips auto-triggered reviews when autoReview is false', () => {
     const result = shouldSkipByRules({ ...defaults, autoReview: false }, { mode: 'review' });
-    expect(result).not.toBeNull();
-    expect(result).toContain('Automatic reviews disabled');
+    expect(result?.kind).toBe('autoReviewOff');
+    expect(result?.reason).toContain('Automatic reviews disabled');
   });
 
   it('does not skip mention-triggered reviews when autoReview is false', () => {
@@ -268,13 +268,13 @@ describe('shouldSkipByRules', () => {
   // ─── reviewOnMention ─────────────────────────────────────────────────────
   it('skips mention-triggered reviews when reviewOnMention is false', () => {
     const result = shouldSkipByRules({ ...defaults, reviewOnMention: false }, { mode: 'summary', mentionTriggered: true });
-    expect(result).not.toBeNull();
-    expect(result).toContain('Mention-triggered reviews disabled');
+    expect(result?.kind).toBe('reviewOnMentionOff');
+    expect(result?.reason).toContain('Mention-triggered reviews disabled');
   });
 
   it('skips respond mode when reviewOnMention is false', () => {
     const result = shouldSkipByRules({ ...defaults, reviewOnMention: false }, { mode: 'respond', mentionTriggered: true });
-    expect(result).not.toBeNull();
+    expect(result?.kind).toBe('reviewOnMentionOff');
   });
 
   it('does not skip auto-triggered reviews when reviewOnMention is false', () => {
@@ -296,7 +296,8 @@ describe('shouldSkipByRules', () => {
       { ...defaults, autoReview: false },
       { isDraft: true, mode: 'review' },
     );
-    expect(result).toContain('Automatic reviews disabled');
+    expect(result?.kind).toBe('autoReviewOff');
+    expect(result?.reason).toContain('Automatic reviews disabled');
   });
 
   it('returns null when all rules pass', () => {
