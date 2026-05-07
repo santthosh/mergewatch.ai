@@ -327,6 +327,42 @@ ${previousDiagram}
 }
 
 /**
+ * Escape characters that confuse Mermaid's flowchart tokenizer even inside
+ * quoted node labels. Empirically Mermaid sometimes still treats `{` and `}`
+ * as DIAMOND_START / DIAMOND_END inside `"..."`, breaking the parse. HTML
+ * entities render correctly in the final SVG and avoid the lexer foot-gun.
+ *
+ * Also normalises a literal `\n` (backslash-n, often emitted by LLMs that
+ * confused JSON-escape and Mermaid line-break syntax) into `<br/>`.
+ */
+function escapeMermaidLabelChars(label: string): string {
+  // Order matters in two places:
+  //   1. `&amp;` MUST run first — otherwise the `&` we introduce in every
+  //      other replacement gets re-escaped to `&amp;…;`.
+  //   2. `\\n → <br/>` MUST run AFTER the angle-bracket escapes, so the
+  //      literal `<` and `>` we just emitted don't get mangled into
+  //      `&lt;br/&gt;`.
+  //
+  // Defense-in-depth: every Mermaid shape delimiter (`(`, `)`, `[`, `]`,
+  // `{`, `}`, `<`, `>`) becomes an HTML entity. Mermaid's tokenizer doesn't
+  // reliably suppress shape-delimiter interpretation inside `"..."` regions,
+  // so escaping them all is the only durable fix. `"` is also escaped so
+  // an embedded quote can't break out of the quoted-label region.
+  return label
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\{/g, '&lbrace;')
+    .replace(/\}/g, '&rbrace;')
+    .replace(/\(/g, '&lpar;')
+    .replace(/\)/g, '&rpar;')
+    .replace(/\[/g, '&lsqb;')
+    .replace(/\]/g, '&rsqb;')
+    .replace(/\\n/g, '<br/>');
+}
+
+/**
  * Sanitize Mermaid output to prevent parse errors from special characters.
  *
  * Mermaid uses (), [], {}, >] etc. as node shape delimiters in flowcharts.
@@ -334,8 +370,11 @@ ${previousDiagram}
  * proper quoting, Mermaid misinterprets it as shape syntax.
  *
  * This function:
- * 1. Quotes unquoted node labels that contain reserved characters
- * 2. Quotes unquoted edge labels (|...|) that contain reserved characters
+ * 1. Escapes `{`, `}`, `<`, `>`, and literal `\n` inside any double-quoted
+ *    region (Mermaid's parser doesn't reliably honour these inside quotes,
+ *    so we replace them with HTML entities / `<br/>`).
+ * 2. Quotes unquoted node labels that contain reserved characters.
+ * 3. Quotes unquoted edge labels (|...|) that contain reserved characters.
  */
 function sanitizeMermaidOutput(diagram: string): string {
   const lines = diagram.split('\n');
@@ -348,16 +387,23 @@ function sanitizeMermaidOutput(diagram: string): string {
       return line;
     }
 
-    // For flowchart/graph lines: fix unquoted node labels with shape delimiters.
-    // Match node definitions like:  A[label with (parens)]  or  A(label with [brackets])
-    // where the label content itself contains characters that clash with the shape delimiters.
-    // Strategy: find bracket-delimited labels and quote their text content.
     let result = line;
+
+    // Pass 1: escape forbidden chars inside ANY double-quoted region. Catches
+    // labels that arrived already quoted from the LLM but contain `{`, `}`,
+    // `<`, `>`, or literal `\n` — Mermaid's `(\"...\")` lexer doesn't reliably
+    // suppress shape-delimiter interpretation inside the quotes.
+    result = result.replace(/"([^"]*)"/g, (_match, inner: string) => {
+      return `"${escapeMermaidLabelChars(inner)}"`;
+    });
+
+    // Pass 2 (existing): quote unquoted labels that contain reserved chars.
+    // Apply the same escaping when wrapping so the wrapped label is safe too.
 
     // Fix edge labels: |text with special chars| → |"text with special chars"|
     result = result.replace(/\|([^|"]+)\|/g, (_match, label: string) => {
       if (/[()[\]{}<>]/.test(label)) {
-        return `|"${label}"|`;
+        return `|"${escapeMermaidLabelChars(label)}"|`;
       }
       return _match;
     });
@@ -366,7 +412,7 @@ function sanitizeMermaidOutput(diagram: string): string {
     // Only quote if the inner text contains problematic characters and isn't already quoted
     result = result.replace(/\[([^\]"]+)\]/g, (_match, label: string) => {
       if (/[(){}]/.test(label)) {
-        return `["${label}"]`;
+        return `["${escapeMermaidLabelChars(label)}"]`;
       }
       return _match;
     });
@@ -375,7 +421,7 @@ function sanitizeMermaidOutput(diagram: string): string {
     // Be careful not to match arrow syntax like -->
     result = result.replace(/(?<!\-)\(([^)"]+)\)(?!\-)/g, (_match, label: string) => {
       if (/[[\]{}]/.test(label)) {
-        return `("${label}")`;
+        return `("${escapeMermaidLabelChars(label)}")`;
       }
       return _match;
     });
@@ -383,7 +429,7 @@ function sanitizeMermaidOutput(diagram: string): string {
     // Fix node labels in curly brackets (rhombus/diamond): {text()} → {"text()"}
     result = result.replace(/\{([^}"]+)\}/g, (_match, label: string) => {
       if (/[()[\]]/.test(label)) {
-        return `{"${label}"}`;
+        return `{"${escapeMermaidLabelChars(label)}"}`;
       }
       return _match;
     });

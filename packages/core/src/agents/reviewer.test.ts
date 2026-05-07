@@ -256,6 +256,61 @@ describe('runDiagramAgent', () => {
     expect(result.diagram).toContain('flowchart TD');
     expect(result.diagram).not.toContain('```');
   });
+
+  it('escapes curly braces inside already-quoted node labels', async () => {
+    // Reproduces the prod failure: LLM emits a stadium node with a quoted
+    // label that contains `{...}` placeholders; Mermaid's tokenizer treats
+    // those as DIAMOND_START/END inside the quotes and bails on render.
+    const mermaid = 'flowchart TD\n  A("sagemaker-{serviceName}-{name}/access")';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).not.toContain('{serviceName}');
+    expect(result.diagram).toContain('&lbrace;serviceName&rbrace;');
+    expect(result.diagram).toContain('&lbrace;name&rbrace;');
+  });
+
+  it('escapes angle brackets inside quoted labels', async () => {
+    const mermaid = 'flowchart TD\n  A["List<Item>"]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).toContain('&lt;Item&gt;');
+    expect(result.diagram).not.toContain('<Item>');
+  });
+
+  it('escapes parens and square brackets inside quoted labels (defense-in-depth)', async () => {
+    const mermaid = 'flowchart TD\n  A["arr[0].invoke()"]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).toContain('&lsqb;0&rsqb;');
+    expect(result.diagram).toContain('&lpar;&rpar;');
+  });
+
+  it('escapes & first so other entity replacements are not double-escaped', async () => {
+    const mermaid = 'flowchart TD\n  A["T&Cs <Item>"]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).toContain('T&amp;Cs');
+    expect(result.diagram).toContain('&lt;Item&gt;');
+    // No double-escaping: &amp;lt; would mean & ran AFTER < (wrong order).
+    expect(result.diagram).not.toContain('&amp;lt;');
+  });
+
+  it('replaces literal \\n inside quoted labels with <br/>', async () => {
+    const mermaid = 'flowchart TD\n  A["line one\\nline two"]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).toContain('line one<br/>line two');
+    expect(result.diagram).not.toContain('\\n');
+  });
+
+  it('still quotes unquoted labels with reserved chars (existing behavior)', async () => {
+    const mermaid = 'flowchart TD\n  A[invoke()]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    // Wrapped in quotes; parens are now escaped as part of the
+    // defense-in-depth substitution.
+    expect(result.diagram).toMatch(/A\["invoke&lpar;&rpar;"\]/);
+  });
 });
 
 // ─── runErrorHandlingAgent ──────────────────────────────────────────────────
