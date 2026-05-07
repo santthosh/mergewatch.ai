@@ -256,6 +256,42 @@ describe('runDiagramAgent', () => {
     expect(result.diagram).toContain('flowchart TD');
     expect(result.diagram).not.toContain('```');
   });
+
+  it('escapes curly braces inside already-quoted node labels', async () => {
+    // Reproduces the prod failure: LLM emits a stadium node with a quoted
+    // label that contains `{...}` placeholders; Mermaid's tokenizer treats
+    // those as DIAMOND_START/END inside the quotes and bails on render.
+    const mermaid = 'flowchart TD\n  A("sagemaker-{serviceName}-{name}/access")';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).not.toContain('{serviceName}');
+    expect(result.diagram).toContain('&#123;serviceName&#125;');
+    expect(result.diagram).toContain('&#123;name&#125;');
+  });
+
+  it('escapes angle brackets inside quoted labels', async () => {
+    const mermaid = 'flowchart TD\n  A["List<Item>"]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).toContain('&lt;Item&gt;');
+    expect(result.diagram).not.toContain('<Item>');
+  });
+
+  it('replaces literal \\n inside quoted labels with <br/>', async () => {
+    const mermaid = 'flowchart TD\n  A["line one\\nline two"]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).toContain('line one<br/>line two');
+    expect(result.diagram).not.toContain('\\n');
+  });
+
+  it('still quotes unquoted labels with reserved chars (existing behavior)', async () => {
+    const mermaid = 'flowchart TD\n  A[invoke()]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    // Wrapped in quotes, parens preserved as-is (allowed inside quoted labels).
+    expect(result.diagram).toMatch(/A\["invoke\(\)"\]/);
+  });
 });
 
 // ─── runErrorHandlingAgent ──────────────────────────────────────────────────
