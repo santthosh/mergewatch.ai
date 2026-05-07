@@ -336,14 +336,29 @@ ${previousDiagram}
  * confused JSON-escape and Mermaid line-break syntax) into `<br/>`.
  */
 function escapeMermaidLabelChars(label: string): string {
-  // Order matters: escape user-content angle brackets BEFORE inserting our
-  // own `<br/>`, otherwise the next pass would mangle `<br/>` into
-  // `&lt;br/&gt;`.
+  // Order matters in two places:
+  //   1. `&amp;` MUST run first — otherwise the `&` we introduce in every
+  //      other replacement gets re-escaped to `&amp;…;`.
+  //   2. `\\n → <br/>` MUST run AFTER the angle-bracket escapes, so the
+  //      literal `<` and `>` we just emitted don't get mangled into
+  //      `&lt;br/&gt;`.
+  //
+  // Defense-in-depth: every Mermaid shape delimiter (`(`, `)`, `[`, `]`,
+  // `{`, `}`, `<`, `>`) becomes an HTML entity. Mermaid's tokenizer doesn't
+  // reliably suppress shape-delimiter interpretation inside `"..."` regions,
+  // so escaping them all is the only durable fix. `"` is also escaped so
+  // an embedded quote can't break out of the quoted-label region.
   return label
-    .replace(/\{/g, '&#123;')
-    .replace(/\}/g, '&#125;')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+    .replace(/\{/g, '&lbrace;')
+    .replace(/\}/g, '&rbrace;')
+    .replace(/\(/g, '&lpar;')
+    .replace(/\)/g, '&rpar;')
+    .replace(/\[/g, '&lsqb;')
+    .replace(/\]/g, '&rsqb;')
     .replace(/\\n/g, '<br/>');
 }
 

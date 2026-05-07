@@ -265,8 +265,8 @@ describe('runDiagramAgent', () => {
     const llm = createMockLLM([mermaid]);
     const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
     expect(result.diagram).not.toContain('{serviceName}');
-    expect(result.diagram).toContain('&#123;serviceName&#125;');
-    expect(result.diagram).toContain('&#123;name&#125;');
+    expect(result.diagram).toContain('&lbrace;serviceName&rbrace;');
+    expect(result.diagram).toContain('&lbrace;name&rbrace;');
   });
 
   it('escapes angle brackets inside quoted labels', async () => {
@@ -275,6 +275,24 @@ describe('runDiagramAgent', () => {
     const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
     expect(result.diagram).toContain('&lt;Item&gt;');
     expect(result.diagram).not.toContain('<Item>');
+  });
+
+  it('escapes parens and square brackets inside quoted labels (defense-in-depth)', async () => {
+    const mermaid = 'flowchart TD\n  A["arr[0].invoke()"]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).toContain('&lsqb;0&rsqb;');
+    expect(result.diagram).toContain('&lpar;&rpar;');
+  });
+
+  it('escapes & first so other entity replacements are not double-escaped', async () => {
+    const mermaid = 'flowchart TD\n  A["T&Cs <Item>"]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).toContain('T&amp;Cs');
+    expect(result.diagram).toContain('&lt;Item&gt;');
+    // No double-escaping: &amp;lt; would mean & ran AFTER < (wrong order).
+    expect(result.diagram).not.toContain('&amp;lt;');
   });
 
   it('replaces literal \\n inside quoted labels with <br/>', async () => {
@@ -289,8 +307,9 @@ describe('runDiagramAgent', () => {
     const mermaid = 'flowchart TD\n  A[invoke()]';
     const llm = createMockLLM([mermaid]);
     const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
-    // Wrapped in quotes, parens preserved as-is (allowed inside quoted labels).
-    expect(result.diagram).toMatch(/A\["invoke\(\)"\]/);
+    // Wrapped in quotes; parens are now escaped as part of the
+    // defense-in-depth substitution.
+    expect(result.diagram).toMatch(/A\["invoke&lpar;&rpar;"\]/);
   });
 });
 
