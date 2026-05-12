@@ -749,6 +749,55 @@ describe('runReviewPipeline', () => {
     expect(result.mergeScoreReason).toBe('One warning.');
   });
 
+  it('overrides mergeScore to 5 when only info-severity findings remain (no critical or warning action items)', async () => {
+    // Repro of the comment-rendering contradiction: orchestrator returns
+    // info-only findings + a 4/5 verdict. The action-items section renders
+    // "All clear!" (because action items = critical + warning are empty),
+    // but the merge score line still says "4/5 — Generally safe" based on
+    // info findings. Reconciliation should force 5/5 so the two agree.
+    const agentResponse = JSON.stringify({ findings: [] });
+    const summaryResponse = JSON.stringify({ summary: 'Some notes.' });
+    const diagramResponse = '%% overview\nflowchart TD\n  A-->B';
+    const orchestratorResponse = JSON.stringify({
+      findings: [{
+        file: 'foo.ts',
+        line: 3,
+        severity: 'info',
+        category: 'style',
+        title: 'Nit',
+        description: 'Minor stylistic note.',
+        suggestion: 'Consider renaming.',
+      }],
+      mergeScore: 4,
+      mergeScoreReason: 'Generally safe with minor notes.',
+    });
+    const llm = createMockLLM([
+      agentResponse, agentResponse, agentResponse,
+      agentResponse, agentResponse, agentResponse,
+      summaryResponse, diagramResponse, orchestratorResponse,
+    ]);
+
+    const result = await runReviewPipeline(
+      {
+        diff: sampleDiff,
+        context: sampleContext,
+        modelId: 'heavy-model',
+        lightModelId: 'light-model',
+        maxFindings: 25,
+        enabledAgents: allAgentsEnabled,
+        previousFindings: [
+          { file: 'foo.ts', line: 3, title: 'Nit', severity: 'info', category: 'style' },
+        ],
+      },
+      { llm },
+    );
+
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0].severity).toBe('info');
+    expect(result.mergeScore).toBe(5);
+    expect(result.mergeScoreReason).toContain('informational');
+  });
+
   it('calls LLM for all enabled agents plus orchestrator', async () => {
     // With all agents enabled and no findings, the orchestrator is skipped (0 findings).
     // So we expect 8 LLM calls: 6 finding agents + summary + diagram
