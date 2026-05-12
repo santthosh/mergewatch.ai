@@ -359,11 +359,17 @@ function escapeMermaidLabelChars(label: string): string {
     .replace(/\)/g, '&rpar;')
     .replace(/\[/g, '&lsqb;')
     .replace(/\]/g, '&rsqb;')
-    // Both forms of "newline inside a label" need to become <br/>: the LLM
-    // sometimes emits a JSON-style literal `\n` (two chars), and sometimes
-    // an actual newline character. Mermaid's flowchart parser refuses both.
-    .replace(/\\n/g, '<br/>')
-    .replace(/\r?\n/g, '<br/>');
+    // Newline-family normalisation. Mermaid's flowchart parser refuses real
+    // line breaks inside labels and renders the JSON-style literals as ugly
+    // backslash sequences. Run the literal forms first, then the real-char
+    // forms — the real-char regexes are subsets of each other so order
+    // matters: CRLF/LF before lone CR, otherwise `\r` would consume the `\r`
+    // half of a `\r\n` and leave a stray `\n`.
+    .replace(/\\n/g, '<br/>')          // literal `\\n` (two chars)
+    .replace(/\\[trvfb]/g, ' ')         // literal `\\t` `\\r` `\\v` `\\f` `\\b` → space
+    .replace(/\r?\n/g, '<br/>')         // real LF or CRLF
+    .replace(/\r/g, '<br/>')            // lone real CR (Mermaid treats as line break in some grammars)
+    .replace(/\t/g, '    ');            // real tab → 4 spaces (consistent across renderers)
 }
 
 /**

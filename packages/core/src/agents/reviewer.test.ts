@@ -324,6 +324,35 @@ describe('runDiagramAgent', () => {
     expect(result.diagram).toContain('fetch&lpar;url&rpar;<br/>returns Result&lt;T&gt;');
   });
 
+  it('converts a lone real \\r inside a quoted label into <br/>', async () => {
+    // Mac classic / mis-encoded CR-only line endings — Mermaid still parses
+    // these as line breaks in some grammars, so we normalise to <br/>.
+    const mermaid = 'flowchart TD\n  A["one\rtwo"]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).toContain('one<br/>two');
+    expect(result.diagram).not.toContain('\r');
+  });
+
+  it('converts real tab characters into 4 spaces', async () => {
+    const mermaid = 'flowchart TD\n  A["col1\tcol2"]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).toContain('col1    col2');
+    expect(result.diagram).not.toContain('\t');
+  });
+
+  it('cleans up literal \\t and \\r JSON-escape sequences', async () => {
+    // The LLM occasionally emits these as cosmetic JSON escapes thinking
+    // Mermaid will interpret them; it renders the literal backslash-X chars.
+    const mermaid = 'flowchart TD\n  A["one\\ttwo\\rthree"]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).not.toContain('\\t');
+    expect(result.diagram).not.toContain('\\r');
+    expect(result.diagram).toContain('one two three');
+  });
+
   it('still quotes unquoted labels with reserved chars (existing behavior)', async () => {
     const mermaid = 'flowchart TD\n  A[invoke()]';
     const llm = createMockLLM([mermaid]);
