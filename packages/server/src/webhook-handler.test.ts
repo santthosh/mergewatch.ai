@@ -25,7 +25,7 @@ vi.mock('@mergewatch/core', async (importOriginal) => {
 import { verifySignature, parseReviewMode, isMergeWatchCheckRun, createWebhookHandler } from './webhook-handler.js';
 import type { WebhookDeps } from './webhook-handler.js';
 import { MERGEWATCH_CHECK_RUN_NAME } from '@mergewatch/core';
-import type { IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider, PullRequestEvent, CheckRunEvent } from '@mergewatch/core';
+import type { IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider, PullRequestEvent, CheckRunEvent, IssueCommentEvent, PullRequestReviewCommentEvent } from '@mergewatch/core';
 
 // ---------------------------------------------------------------------------
 // verifySignature
@@ -432,5 +432,239 @@ describe('createWebhookHandler — check_run.rerequested', () => {
     await new Promise((resolve) => setImmediate(resolve));
 
     expect(mockProcessReviewJob).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Bot-comment filtering (issue_comment + pull_request_review_comment)
+// ---------------------------------------------------------------------------
+
+function makeIssueCommentEvent(overrides: {
+  senderType?: 'User' | 'Bot';
+  senderLogin?: string;
+  commentUserType?: 'User' | 'Bot';
+  commentUserLogin?: string;
+  body?: string;
+} = {}): IssueCommentEvent {
+  const senderLogin = overrides.senderLogin ?? 'alice';
+  const senderType = overrides.senderType ?? 'User';
+  return {
+    action: 'created',
+    comment: {
+      id: 555,
+      body: overrides.body ?? '@mergewatch review',
+      user: {
+        login: overrides.commentUserLogin ?? senderLogin,
+        id: 2,
+        avatar_url: '',
+        type: overrides.commentUserType ?? senderType,
+      },
+      html_url: '',
+      created_at: '2026-04-01T00:00:00Z',
+      updated_at: '2026-04-01T00:00:00Z',
+    },
+    issue: {
+      number: 42,
+      title: 'test',
+      body: null,
+      state: 'open',
+      pull_request: { url: '', html_url: '' },
+      user: { login: 'alice', id: 1, avatar_url: '', type: 'User' },
+    },
+    repository: {
+      id: 1,
+      name: 'repo',
+      full_name: 'octo/repo',
+      owner: { login: 'octo', id: 1, avatar_url: '', type: 'User' },
+      private: false,
+      html_url: '',
+      default_branch: 'main',
+    },
+    installation: { id: 999 },
+    sender: { login: senderLogin, id: 1, avatar_url: '', type: senderType },
+  };
+}
+
+describe('createWebhookHandler — issue_comment bot filter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchRepoConfig.mockResolvedValue(null);
+    mockClassifyPrSource.mockResolvedValue({ source: 'human' });
+  });
+
+  it('skips comments where sender.type=Bot', async () => {
+    const deps = makeDeps();
+    const handler = createWebhookHandler(deps);
+    const body = JSON.stringify(makeIssueCommentEvent({ senderType: 'Bot', senderLogin: 'copilot[bot]' }));
+    const { req, res } = makeReqRes(body, 'issue_comment');
+
+    await handler(req, res);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockProcessReviewJob).not.toHaveBeenCalled();
+  });
+
+  it('skips comments whose author login ends with [bot] even if sender.type=User', async () => {
+    const deps = makeDeps();
+    const handler = createWebhookHandler(deps);
+    const body = JSON.stringify(
+      makeIssueCommentEvent({
+        senderType: 'User',
+        senderLogin: 'copilot-pull-request-reviewer[bot]',
+        commentUserLogin: 'copilot-pull-request-reviewer[bot]',
+      }),
+    );
+    const { req, res } = makeReqRes(body, 'issue_comment');
+
+    await handler(req, res);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockProcessReviewJob).not.toHaveBeenCalled();
+  });
+
+  it('skips when comment author is a bot but sender is a human', async () => {
+    const deps = makeDeps();
+    const handler = createWebhookHandler(deps);
+    const body = JSON.stringify(
+      makeIssueCommentEvent({
+        senderType: 'User',
+        senderLogin: 'alice',
+        commentUserType: 'Bot',
+        commentUserLogin: 'dependabot[bot]',
+      }),
+    );
+    const { req, res } = makeReqRes(body, 'issue_comment');
+
+    await handler(req, res);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockProcessReviewJob).not.toHaveBeenCalled();
+  });
+
+  it('still processes legitimate human @mergewatch mentions', async () => {
+    const deps = makeDeps();
+    const handler = createWebhookHandler(deps);
+    const body = JSON.stringify(
+      makeIssueCommentEvent({ senderType: 'User', senderLogin: 'alice', body: '@mergewatch review' }),
+    );
+    const { req, res } = makeReqRes(body, 'issue_comment');
+
+    await handler(req, res);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockProcessReviewJob).toHaveBeenCalledTimes(1);
+  });
+});
+
+function makeReviewCommentEvent(overrides: {
+  senderType?: 'User' | 'Bot';
+  senderLogin?: string;
+  commentUserType?: 'User' | 'Bot';
+  commentUserLogin?: string;
+  inReplyToId?: number | undefined;
+} = {}): PullRequestReviewCommentEvent {
+  const senderLogin = overrides.senderLogin ?? 'alice';
+  const senderType = overrides.senderType ?? 'User';
+  return {
+    action: 'created',
+    comment: {
+      id: 1001,
+      body: 'thanks for the review',
+      pull_request_review_id: null,
+      in_reply_to_id: 'inReplyToId' in overrides ? overrides.inReplyToId! : 1000,
+      node_id: 'node-id',
+      user: {
+        login: overrides.commentUserLogin ?? senderLogin,
+        id: 2,
+        avatar_url: '',
+        type: overrides.commentUserType ?? senderType,
+      },
+      created_at: '2026-04-01T00:00:00Z',
+      updated_at: '2026-04-01T00:00:00Z',
+      path: 'src/foo.ts',
+      commit_id: 'abc',
+    },
+    pull_request: { number: 5 } as never,
+    repository: {
+      id: 1,
+      name: 'repo',
+      full_name: 'octo/repo',
+      owner: { login: 'octo', id: 1, avatar_url: '', type: 'User' },
+      private: false,
+      html_url: '',
+      default_branch: 'main',
+    },
+    installation: { id: 999 },
+    sender: { login: senderLogin, id: 1, avatar_url: '', type: senderType },
+  };
+}
+
+describe('createWebhookHandler — pull_request_review_comment bot filter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('skips replies where sender.type=Bot', async () => {
+    const deps = makeDeps();
+    const handler = createWebhookHandler(deps);
+    const body = JSON.stringify(makeReviewCommentEvent({ senderType: 'Bot', senderLogin: 'mergewatch[bot]' }));
+    const { req, res } = makeReqRes(body, 'pull_request_review_comment');
+
+    await handler(req, res);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockProcessReviewJob).not.toHaveBeenCalled();
+  });
+
+  it('skips replies whose author login ends with [bot] (App via OAuth user)', async () => {
+    const deps = makeDeps();
+    const handler = createWebhookHandler(deps);
+    const body = JSON.stringify(
+      makeReviewCommentEvent({
+        senderType: 'User',
+        senderLogin: 'copilot-pull-request-reviewer[bot]',
+        commentUserLogin: 'copilot-pull-request-reviewer[bot]',
+      }),
+    );
+    const { req, res } = makeReqRes(body, 'pull_request_review_comment');
+
+    await handler(req, res);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockProcessReviewJob).not.toHaveBeenCalled();
+  });
+
+  it('skips replies whose comment author is a bot even when sender is human', async () => {
+    const deps = makeDeps();
+    const handler = createWebhookHandler(deps);
+    const body = JSON.stringify(
+      makeReviewCommentEvent({
+        senderType: 'User',
+        senderLogin: 'alice',
+        commentUserType: 'Bot',
+        commentUserLogin: 'codeql[bot]',
+      }),
+    );
+    const { req, res } = makeReqRes(body, 'pull_request_review_comment');
+
+    await handler(req, res);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockProcessReviewJob).not.toHaveBeenCalled();
+  });
+
+  it('still processes a human reply in a bot-rooted thread', async () => {
+    const deps = makeDeps();
+    const handler = createWebhookHandler(deps);
+    const body = JSON.stringify(
+      makeReviewCommentEvent({ senderType: 'User', senderLogin: 'alice' }),
+    );
+    const { req, res } = makeReqRes(body, 'pull_request_review_comment');
+
+    await handler(req, res);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockProcessReviewJob).toHaveBeenCalledTimes(1);
+    expect(mockProcessReviewJob.mock.calls[0][0].mode).toBe('inline_reply');
   });
 });

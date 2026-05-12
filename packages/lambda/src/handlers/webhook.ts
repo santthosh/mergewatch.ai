@@ -22,6 +22,7 @@ import {
   classifyPrSource,
   fetchRepoConfig,
   mergeConfig,
+  isBotActor,
 } from '@mergewatch/core';
 import type {
   PullRequestEvent,
@@ -215,8 +216,11 @@ async function handleIssueCommentEvent(
   if (event.action !== "created") return;
   if (!event.issue.pull_request) return;
 
-  // Ignore comments from bots (prevents self-triggering loops)
-  if (event.sender.type === "Bot") return;
+  // Ignore comments from any bot (prevents self-triggering loops and replies
+  // to other reviewers like CopilotAI / dependabot). We check both the sender
+  // and the comment author since OAuth-driven Apps may surface as type=User
+  // while still carrying a `[bot]` login suffix.
+  if (isBotActor(event.sender) || isBotActor(event.comment.user)) return;
 
   const mode = parseReviewMode(event.comment.body);
   if (!mode) return;
@@ -267,15 +271,17 @@ async function handleIssueCommentEvent(
  * stubbing Lambda and DynamoDB clients.
  *
  * Rules: only `created` action, only human senders (bots are filtered to
- * prevent reply loops), only replies with `in_reply_to_id` set (skip
- * top-level inline comments on new findings that humans start themselves),
- * and only when installation metadata is present.
+ * prevent reply loops — checked across both sender and comment author so
+ * GitHub Apps with `[bot]` login suffixes are caught even when surfaced as
+ * type=User), only replies with `in_reply_to_id` set (skip top-level inline
+ * comments on new findings that humans start themselves), and only when
+ * installation metadata is present.
  */
 export function shouldHandleReviewCommentEvent(
   event: PullRequestReviewCommentEvent,
 ): boolean {
   if (event.action !== 'created') return false;
-  if (event.sender.type === 'Bot') return false;
+  if (isBotActor(event.sender) || isBotActor(event.comment.user)) return false;
   if (event.comment.in_reply_to_id == null) return false;
   if (!event.installation?.id) return false;
   return true;

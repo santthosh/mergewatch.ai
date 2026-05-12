@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import type { Request, Response } from 'express';
 import type { IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider, AgentReviewConfig } from '@mergewatch/core';
 import type { ReviewJobPayload, ReviewMode, PullRequestEvent, IssueCommentEvent, PullRequestReviewCommentEvent, InstallationEvent, CheckRunEvent } from '@mergewatch/core';
-import { REVIEW_TRIGGERING_ACTIONS, COMMENT_LOOKUP_ACTIONS, MERGEWATCH_CHECK_RUN_NAME, findExistingBotComment, classifyPrSource, fetchRepoConfig, mergeConfig } from '@mergewatch/core';
+import { REVIEW_TRIGGERING_ACTIONS, COMMENT_LOOKUP_ACTIONS, MERGEWATCH_CHECK_RUN_NAME, findExistingBotComment, classifyPrSource, fetchRepoConfig, mergeConfig, isBotActor } from '@mergewatch/core';
 import { processReviewJob } from './review-processor.js';
 
 export interface WebhookDeps {
@@ -130,8 +130,11 @@ async function handleIssueComment(payload: IssueCommentEvent, deps: WebhookDeps)
   const { action, comment, issue, repository, installation, sender } = payload;
   if (action !== 'created' || !installation || !issue.pull_request) return;
 
-  // Ignore comments from bots (prevents self-triggering loops)
-  if (sender.type === 'Bot') return;
+  // Ignore comments from any bot — both the webhook sender and the comment
+  // author. GitHub Apps acting via OAuth may surface as type=User but still
+  // carry a `[bot]` login suffix; we want to catch those too so MergeWatch
+  // never replies to CopilotAI / dependabot / other reviewer bots.
+  if (isBotActor(sender) || isBotActor(comment.user)) return;
 
   const parsed = parseReviewMode(comment.body);
   if (!parsed) return; // No @mergewatch mention — ignore comment
@@ -156,7 +159,7 @@ async function handleIssueComment(payload: IssueCommentEvent, deps: WebhookDeps)
 async function handleReviewComment(payload: PullRequestReviewCommentEvent, deps: WebhookDeps) {
   const { action, comment, pull_request, repository, installation, sender } = payload;
   if (action !== 'created' || !installation) return;
-  if (sender.type === 'Bot') return; // loop guard
+  if (isBotActor(sender) || isBotActor(comment.user)) return; // loop guard — checks both
   if (comment.in_reply_to_id == null) return; // not a reply
 
   const job: ReviewJobPayload = {
