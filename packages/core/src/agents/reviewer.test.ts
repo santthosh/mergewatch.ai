@@ -303,6 +303,27 @@ describe('runDiagramAgent', () => {
     expect(result.diagram).not.toContain('\\n');
   });
 
+  it('replaces REAL newline characters inside quoted labels with <br/>', async () => {
+    // Reproduces the prod failure that the prior fix missed: the LLM emits a
+    // genuine newline (not the two-char `\n` literal) inside a quoted label.
+    // sanitizeMermaidOutput used to split on '\n' BEFORE the quoted-region
+    // escape ran, destroying the quote pair before it could be matched.
+    const mermaid = 'flowchart TD\n  A["line one\nline two"]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).toContain('line one<br/>line two');
+    // The resulting line should be single-line — no stray newline left inside
+    // the label that would still confuse Mermaid's parser.
+    expect(result.diagram).not.toMatch(/"line one\n/);
+  });
+
+  it('handles real-newline alongside other forbidden chars in the same label', async () => {
+    const mermaid = 'flowchart TD\n  A["fetch(url)\nreturns Result<T>"]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).toContain('fetch&lpar;url&rpar;<br/>returns Result&lt;T&gt;');
+  });
+
   it('still quotes unquoted labels with reserved chars (existing behavior)', async () => {
     const mermaid = 'flowchart TD\n  A[invoke()]';
     const llm = createMockLLM([mermaid]);
