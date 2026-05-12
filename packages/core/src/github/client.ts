@@ -341,70 +341,56 @@ export async function submitPRReview(
   event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT',
   comments?: Array<{ path: string; line: number; side: string; body: string }>,
 ): Promise<void> {
+  // GitHub treats `body` as optional for APPROVE but required for
+  // REQUEST_CHANGES and COMMENT. When callers want a clean "approved these
+  // changes" timeline entry without a trailing comment block, they pass an
+  // empty body — omit the field entirely to keep the rendered Review
+  // body-less.
+  const omitBody = event === 'APPROVE' && (!body || body.trim().length === 0);
   await octokit.pulls.createReview({
     owner,
     repo,
     pull_number: prNumber,
-    body,
+    ...(omitBody ? {} : { body }),
     event,
     ...(comments && comments.length > 0 ? { comments } : {}),
+  });
+}
+
+/**
+ * Post a single inline comment on a PR without wrapping it in a formal
+ * Review. Used when the merge-readiness verdict doesn't warrant an APPROVE
+ * (score 1-3) — we still want to surface per-line findings, but submitting
+ * a REQUEST_CHANGES / COMMENT Review would post the noisy verdict body that
+ * GitHub's API forces for those states.
+ *
+ * Each call creates a top-level inline comment thread on the Files Changed
+ * tab. Reviewers see the comment in the same place they'd see Review-bundled
+ * inline comments; the only difference is that it's not grouped under a
+ * Review header.
+ */
+export async function createStandaloneReviewComment(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  comment: { path: string; line: number; side: string; body: string; commitId: string },
+): Promise<void> {
+  await octokit.pulls.createReviewComment({
+    owner,
+    repo,
+    pull_number: prNumber,
+    commit_id: comment.commitId,
+    path: comment.path,
+    line: comment.line,
+    side: comment.side as 'LEFT' | 'RIGHT',
+    body: comment.body,
   });
 }
 
 // ---------------------------------------------------------------------------
 // Hybrid review helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Build the URL to a specific issue comment on a PR.
- */
-export function buildIssueCommentUrl(
-  owner: string,
-  repo: string,
-  prNumber: number,
-  commentId: number,
-): string {
-  return `https://github.com/${owner}/${repo}/pull/${prNumber}#issuecomment-${commentId}`;
-}
-
-/**
- * Format a short verdict body for the PR review.
- * Links back to the full issue comment for details.
- */
-export function formatPRReviewVerdict(
-  mergeScore: number,
-  mergeScoreReason: string | undefined,
-  findingsCounts: { critical: number; warning: number; info: number },
-  issueCommentUrl: string,
-): string {
-  const scoreLabels: Record<number, string> = {
-    1: 'Critical issues',
-    2: 'Significant concerns',
-    3: 'Some concerns',
-    4: 'Generally safe',
-    5: 'Looks great',
-  };
-  const label = scoreLabels[mergeScore] ?? 'Review complete';
-
-  const scoreEmojis: Record<number, string> = {
-    1: '🔴', 2: '🟠', 3: '🟡', 4: '🟢', 5: '🟢',
-  };
-  const emoji = scoreEmojis[mergeScore] ?? '⚪';
-
-  let oneLiner: string;
-  const total = findingsCounts.critical + findingsCounts.warning + findingsCounts.info;
-  if (total === 0) {
-    oneLiner = 'No issues found.';
-  } else if (findingsCounts.critical > 0) {
-    oneLiner = `Found ${findingsCounts.critical} critical issue${findingsCounts.critical > 1 ? 's' : ''} that need${findingsCounts.critical === 1 ? 's' : ''} attention.`;
-  } else if (findingsCounts.warning > 0) {
-    oneLiner = `${findingsCounts.warning + findingsCounts.info} finding${total > 1 ? 's' : ''} to review.`;
-  } else {
-    oneLiner = `${findingsCounts.info} suggestion${findingsCounts.info > 1 ? 's' : ''} for improvement.`;
-  }
-
-  return `${emoji} **${mergeScore}/5 — ${label}** — [View full review](${issueCommentUrl})\n\n${oneLiner}`;
-}
 
 interface InlineCommentCandidate {
   file: string;

@@ -1,9 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   mergeScoreToReviewEvent,
-  buildIssueCommentUrl,
   buildInlineComments,
-  formatPRReviewVerdict,
   extractInlineCommentTitle,
   BOT_COMMENT_MARKER,
   parseRepoConfigYaml,
@@ -40,22 +38,6 @@ describe('mergeScoreToReviewEvent', () => {
 
   it('returns REQUEST_CHANGES for scores below 1', () => {
     expect(mergeScoreToReviewEvent(0)).toBe('REQUEST_CHANGES');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// buildIssueCommentUrl
-// ---------------------------------------------------------------------------
-
-describe('buildIssueCommentUrl', () => {
-  it('builds the correct URL', () => {
-    const url = buildIssueCommentUrl('acme', 'widget', 42, 123456);
-    expect(url).toBe('https://github.com/acme/widget/pull/42#issuecomment-123456');
-  });
-
-  it('handles special characters in owner/repo', () => {
-    const url = buildIssueCommentUrl('my-org', 'my-repo.js', 1, 1);
-    expect(url).toBe('https://github.com/my-org/my-repo.js/pull/1#issuecomment-1');
   });
 });
 
@@ -154,62 +136,6 @@ describe('buildInlineComments', () => {
 
   it('returns empty array for empty findings', () => {
     expect(buildInlineComments([], changedFiles)).toEqual([]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// formatPRReviewVerdict
-// ---------------------------------------------------------------------------
-
-describe('formatPRReviewVerdict', () => {
-  const url = 'https://github.com/o/r/pull/1#issuecomment-1';
-
-  it('shows positive message for high score with no findings', () => {
-    const result = formatPRReviewVerdict(5, 'Clean code', { critical: 0, warning: 0, info: 0 }, url);
-    expect(result).toContain('5/5');
-    expect(result).toContain('Looks great');
-    expect(result).toContain('No issues found');
-    expect(result).toContain(url);
-  });
-
-  it('shows critical warning for low score with critical findings', () => {
-    const result = formatPRReviewVerdict(1, 'Issues found', { critical: 3, warning: 0, info: 0 }, url);
-    expect(result).toContain('1/5');
-    expect(result).toContain('Critical issues');
-    expect(result).toContain('3 critical issues');
-  });
-
-  it('pluralizes single critical finding correctly', () => {
-    const result = formatPRReviewVerdict(2, 'Issue found', { critical: 1, warning: 0, info: 0 }, url);
-    expect(result).toContain('1 critical issue');
-    expect(result).toContain('needs');
-    expect(result).not.toContain('issues that need');
-  });
-
-  it('includes link to issue comment', () => {
-    const result = formatPRReviewVerdict(4, 'LGTM', { critical: 0, warning: 0, info: 0 }, url);
-    expect(result).toContain(`[View full review](${url})`);
-  });
-
-  it('shows warning count when no critical findings', () => {
-    const result = formatPRReviewVerdict(3, 'Some warnings', { critical: 0, warning: 2, info: 1 }, url);
-    expect(result).toContain('3 findings to review');
-  });
-
-  it('shows info suggestions when only info findings', () => {
-    const result = formatPRReviewVerdict(4, 'Minor things', { critical: 0, warning: 0, info: 2 }, url);
-    expect(result).toContain('2 suggestions for improvement');
-  });
-
-  it('shows singular suggestion for 1 info finding', () => {
-    const result = formatPRReviewVerdict(4, 'Minor', { critical: 0, warning: 0, info: 1 }, url);
-    expect(result).toContain('1 suggestion for improvement');
-    expect(result).not.toContain('suggestions');
-  });
-
-  it('handles unknown score gracefully', () => {
-    const result = formatPRReviewVerdict(99, 'Unknown', { critical: 0, warning: 0, info: 0 }, url);
-    expect(result).toContain('Review complete');
   });
 });
 

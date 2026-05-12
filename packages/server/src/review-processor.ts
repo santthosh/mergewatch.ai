@@ -6,7 +6,7 @@ import {
   filterDiff,
   DEFAULT_CONFIG, mergeConfig,
   BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
-  buildIssueCommentUrl, formatPRReviewVerdict, buildInlineComments, extractInlineCommentTitle,
+  createStandaloneReviewComment, buildInlineComments, extractInlineCommentTitle,
   fetchRepoConfig, fetchConventions,
   buildWorkDoneSection, computeReviewDelta,
   RESPOND_PROMPT, postReplyComment,
@@ -464,28 +464,39 @@ export async function processReviewJob(
       );
     }
 
-    // ── Step C: Submit PR review with verdict + inline comments ──────────
-    const issueCommentUrl = buildIssueCommentUrl(owner, repo, prNumber, commentId);
+    // Severity counts — used both for the check-run rendering below and
+    // (previously) for the PR-review verdict body.
     const criticalCount = result.findings.filter((f: any) => f.severity === 'critical').length;
     const warningCount = result.findings.filter((f: any) => f.severity === 'warning').length;
     const infoCount = result.findings.filter((f: any) => f.severity === 'info').length;
-    const verdictBody = formatPRReviewVerdict(
-      result.mergeScore,
-      result.mergeScoreReason || undefined,
-      { critical: criticalCount, warning: warningCount, info: infoCount },
-      issueCommentUrl,
-    );
 
+    // ── Step C: Surface verdict + inline findings ──────────────────────────
+    // Branching policy (mirrors Lambda):
+    //   APPROVE (score 4-5) → submit a Review with NO body so the timeline
+    //     shows a clean "approved these changes" event with no comment block.
+    //     Inline comments bundle under the Review.
+    //   REQUEST_CHANGES / COMMENT (score 1-3) → skip the Review entirely.
+    //     The check run carries the failure conclusion; the edit-in-place
+    //     summary comment has the full body. Inline comments still ship via
+    //     standalone PR review comments.
     try {
       await dismissStaleReviews(octokit, owner, repo, prNumber);
-      await submitPRReview(octokit, owner, repo, prNumber, verdictBody, reviewEvent, inlineComments);
-    } catch (err) {
-      console.warn('PR review with inline comments failed, retrying without inline comments:', err);
-      try {
-        await submitPRReview(octokit, owner, repo, prNumber, verdictBody, reviewEvent);
-      } catch (retryErr) {
-        console.warn('PR review (verdict only) also failed — issue comment has the full review:', retryErr);
+
+      if (reviewEvent === 'APPROVE') {
+        await submitPRReview(octokit, owner, repo, prNumber, '', reviewEvent, inlineComments);
+      } else {
+        for (const c of inlineComments) {
+          await createStandaloneReviewComment(octokit, owner, repo, prNumber, {
+            path: c.path,
+            line: c.line,
+            side: c.side,
+            body: c.body,
+            commitId: prContext.headSha,
+          }).catch((err) => console.warn('Standalone inline comment failed:', err));
+        }
       }
+    } catch (err) {
+      console.warn('PR review submission failed — issue comment has the full review:', err);
     }
 
     // Add +1 reaction after successful review
