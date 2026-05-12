@@ -986,11 +986,20 @@ export async function runReviewPipeline(
   // The orchestrator scores based on pre-filter findings (and stays
   // conservative when prior findings exist via carry-forward context) — so
   // a 3/5 verdict can land next to an "All clear!" message when the
-  // changed-line filter strips every finding. Force 5/5 in that case so
-  // the score and the findings list agree.
-  const mergeScore = filteredFindings.length === 0 ? 5 : orchestratorResult.mergeScore;
-  const mergeScoreReason = filteredFindings.length === 0
-    ? 'No issues found on changed lines.'
+  // changed-line filter strips every finding. Force 5/5 in two cases:
+  //   1. No findings at all → genuinely clean.
+  //   2. Only info findings → comment-formatter renders "All clear!" because
+  //      info findings aren't action items. Info is advisory; it shouldn't
+  //      drag the merge score down or contradict the rendered verdict.
+  const actionFindings = filteredFindings.filter(
+    (f) => f.severity === 'critical' || f.severity === 'warning',
+  );
+  const noActionItems = actionFindings.length === 0;
+  const mergeScore = noActionItems ? 5 : orchestratorResult.mergeScore;
+  const mergeScoreReason = noActionItems
+    ? filteredFindings.length === 0
+      ? 'No issues found on changed lines.'
+      : 'No action items — only informational notes.'
     : orchestratorResult.mergeScoreReason;
 
   return {
