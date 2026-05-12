@@ -33,6 +33,16 @@ import { PASS_THRESHOLDS } from '../config/defaults.js';
  */
 export const BOT_COMMENT_MARKER = "<!-- mergewatch-review -->";
 
+/**
+ * HTML comment injected at the top of every MergeWatch inline review comment.
+ * Used by the inline-reply flow to verify a thread is rooted in a comment we
+ * authored — so we never barge into threads started by CopilotAI, dependabot,
+ * or any other reviewer bot. The marker is invisible to humans in the GitHub
+ * UI but reliably distinguishes our inline findings from third-party ones,
+ * regardless of the App name (SaaS or self-hosted).
+ */
+export const INLINE_BOT_COMMENT_MARKER = "<!-- mergewatch-inline -->";
+
 // ---------------------------------------------------------------------------
 // PR data fetching
 // ---------------------------------------------------------------------------
@@ -429,7 +439,7 @@ export function buildInlineComments(
       path: f.file,
       line: f.line,
       side: 'RIGHT',
-      body: `**🔴 ${f.title}**\n\n${f.description}${f.suggestion ? `\n\n> **Suggestion:** ${f.suggestion}` : ''}`,
+      body: `${INLINE_BOT_COMMENT_MARKER}\n**🔴 ${f.title}**\n\n${f.description}${f.suggestion ? `\n\n> **Suggestion:** ${f.suggestion}` : ''}`,
     }));
 }
 

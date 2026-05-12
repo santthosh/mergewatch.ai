@@ -137,6 +137,15 @@ describe('buildInlineComments', () => {
   it('returns empty array for empty findings', () => {
     expect(buildInlineComments([], changedFiles)).toEqual([]);
   });
+
+  it('prepends the INLINE_BOT_COMMENT_MARKER to every body so the inline-reply gate can distinguish MergeWatch threads from other bots', async () => {
+    const { INLINE_BOT_COMMENT_MARKER } = await import('./client.js');
+    const findings = [
+      { file: 'src/app.ts', line: 10, severity: 'critical' as const, title: 'Bug', description: 'desc', suggestion: '' },
+    ];
+    const result = buildInlineComments(findings, changedFiles);
+    expect(result[0].body.startsWith(INLINE_BOT_COMMENT_MARKER)).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

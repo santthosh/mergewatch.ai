@@ -79,6 +79,7 @@ export {
 // ─── GitHub client (portable Octokit ops) ───────────────────────────────────
 export {
   BOT_COMMENT_MARKER,
+  INLINE_BOT_COMMENT_MARKER,
   getPRDiff,
   getPRContext,
   addPRReaction,

@@ -39,4 +39,19 @@ describe('isBotActor', () => {
     expect(isBotActor({ type: 'User', login: 'robotnik' })).toBe(false);
     expect(isBotActor({ type: 'User', login: 'bot-fan-99' })).toBe(false);
   });
+
+  // Loop-guard tests: MergeWatch's own bot account must also be classified
+  // as a bot so the webhook handler skips events originating from us.
+  describe('MergeWatch self-recognition', () => {
+    it('treats the SaaS MergeWatch bot account as a bot', () => {
+      expect(isBotActor({ type: 'Bot', login: 'mergewatch[bot]' })).toBe(true);
+    });
+
+    it('treats a self-hosted MergeWatch instance with a custom App name as a bot', () => {
+      // Each self-hosted operator installs their own GitHub App with a name
+      // they choose. GitHub still appends [bot] to its login and sets type=Bot.
+      expect(isBotActor({ type: 'Bot', login: 'acme-reviewer[bot]' })).toBe(true);
+      expect(isBotActor({ type: 'Bot', login: 'internal-mergewatch[bot]' })).toBe(true);
+    });
+  });
 });
