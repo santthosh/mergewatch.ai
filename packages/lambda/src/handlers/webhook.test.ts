@@ -201,6 +201,24 @@ describe('shouldHandleReviewCommentEvent', () => {
     }))).toBe(false);
   });
 
+  it('returns false when sender login ends with [bot] even with type=User', () => {
+    expect(shouldHandleReviewCommentEvent(makeEvent({
+      sender: { login: 'copilot-pull-request-reviewer[bot]', id: 2, avatar_url: '', type: 'User' },
+    }))).toBe(false);
+  });
+
+  it('returns false when comment author is a bot but sender is human', () => {
+    const evt = makeEvent({ sender: { login: 'alice', id: 1, avatar_url: '', type: 'User' } });
+    evt.comment.user = { login: 'dependabot[bot]', id: 9, avatar_url: '', type: 'Bot' };
+    expect(shouldHandleReviewCommentEvent(evt)).toBe(false);
+  });
+
+  it('returns false when comment author login carries [bot] suffix', () => {
+    const evt = makeEvent({ sender: { login: 'alice', id: 1, avatar_url: '', type: 'User' } });
+    evt.comment.user = { login: 'CopilotAI[bot]', id: 9, avatar_url: '', type: 'User' };
+    expect(shouldHandleReviewCommentEvent(evt)).toBe(false);
+  });
+
   it('returns false when the comment is not a reply (no in_reply_to_id)', () => {
     const evt = makeEvent();
     delete (evt.comment as any).in_reply_to_id;

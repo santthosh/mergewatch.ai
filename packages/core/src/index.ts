@@ -79,6 +79,7 @@ export {
 // ─── GitHub client (portable Octokit ops) ───────────────────────────────────
 export {
   BOT_COMMENT_MARKER,
+  INLINE_BOT_COMMENT_MARKER,
   getPRDiff,
   getPRContext,
   addPRReaction,
@@ -152,6 +153,9 @@ export type { RulesSkipKind, RulesSkipResult } from './skip-logic.js';
 // ─── Agent-authored PR detection ────────────────────────────────────────────
 export { classifyPrSource } from './agent-detection.js';
 export type { AgentKind, ClassificationResult } from './agent-detection.js';
+
+// ─── Bot actor detection (webhook loop guard) ───────────────────────────────
+export { isBotActor } from './bot-actor.js';
 
 // ─── Diff filtering ─────────────────────────────────────────────────────────
 export { filterDiff, extractChangedLines, isLineNearChange } from './diff-filter.js';

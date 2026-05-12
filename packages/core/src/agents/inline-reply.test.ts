@@ -108,7 +108,7 @@ function makeLLM(response: string): ILLMProvider & { calls: string[] } {
 }
 
 const baseComments = [
-  { id: 100, body: 'Missing try/catch around this call.', user: { login: 'mergewatch[bot]', type: 'Bot' as const }, created_at: '2026-04-01T00:00:00Z' },
+  { id: 100, body: '<!-- mergewatch-inline -->\nMissing try/catch around this call.', user: { login: 'mergewatch[bot]', type: 'Bot' as const }, created_at: '2026-04-01T00:00:00Z' },
   { id: 101, body: 'We handle errors with middleware — see packages/server/middleware/error.ts.', user: { login: 'santthosh', type: 'User' as const }, in_reply_to_id: 100, created_at: '2026-04-01T01:00:00Z' },
 ];
 
@@ -119,6 +119,23 @@ describe('handleInlineReply', () => {
     const { octokit } = makeOctokitMock([
       { id: 100, body: 'human top comment', user: { login: 'alice', type: 'User' } },
       { id: 101, body: 'reply', user: { login: 'bob', type: 'User' }, in_reply_to_id: 100 },
+    ]);
+    const llm = makeLLM('unused');
+    const result = await handleInlineReply(
+      { owner: 'o', repo: 'r', prNumber: 1, replyCommentId: 101 },
+      { octokit, llm, lightModelId: 'light' },
+    );
+    expect(result.action).toBe('skipped');
+    expect(llm.calls).toHaveLength(0);
+  });
+
+  it('skips when the thread root is a third-party bot (CopilotAI, dependabot, etc.)', async () => {
+    // Root is bot-authored but lacks the MergeWatch inline marker — exactly
+    // the CopilotAI-thread scenario we want to ignore so MergeWatch doesn't
+    // barge into conversations it didn't start.
+    const { octokit } = makeOctokitMock([
+      { id: 100, body: '**🔴 Possible null deref**\n\nDescription from another reviewer.', user: { login: 'copilot-pull-request-reviewer[bot]', type: 'Bot' as const } },
+      { id: 101, body: 'thanks!', user: { login: 'alice', type: 'User' as const }, in_reply_to_id: 100 },
     ]);
     const llm = makeLLM('unused');
     const result = await handleInlineReply(

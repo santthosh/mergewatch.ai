@@ -33,6 +33,7 @@ import {
   fetchReviewCommentThread,
   resolveReviewThread,
   findReviewThreadIdForComment,
+  INLINE_BOT_COMMENT_MARKER,
   type ReviewThreadComment,
 } from '../github/client.js';
 import type { Octokit } from '@octokit/rest';
@@ -176,10 +177,13 @@ export async function handleInlineReply(
     deps.octokit, ctx.owner, ctx.repo, ctx.prNumber, ctx.replyCommentId,
   );
 
-  // Safety: ensure the thread root is bot-authored. Webhook routing should
-  // already ensure this, but double-check here in case routing was bypassed.
+  // Safety: ensure the thread root is a MergeWatch-authored inline comment.
+  // We require BOTH that the root is bot-authored AND that it carries the
+  // INLINE_BOT_COMMENT_MARKER — otherwise CopilotAI, dependabot, codeql, or
+  // any other reviewer bot's threads would qualify and MergeWatch would
+  // interfere in conversations it didn't start.
   const root = thread[0];
-  if (!root || !root.isBot) {
+  if (!root || !root.isBot || !root.body.includes(INLINE_BOT_COMMENT_MARKER)) {
     return { action: 'skipped', reason: 'thread root is not a MergeWatch comment', inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 };
   }
 
