@@ -602,6 +602,103 @@ describe('runReviewPipeline', () => {
     return responses;
   }
 
+  it('overrides mergeScore to 5 when the orchestrator scored low but every finding was line-filtered', async () => {
+    // Reproduces a real prod confusion: orchestrator returns findings + a
+    // mergeScore of 3, but the line-proximity filter removes every finding
+    // because they live on lines not touched by this PR. The comment then
+    // renders "All clear!" alongside a "3/5 — Review recommended" verdict.
+    // This test locks in the post-filter score reconciliation.
+    const agentResponse = JSON.stringify({ findings: [] });
+    const summaryResponse = JSON.stringify({ summary: 'Refactor.' });
+    const diagramResponse = '%% overview\nflowchart TD\n  A-->B';
+    // Orchestrator returns ONE finding on a line not in the diff (sampleDiff
+    // only touches lines 1-3 of foo.ts), with a conservative mergeScore.
+    const orchestratorResponse = JSON.stringify({
+      findings: [{
+        file: 'foo.ts',
+        line: 100,
+        severity: 'warning',
+        category: 'style',
+        title: 'Nit on unrelated line',
+        description: '…',
+        suggestion: '…',
+      }],
+      mergeScore: 3,
+      mergeScoreReason: 'Multiple warnings.',
+    });
+    const llm = createMockLLM([
+      agentResponse, agentResponse, agentResponse, // security, bug, style
+      agentResponse, agentResponse, agentResponse, // errorHandling, testCoverage, commentAccuracy
+      summaryResponse, diagramResponse, orchestratorResponse,
+    ]);
+
+    const result = await runReviewPipeline(
+      {
+        diff: sampleDiff,
+        context: sampleContext,
+        modelId: 'heavy-model',
+        lightModelId: 'light-model',
+        maxFindings: 25,
+        enabledAgents: allAgentsEnabled,
+        // Force orchestrator to run by feeding it raw findings via previousFindings —
+        // when all current findings are empty but previousFindings is set, it runs.
+        previousFindings: [
+          { file: 'foo.ts', line: 100, title: 'Nit on unrelated line', severity: 'warning', category: 'style' },
+        ],
+      },
+      { llm },
+    );
+
+    expect(result.findings).toEqual([]);
+    expect(result.mergeScore).toBe(5);
+    expect(result.mergeScoreReason).toContain('No issues');
+  });
+
+  it('preserves the orchestrator mergeScore when there are visible findings post-filter', async () => {
+    // Orchestrator returns a finding on a CHANGED line (line 3 — within
+    // sampleDiff's range) with score 3. Filter keeps it. Score stays.
+    const agentResponse = JSON.stringify({ findings: [] });
+    const summaryResponse = JSON.stringify({ summary: 'Refactor.' });
+    const diagramResponse = '%% overview\nflowchart TD\n  A-->B';
+    const orchestratorResponse = JSON.stringify({
+      findings: [{
+        file: 'foo.ts',
+        line: 3,
+        severity: 'warning',
+        category: 'bug',
+        title: 'Real concern',
+        description: '…',
+        suggestion: '…',
+      }],
+      mergeScore: 3,
+      mergeScoreReason: 'One warning.',
+    });
+    const llm = createMockLLM([
+      agentResponse, agentResponse, agentResponse,
+      agentResponse, agentResponse, agentResponse,
+      summaryResponse, diagramResponse, orchestratorResponse,
+    ]);
+
+    const result = await runReviewPipeline(
+      {
+        diff: sampleDiff,
+        context: sampleContext,
+        modelId: 'heavy-model',
+        lightModelId: 'light-model',
+        maxFindings: 25,
+        enabledAgents: allAgentsEnabled,
+        previousFindings: [
+          { file: 'foo.ts', line: 3, title: 'Real concern', severity: 'warning', category: 'bug' },
+        ],
+      },
+      { llm },
+    );
+
+    expect(result.findings).toHaveLength(1);
+    expect(result.mergeScore).toBe(3);
+    expect(result.mergeScoreReason).toBe('One warning.');
+  });
+
   it('calls LLM for all enabled agents plus orchestrator', async () => {
     // With all agents enabled and no findings, the orchestrator is skipped (0 findings).
     // So we expect 8 LLM calls: 6 finding agents + summary + diagram

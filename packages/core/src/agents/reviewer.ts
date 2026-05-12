@@ -964,14 +964,25 @@ export async function runReviewPipeline(
     ? await runDeltaCaptionAgent(delta, lightModelId, llm)
     : null;
 
+  // Reconcile the orchestrator's verdict with the post-filter findings.
+  // The orchestrator scores based on pre-filter findings (and stays
+  // conservative when prior findings exist via carry-forward context) — so
+  // a 3/5 verdict can land next to an "All clear!" message when the
+  // changed-line filter strips every finding. Force 5/5 in that case so
+  // the score and the findings list agree.
+  const mergeScore = filteredFindings.length === 0 ? 5 : orchestratorResult.mergeScore;
+  const mergeScoreReason = filteredFindings.length === 0
+    ? 'No issues found on changed lines.'
+    : orchestratorResult.mergeScoreReason;
+
   return {
     summary,
     findings: filteredFindings,
     changedLines,
     diagram: diagramResult.diagram,
     diagramCaption: diagramResult.caption,
-    mergeScore: orchestratorResult.mergeScore,
-    mergeScoreReason: orchestratorResult.mergeScoreReason,
+    mergeScore,
+    mergeScoreReason,
     suppressedCount: Math.max(0, totalRawFindings - filteredFindings.length),
     enabledAgentCount,
     inputTokens: accumulator.totalInputTokens,
