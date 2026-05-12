@@ -359,7 +359,17 @@ function escapeMermaidLabelChars(label: string): string {
     .replace(/\)/g, '&rpar;')
     .replace(/\[/g, '&lsqb;')
     .replace(/\]/g, '&rsqb;')
-    .replace(/\\n/g, '<br/>');
+    // Newline-family normalisation. Mermaid's flowchart parser refuses real
+    // line breaks inside labels and renders the JSON-style literals as ugly
+    // backslash sequences. Run the literal forms first, then the real-char
+    // forms — the real-char regexes are subsets of each other so order
+    // matters: CRLF/LF before lone CR, otherwise `\r` would consume the `\r`
+    // half of a `\r\n` and leave a stray `\n`.
+    .replace(/\\n/g, '<br/>')          // literal `\\n` (two chars)
+    .replace(/\\[trvfb]/g, ' ')         // literal `\\t` `\\r` `\\v` `\\f` `\\b` → space
+    .replace(/\r?\n/g, '<br/>')         // real LF or CRLF
+    .replace(/\r/g, '<br/>')            // lone real CR (Mermaid treats as line break in some grammars)
+    .replace(/\t/g, '    ');            // real tab → 4 spaces (consistent across renderers)
 }
 
 /**
@@ -377,7 +387,23 @@ function escapeMermaidLabelChars(label: string): string {
  * 3. Quotes unquoted edge labels (|...|) that contain reserved characters.
  */
 function sanitizeMermaidOutput(diagram: string): string {
-  const lines = diagram.split('\n');
+  // Pass 1 — full-diagram scan: escape forbidden chars inside ANY double-
+  // quoted region. Critically this runs BEFORE the per-line split so labels
+  // that span multiple lines (an embedded real newline inside `"..."`) are
+  // captured as a single match. The character class `[^"]` includes newlines,
+  // so the regex naturally crosses line boundaries.
+  //
+  // Inside escapeMermaidLabelChars, both literal `\\n` (two chars) and real
+  // newline chars are converted to `<br/>` — either way the resulting label
+  // is single-line and Mermaid-safe by the time we split by lines below.
+  const preEscaped = diagram.replace(/"([^"]*)"/g, (_match, inner: string) => {
+    return `"${escapeMermaidLabelChars(inner)}"`;
+  });
+
+  // Pass 2 — per-line passes for unquoted labels. These regexes only operate
+  // within a single line, which is fine post Pass 1: any quoted region with
+  // embedded newlines has already been collapsed via <br/>.
+  const lines = preEscaped.split('\n');
   const sanitized = lines.map((line) => {
     // Skip comments, directives, empty lines, and structural keywords
     const trimmed = line.trim();
@@ -388,14 +414,6 @@ function sanitizeMermaidOutput(diagram: string): string {
     }
 
     let result = line;
-
-    // Pass 1: escape forbidden chars inside ANY double-quoted region. Catches
-    // labels that arrived already quoted from the LLM but contain `{`, `}`,
-    // `<`, `>`, or literal `\n` — Mermaid's `(\"...\")` lexer doesn't reliably
-    // suppress shape-delimiter interpretation inside the quotes.
-    result = result.replace(/"([^"]*)"/g, (_match, inner: string) => {
-      return `"${escapeMermaidLabelChars(inner)}"`;
-    });
 
     // Pass 2 (existing): quote unquoted labels that contain reserved chars.
     // Apply the same escaping when wrapping so the wrapped label is safe too.
