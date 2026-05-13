@@ -2,7 +2,7 @@ import type { ReviewJobPayload, IInstallationStore, IReviewStore, IGitHubAuthPro
 import {
   getPRDiff, getPRContext, addPRReaction, postReviewComment, updateReviewComment,
   findExistingBotComment, getCommentReactions, createCheckRun,
-  formatReviewComment, runReviewPipeline, shouldSkipPR, shouldSkipByRules, extractIncludePatterns,
+  formatReviewComment, runReviewPipeline, shouldSkipPR, shouldSkipByRules, isAutoReviewOff, extractIncludePatterns,
   filterDiff,
   DEFAULT_CONFIG, mergeConfig,
   BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
@@ -175,6 +175,24 @@ export async function processReviewJob(
     return handleInlineReplyJob(octokit, job, deps);
   }
 
+  // Load .mergewatch.yml first so we can evaluate autoReview before any
+  // GitHub-visible side effect (eyes reaction, in-progress check run, PR
+  // review). A repo with `rules.autoReview: false` is a parked install —
+  // we go fully silent: no reactions, no check runs, no storage write.
+  // Other skip kinds (draft, maxFiles, labels) still surface a check run
+  // via shouldSkipByRules below; only autoReviewOff goes silent.
+  const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch((err) => {
+    // Static format string; user-controlled values pass as separate args
+    // to avoid feeding repo names through Node's printf-style formatter.
+    console.warn('Failed to fetch .mergewatch.yml — proceeding without YAML config:', `${repoFullName}#${prNumber}`, err);
+    return null;
+  });
+
+  if (isAutoReviewOff(yamlConfig, job.mentionTriggered)) {
+    console.log(`autoReview off — silently skipping ${repoFullName}#${prNumber}`);
+    return;
+  }
+
   // Fetch PR context and diff
   const prContext = await getPRContext(octokit, owner, repo, prNumber);
   const diff = await getPRDiff(octokit, owner, repo, prNumber);
@@ -215,15 +233,8 @@ export async function processReviewJob(
     summary: `MergeWatch is reviewing PR #${prNumber}...`,
   }).catch((err) => console.warn('Failed to create in-progress check run:', err));
 
-  // Load .mergewatch.yml once. Used for the smart-skip includePatterns
-  // override and reused below when building the full runtimeConfig — avoids
-  // a second GitHub round-trip per review.
-  const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch((err) => {
-    // Static format string; user-controlled values pass as separate args
-    // to avoid feeding repo names through Node's printf-style formatter.
-    console.warn('Failed to fetch .mergewatch.yml — proceeding without YAML config:', `${repoFullName}#${prNumber}`, err);
-    return null;
-  });
+  // yamlConfig was fetched earlier for the autoReview silent-skip gate and
+  // is reused below for includePatterns + runtimeConfig — no second round-trip.
   const includePatterns = extractIncludePatterns(yamlConfig);
 
   // Smart skip check — bypass when user explicitly requested a review via @mergewatch
@@ -288,18 +299,14 @@ export async function processReviewJob(
   });
   if (rulesSkip) {
     await deps.reviewStore.updateStatus(repoFullName, prNumberCommitSha, 'skipped', { completedAt: now, skipReason: rulesSkip.reason });
-    // Surface autoReview=false as a user-actionable check run with the
-    // mention-trigger instructions; other skip kinds keep the generic title.
-    const checkRunCopy = rulesSkip.kind === 'autoReviewOff'
-      ? {
-          title: 'Auto-review is disabled for this repository',
-          summary: 'Comment `@mergewatch review` on this PR to run a review.',
-        }
-      : { title: 'Review skipped', summary: rulesSkip.reason };
+    // autoReviewOff is handled silently earlier (before any GitHub side
+    // effect). Any rulesSkip seen here is a visible-skip kind: draft,
+    // maxFiles, labelIgnored, reviewOnMentionOff.
     await createCheckRun(octokit, owner, repo, headSha, {
       status: 'completed',
       conclusion: 'neutral',
-      ...checkRunCopy,
+      title: 'Review skipped',
+      summary: rulesSkip.reason,
     }).catch((err) => console.warn('Failed to create rules skip check run:', err));
     console.log(`Rules skip ${repoFullName}#${prNumber} (${rulesSkip.kind}): ${rulesSkip.reason}`);
     return;

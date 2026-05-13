@@ -129,6 +129,9 @@ describe('processReviewJob — check runs', () => {
     (shouldSkipPR as any).mockReturnValue(null);
     (shouldSkipByRules as any).mockReturnValue(null);
     (runReviewPipeline as any).mockResolvedValue(basePipelineResult);
+    // vi.clearAllMocks() doesn't reset .mockResolvedValue implementations
+    // set by previous tests, so explicitly restore the default.
+    (fetchRepoConfig as any).mockResolvedValue(null);
   });
 
   it('creates in-progress check run after eyes reaction', async () => {
@@ -186,23 +189,30 @@ describe('processReviewJob — check runs', () => {
     );
   });
 
-  it('creates user-actionable check run on autoReviewOff skip', async () => {
-    (shouldSkipByRules as any).mockReturnValue({
-      kind: 'autoReviewOff',
-      reason: 'Automatic reviews disabled — use @mergewatch to trigger manually',
-    });
+  it('goes fully silent when autoReview is off in .mergewatch.yml (no reactions, no check runs, no storage writes)', async () => {
+    (fetchRepoConfig as any).mockResolvedValueOnce({ rules: { autoReview: false } });
     const deps = makeDeps();
     await processReviewJob(makeJob(), deps);
 
-    expect(createCheckRun).toHaveBeenCalledWith(
-      mockOctokit, 'test', 'repo', basePRContext.headSha,
-      expect.objectContaining({
-        status: 'completed',
-        conclusion: 'neutral',
-        title: 'Auto-review is disabled for this repository',
-        summary: expect.stringContaining('@mergewatch review'),
-      }),
-    );
+    // No GitHub-visible side effects
+    expect(createCheckRun).not.toHaveBeenCalled();
+    // PR context is never fetched on the silent path — saves a round-trip
+    expect(getPRContext).not.toHaveBeenCalled();
+    expect(getPRDiff).not.toHaveBeenCalled();
+    // No storage write — parked repos don't accumulate skipped records
+    expect(deps.reviewStore.claimReview).not.toHaveBeenCalled();
+    expect(deps.reviewStore.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it('still runs review when autoReview is off but mentionTriggered is true (@mergewatch override)', async () => {
+    (fetchRepoConfig as any).mockResolvedValueOnce({ rules: { autoReview: false } });
+    (runReviewPipeline as any).mockResolvedValue(basePipelineResult);
+    const deps = makeDeps();
+    await processReviewJob(makeJob({ mentionTriggered: true }), deps);
+
+    // PR context fetched + review pipeline ran — the silent gate honors mention overrides
+    expect(getPRContext).toHaveBeenCalled();
+    expect(runReviewPipeline).toHaveBeenCalled();
   });
 
   it('creates failure check run on error', async () => {
@@ -330,6 +340,7 @@ describe('processReviewJob — respond mode', () => {
     vi.clearAllMocks();
     (getPRContext as any).mockResolvedValue(basePRContext);
     (getPRDiff as any).mockResolvedValue('diff content');
+    (fetchRepoConfig as any).mockResolvedValue(null);
   });
 
   it('calls LLM and posts reply for respond mode', async () => {
@@ -406,6 +417,7 @@ describe('processReviewJob — config merging', () => {
     (shouldSkipPR as any).mockReturnValue(null);
     (shouldSkipByRules as any).mockReturnValue(null);
     (runReviewPipeline as any).mockResolvedValue(basePipelineResult);
+    (fetchRepoConfig as any).mockResolvedValue(null);
   });
 
   it('maps dashboard severity threshold to minSeverity', async () => {
@@ -569,6 +581,7 @@ describe('processReviewJob — agent-authored wiring', () => {
     (shouldSkipPR as any).mockReturnValue(null);
     (shouldSkipByRules as any).mockReturnValue(null);
     (runReviewPipeline as any).mockResolvedValue(basePipelineResult);
+    (fetchRepoConfig as any).mockResolvedValue(null);
   });
 
   it('persists source and agentKind on the claimed review record', async () => {
