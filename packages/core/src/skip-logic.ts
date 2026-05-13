@@ -136,6 +136,27 @@ export interface RulesSkipResult {
 }
 
 /**
+ * Predicate for the *silent* skip path: returns true when the repo has
+ * `rules.autoReview: false` in `.mergewatch.yml` AND the review wasn't
+ * mention-triggered. The runtime handlers consult this BEFORE any GitHub
+ * side effect (eyes reaction, check run, PR review) so a parked install
+ * leaves no trace on the PR. Other skip kinds (draft, maxFiles, labels)
+ * still surface a check run via `shouldSkipByRules`; only autoReviewOff
+ * goes silent.
+ *
+ * Accepts the partial YAML shape directly (no DEFAULT merge needed) since
+ * we only care about the explicit user opt-out signal — a missing
+ * `rules.autoReview` falls back to the default `true` and returns false here.
+ */
+export function isAutoReviewOff(
+  yamlConfig: Partial<MergeWatchConfig> | null | undefined,
+  mentionTriggered: boolean | undefined,
+): boolean {
+  if (mentionTriggered === true) return false;
+  return yamlConfig?.rules?.autoReview === false;
+}
+
+/**
  * Check whether a PR should be skipped based on the rules config.
  * Returns a result object describing the skip kind + reason if skipped, or
  * null if the PR should be reviewed.

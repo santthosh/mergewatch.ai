@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldSkipPR, shouldSkipByRules, extractIncludePatterns, SKIP_PATTERNS } from './skip-logic.js';
+import { shouldSkipPR, shouldSkipByRules, isAutoReviewOff, extractIncludePatterns, SKIP_PATTERNS } from './skip-logic.js';
 import { DEFAULT_RULES_CONFIG } from './config/defaults.js';
 import type { RulesConfig } from './config/defaults.js';
 
@@ -308,5 +308,35 @@ describe('shouldSkipByRules', () => {
       mode: 'review',
     });
     expect(result).toBeNull();
+  });
+});
+
+describe('isAutoReviewOff', () => {
+  it('returns true when rules.autoReview is explicitly false', () => {
+    expect(isAutoReviewOff({ rules: { autoReview: false } as never }, false)).toBe(true);
+  });
+
+  it('returns false when mentionTriggered is true (explicit user request bypasses silence)', () => {
+    expect(isAutoReviewOff({ rules: { autoReview: false } as never }, true)).toBe(false);
+  });
+
+  it('returns false when autoReview is true', () => {
+    expect(isAutoReviewOff({ rules: { autoReview: true } as never }, false)).toBe(false);
+  });
+
+  it('returns false when YAML lacks a rules block (defaults to autoReview=true)', () => {
+    expect(isAutoReviewOff({}, false)).toBe(false);
+  });
+
+  it('returns false when yamlConfig is null (fetch failed)', () => {
+    expect(isAutoReviewOff(null, false)).toBe(false);
+  });
+
+  it('returns false when yamlConfig is undefined', () => {
+    expect(isAutoReviewOff(undefined, false)).toBe(false);
+  });
+
+  it('treats undefined mentionTriggered like false (auto-triggered)', () => {
+    expect(isAutoReviewOff({ rules: { autoReview: false } as never }, undefined)).toBe(true);
   });
 });
