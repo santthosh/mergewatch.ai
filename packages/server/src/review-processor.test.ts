@@ -49,7 +49,7 @@ vi.mock('@mergewatch/core', async (importOriginal) => {
 import {
   getPRContext, getPRDiff, createCheckRun, shouldSkipPR, shouldSkipByRules,
   runReviewPipeline, postReplyComment, fetchRepoConfig, handleInlineReply,
-  addPRReaction, removePRReaction,
+  addPRReaction, removePRReaction, submitPRReview, mergeScoreToReviewEvent,
 } from '@mergewatch/core';
 import { processReviewJob } from './review-processor.js';
 
@@ -373,6 +373,87 @@ describe('processReviewJob — check runs', () => {
       const calls = (createCheckRun as any).mock.calls;
       const completionCall = calls[calls.length - 1];
       expect(completionCall[4].title).toBe('1 critical issue found');
+    });
+  });
+
+  describe('formal PR review submission', () => {
+    // mergeScoreToReviewEvent is mocked at module level; reset it per test.
+    beforeEach(() => {
+      (mergeScoreToReviewEvent as any).mockReset();
+    });
+
+    it('submits APPROVE with empty body for high merge scores', async () => {
+      (mergeScoreToReviewEvent as any).mockReturnValue('APPROVE');
+      const deps = makeDeps();
+      await processReviewJob(makeJob(), deps);
+
+      expect(submitPRReview).toHaveBeenCalledWith(
+        mockOctokit, 'test', 'repo', 1,
+        '', // empty body — clean "approved these changes" event
+        'APPROVE',
+        [],
+      );
+    });
+
+    it('submits REQUEST_CHANGES with a non-empty body for low scores (critical findings)', async () => {
+      (mergeScoreToReviewEvent as any).mockReturnValue('REQUEST_CHANGES');
+      (runReviewPipeline as any).mockResolvedValue({
+        ...basePipelineResult,
+        findings: [
+          { file: 'a.ts', line: 1, severity: 'critical', category: 'security', title: 'SQLi', description: '', suggestion: '' },
+        ],
+        mergeScore: 1,
+      });
+      const deps = makeDeps();
+      await processReviewJob(makeJob(), deps);
+
+      const call = (submitPRReview as any).mock.calls[0];
+      const [, , , , body, event] = call;
+      expect(event).toBe('REQUEST_CHANGES');
+      expect(body).toBeTruthy();
+      expect(body.length).toBeGreaterThan(0);
+      // GitHub requires a body for REQUEST_CHANGES; we point at the summary.
+      expect(body.toLowerCase()).toContain('summary comment');
+    });
+
+    it('submits COMMENT with a non-empty body for middle scores', async () => {
+      (mergeScoreToReviewEvent as any).mockReturnValue('COMMENT');
+      const deps = makeDeps();
+      await processReviewJob(makeJob(), deps);
+
+      const call = (submitPRReview as any).mock.calls[0];
+      const [, , , , body, event] = call;
+      expect(event).toBe('COMMENT');
+      expect(body).toBeTruthy();
+      expect(body.length).toBeGreaterThan(0);
+    });
+
+    it('uses a critical-flavored body for REQUEST_CHANGES vs review-recommended for COMMENT', async () => {
+      // First run: REQUEST_CHANGES
+      (mergeScoreToReviewEvent as any).mockReturnValue('REQUEST_CHANGES');
+      const deps1 = makeDeps();
+      await processReviewJob(makeJob(), deps1);
+      const requestBody = (submitPRReview as any).mock.calls[0][4];
+
+      vi.clearAllMocks();
+      (getPRContext as any).mockResolvedValue(basePRContext);
+      (getPRDiff as any).mockResolvedValue('diff content');
+      (shouldSkipPR as any).mockReturnValue(null);
+      (shouldSkipByRules as any).mockReturnValue(null);
+      (runReviewPipeline as any).mockResolvedValue(basePipelineResult);
+      (fetchRepoConfig as any).mockResolvedValue(null);
+      (addPRReaction as any).mockResolvedValue(12345);
+
+      // Second run: COMMENT
+      (mergeScoreToReviewEvent as any).mockReturnValue('COMMENT');
+      const deps2 = makeDeps();
+      await processReviewJob(makeJob(), deps2);
+      const commentBody = (submitPRReview as any).mock.calls[0][4];
+
+      expect(requestBody).not.toBe(commentBody);
+      // Critical findings are flagged in red; "review recommended" is yellow.
+      expect(requestBody).toContain('🔴');
+      expect(commentBody).toContain('🟡');
     });
   });
 });

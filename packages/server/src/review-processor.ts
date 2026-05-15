@@ -6,7 +6,7 @@ import {
   filterDiff,
   DEFAULT_CONFIG, mergeConfig,
   BOT_COMMENT_MARKER, submitPRReview, dismissStaleReviews, mergeScoreToReviewEvent,
-  createStandaloneReviewComment, buildInlineComments, extractInlineCommentTitle,
+  buildInlineComments, extractInlineCommentTitle,
   fetchRepoConfig, fetchConventions,
   buildWorkDoneSection, computeReviewDelta,
   RESPOND_PROMPT, postReplyComment,
@@ -489,28 +489,21 @@ export async function processReviewJob(
     // ── Step C: Surface verdict + inline findings ──────────────────────────
     // Branching policy (mirrors Lambda):
     //   APPROVE (score 4-5) → submit a Review with NO body so the timeline
-    //     shows a clean "approved these changes" event with no comment block.
-    //     Inline comments bundle under the Review.
-    //   REQUEST_CHANGES / COMMENT (score 1-3) → skip the Review entirely.
-    //     The check run carries the failure conclusion; the edit-in-place
-    //     summary comment has the full body. Inline comments still ship via
-    //     standalone PR review comments.
+    //     shows a clean "approved these changes" event. Inline comments
+    //     bundle under the Review.
+    //   REQUEST_CHANGES / COMMENT (score 1-3) → submit a Review with a
+    //     minimal one-line body pointing at the summary comment. GitHub
+    //     requires a body for these events; a single sentence consolidates
+    //     all inline comments into a single Review event instead of N
+    //     separate COMMENTED reviews from standalone inline comments.
+    const reviewBody = reviewEvent === 'APPROVE'
+      ? ''
+      : reviewEvent === 'REQUEST_CHANGES'
+        ? '🔴 Critical issues found — see the full review in the summary comment above.'
+        : '🟡 Review recommended — see the full review in the summary comment above.';
     try {
       await dismissStaleReviews(octokit, owner, repo, prNumber);
-
-      if (reviewEvent === 'APPROVE') {
-        await submitPRReview(octokit, owner, repo, prNumber, '', reviewEvent, inlineComments);
-      } else {
-        for (const c of inlineComments) {
-          await createStandaloneReviewComment(octokit, owner, repo, prNumber, {
-            path: c.path,
-            line: c.line,
-            side: c.side,
-            body: c.body,
-            commitId: prContext.headSha,
-          }).catch((err) => console.warn('Standalone inline comment failed:', err));
-        }
-      }
+      await submitPRReview(octokit, owner, repo, prNumber, reviewBody, reviewEvent, inlineComments);
     } catch (err) {
       console.warn('PR review submission failed — issue comment has the full review:', err);
     }
