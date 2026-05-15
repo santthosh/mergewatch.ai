@@ -44,6 +44,38 @@ cat > src/utils.ts <<'EOF'
 export function add(a: number, b: number): number {
   return a + b;
 }
+
+export function multiply(a: number, b: number): number {
+  return a * b;
+}
+EOF
+# Seed co-located tests so the test-coverage agent sees existing coverage.
+# Without this, ANY change to src/utils.ts trips "new public function lacks
+# tests" even on JSDoc-only diffs — the agent can't tell pre-existing from new.
+cat > src/utils.test.ts <<'EOF'
+import { describe, it, expect } from 'vitest';
+import { add, multiply } from './utils';
+
+describe('add', () => {
+  it('sums two positive numbers', () => {
+    expect(add(2, 3)).toBe(5);
+  });
+  it('handles negatives', () => {
+    expect(add(-1, -2)).toBe(-3);
+  });
+  it('handles zero', () => {
+    expect(add(0, 0)).toBe(0);
+  });
+});
+
+describe('multiply', () => {
+  it('multiplies two positive numbers', () => {
+    expect(multiply(2, 3)).toBe(6);
+  });
+  it('handles zero', () => {
+    expect(multiply(5, 0)).toBe(0);
+  });
+});
 EOF
 cat > README.md <<'EOF'
 # mergewatch-fixtures
@@ -124,7 +156,8 @@ Run these in order — they cover all current behaviors. ~30 minutes end-to-end.
 
 Branch: `fixture/01-clean-pr`
 
-`src/utils.ts` — change `add` to add a JSDoc comment:
+`src/utils.ts` — change `add` to add a JSDoc comment (the function body stays
+identical so the diff is comment-only):
 
 ```ts
 /**
@@ -135,7 +168,9 @@ export function add(a: number, b: number): number {
 }
 ```
 
-No `.mergewatch.yml` needed (default config).
+No `.mergewatch.yml` needed (default config). The seed commit already
+includes `src/utils.test.ts` with coverage for `add`, so the test-coverage
+agent has signal that `add` is pre-existing and covered.
 
 **Expected outcomes**
 
@@ -145,15 +180,18 @@ No `.mergewatch.yml` needed (default config).
   - [ ] MergeWatch wordmark image at top (~48px tall)
   - [ ] `🟢 5/5 — Safe to merge` verdict line
   - [ ] `🎉 All clear! No issues found` action-items section
+  - [ ] No "Requires your attention" table (zero critical + zero warning)
 - [ ] Formal PR review submitted with state = **Approved**
 - [ ] **The Approved review has NO body text** (only the verdict state — #132 dropped the verdict body)
 - [ ] Completed check run "MergeWatch Review" lands with conclusion = success
 - [ ] +1 👍 reaction on the PR (success signal)
+- [ ] 👀 reaction is **removed** once review completes — only 👍 remains
 
 **Failure modes to watch for**
 - ❌ PR review has a body that says "X/5 — verdict — view details" (regression of #132)
 - ❌ Multiple summary comments instead of one edited-in-place
-- ❌ 👀 reaction still present (should have been removed when review completed)
+- ❌ 👀 reaction still present after review completes (regression of #138 eyes-cleanup)
+- ❌ "Requires your attention" table with a "no test coverage" warning — that's the test-coverage agent firing on an unchanged public function (regression of the #138 prompt tightening)
 
 ---
 

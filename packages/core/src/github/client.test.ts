@@ -1,11 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   mergeScoreToReviewEvent,
   buildInlineComments,
   extractInlineCommentTitle,
   BOT_COMMENT_MARKER,
   parseRepoConfigYaml,
+  addPRReaction,
+  removePRReaction,
 } from './client.js';
+import type { Octokit } from '@octokit/rest';
 
 // ---------------------------------------------------------------------------
 // mergeScoreToReviewEvent
@@ -463,5 +466,67 @@ agentReview:
     const result = parseRepoConfigYaml(yaml);
     expect(result?.agentReview).toBeDefined();
     expect(result!.agentReview!.detection).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// addPRReaction
+// ---------------------------------------------------------------------------
+
+describe('addPRReaction', () => {
+  it('returns the reaction ID from a successful API call', async () => {
+    const createForIssue = vi.fn().mockResolvedValue({ data: { id: 99 } });
+    const octokit = { reactions: { createForIssue } } as unknown as Octokit;
+    const id = await addPRReaction(octokit, 'o', 'r', 42, 'eyes');
+    expect(id).toBe(99);
+    expect(createForIssue).toHaveBeenCalledWith({
+      owner: 'o',
+      repo: 'r',
+      issue_number: 42,
+      content: 'eyes',
+    });
+  });
+
+  it('returns null and logs a warning when the API call fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const createForIssue = vi.fn().mockRejectedValue(new Error('rate limit'));
+    const octokit = { reactions: { createForIssue } } as unknown as Octokit;
+    const id = await addPRReaction(octokit, 'o', 'r', 42, 'eyes');
+    expect(id).toBeNull();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('does not throw on failure — reactions are non-critical', async () => {
+    const createForIssue = vi.fn().mockRejectedValue(new Error('boom'));
+    const octokit = { reactions: { createForIssue } } as unknown as Octokit;
+    await expect(addPRReaction(octokit, 'o', 'r', 42, '+1')).resolves.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// removePRReaction
+// ---------------------------------------------------------------------------
+
+describe('removePRReaction', () => {
+  it('deletes the reaction by ID via Octokit', async () => {
+    const deleteForIssue = vi.fn().mockResolvedValue({});
+    const octokit = { reactions: { deleteForIssue } } as unknown as Octokit;
+    await removePRReaction(octokit, 'o', 'r', 42, 12345);
+    expect(deleteForIssue).toHaveBeenCalledWith({
+      owner: 'o',
+      repo: 'r',
+      issue_number: 42,
+      reaction_id: 12345,
+    });
+  });
+
+  it('swallows API errors and logs a warning so finally blocks never re-throw', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const deleteForIssue = vi.fn().mockRejectedValue(new Error('not found'));
+    const octokit = { reactions: { deleteForIssue } } as unknown as Octokit;
+    await expect(removePRReaction(octokit, 'o', 'r', 42, 12345)).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

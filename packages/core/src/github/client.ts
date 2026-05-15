@@ -117,6 +117,10 @@ export async function getPRContext(
 /**
  * Add a reaction to a PR (which is an issue in GitHub's API).
  * Used to signal review start (eyes) and completion (thumbs up).
+ *
+ * Returns the reaction ID so callers can later remove it (e.g. clearing the
+ * "eyes" reaction once the review completes). Returns null when the request
+ * fails — reactions are non-critical and never block a review.
  */
 export async function addPRReaction(
   octokit: Octokit,
@@ -124,17 +128,43 @@ export async function addPRReaction(
   repo: string,
   prNumber: number,
   reaction: '+1' | '-1' | 'laugh' | 'confused' | 'heart' | 'hooray' | 'rocket' | 'eyes',
-): Promise<void> {
+): Promise<number | null> {
   try {
-    await octokit.reactions.createForIssue({
+    const { data } = await octokit.reactions.createForIssue({
       owner,
       repo,
       issue_number: prNumber,
       content: reaction,
     });
+    return data.id;
   } catch (err) {
     // Non-critical — don't fail the review if reaction fails
     console.warn('Failed to add %s reaction to %s/%s#%d:', reaction, owner, repo, prNumber, err);
+    return null;
+  }
+}
+
+/**
+ * Remove a previously-added reaction from a PR. Used to clear the eyes
+ * reaction once review completes, so the PR doesn't stay in a "MergeWatch
+ * is still looking" state forever.
+ */
+export async function removePRReaction(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  reactionId: number,
+): Promise<void> {
+  try {
+    await octokit.reactions.deleteForIssue({
+      owner,
+      repo,
+      issue_number: prNumber,
+      reaction_id: reactionId,
+    });
+  } catch (err) {
+    console.warn('Failed to remove reaction %d from %s/%s#%d:', reactionId, owner, repo, prNumber, err);
   }
 }
 

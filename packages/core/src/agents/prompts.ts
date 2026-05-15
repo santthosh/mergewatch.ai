@@ -290,6 +290,8 @@ DO NOT report:
 - Configuration file changes (tsconfig, eslint, package.json)
 - Test files themselves (do not review tests for test coverage)
 - Generated code or auto-generated types
+- Diffs that are exclusively comments, JSDoc, or whitespace — these do not change runtime behavior, so they cannot introduce uncovered code paths. Return [] without further analysis when the entire diff falls into this category.
+- Pre-existing public functions that are unchanged in the diff. Only flag functions that are NEW or whose SIGNATURE/BEHAVIOR changed in this PR. If a function appears in the diff context but no `+` lines modify its declaration or body, treat it as pre-existing and do not flag missing tests for it.
 
 Return a JSON object with this exact shape:
 {
