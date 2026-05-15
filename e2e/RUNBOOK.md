@@ -699,28 +699,48 @@ declare function fetchAllTranscripts(): Promise<unknown[]>;
 
 Open the PR, let MergeWatch review. Confirm it produces ≥1 critical findings and lands at 1/5 or 2/5 (orange/red). **Do not merge.**
 
-**Step 2** — push a follow-up commit that fixes the criticals:
+**Step 2** — push a follow-up commit that fixes the criticals. The fix
+deliberately wraps each handler with `try`/`catch` and explicit 401/500
+responses so an LLM reviewer can't legitimately flag "no error handling
+around the auth check" or "auth failures propagate as 500s" — both of
+which would count as new criticals and break the security-improvement
+verdict.
 
 ```ts
 import type { NextRequest } from 'next/server';
-import { requireAdmin } from '@/auth';
+import { requireAdmin, AdminAuthError } from '@/auth';
 
-export async function GET(req: NextRequest) {
-  await requireAdmin(req);
+export async function GET(req: NextRequest): Promise<Response> {
+  try {
+    await requireAdmin(req);
+  } catch (err) {
+    if (err instanceof AdminAuthError) {
+      return new Response('Forbidden', { status: 403 });
+    }
+    return new Response('Server error', { status: 500 });
+  }
   const transcripts = await fetchAllTranscripts();
   return Response.json({ transcripts });
 }
 
-export async function POST(req: NextRequest) {
-  await requireAdmin(req);
+export async function POST(req: NextRequest): Promise<Response> {
+  try {
+    await requireAdmin(req);
+  } catch (err) {
+    if (err instanceof AdminAuthError) {
+      return new Response('Forbidden', { status: 403 });
+    }
+    return new Response('Server error', { status: 500 });
+  }
   const { id } = await req.json();
-  // Parameterized query.
+  // Parameterized query — string concatenation is gone.
   const result = await db.prepare('SELECT * FROM users WHERE id = ?', [id]);
   return Response.json(result);
 }
 
 declare const db: { prepare(sql: string, params: unknown[]): Promise<unknown> };
 declare function fetchAllTranscripts(): Promise<unknown[]>;
+declare class AdminAuthError extends Error {}
 declare function requireAdmin(req: NextRequest): Promise<void>;
 ```
 
@@ -729,15 +749,18 @@ Push to the same branch. MergeWatch will re-review with the fix-commit context.
 **Expected outcomes (on the second review)**
 
 - [ ] The "📎 Previously reported findings" section shows the ≥1 criticals from step 1 marked as **✅ Resolved**
-- [ ] No new critical findings are introduced
-- [ ] Verdict line shows `🟢 4/5 — Generally safe` or `🟢 5/5 — Safe to merge` — NOT `🟠 2/5 — Needs fixes`
-- [ ] Verdict reason mentions resolved criticals: something like `Resolved N critical issues from prior review, no new criticals introduced.`
-- [ ] Formal PR review state = **Approved** (empty body — APPROVE event)
+- [ ] Verdict line shows `🟢 4/5 — Generally safe` or `🟢 5/5 — Safe to merge` — NOT red/orange
+- [ ] If for some reason the LLM flags 1-2 new minor concerns on the fix, the verdict should land on **🟡 3/5** at worst (net-improvement tier — `resolvedCriticals > newCriticals` keeps it yellow, not red)
+- [ ] Verdict reason mentions resolved criticals: `Resolved N critical issues from prior review, no new criticals introduced.` (pure) OR `Resolved N critical issues from prior review; introduced M new — net improvement, but review the new findings.` (net)
+- [ ] Formal PR review state = **Approved** (empty body) on green; **Comment** on yellow
 - [ ] Delta caption summarises the resolution: e.g., "Replaced unauthenticated admin endpoints with `requireAdmin` guards and parameterized the SQL query."
 
 **Failure modes**
-- ❌ Score still orange/red despite zero new criticals (delta-aware reconciliation regressed)
+- ❌ Score red (1-2/5) despite resolved > new criticals (net-improvement tier regressed)
 - ❌ Resolved criticals counted as still-open in the verdict reason
+- ❌ LLM flags >3 new criticals on the fix code (likely false positives — the fix is now defensive enough that this would indicate a quality regression in the agent prompts; report it)
+
+**Why the fix code looks verbose**: each try/catch + explicit error response defuses a specific LLM pattern-match ("no error handling", "auth errors leak as 500"). On a real PR, that ceremony might be middleware. For a regression fixture we want to leave nothing for the reviewer to pick at, so the verdict reflects only the criticals-resolved delta.
 
 ---
 

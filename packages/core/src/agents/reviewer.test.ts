@@ -825,6 +825,147 @@ describe('runReviewPipeline', () => {
     expect(result.mergeScoreReason).toContain('informational');
   });
 
+  it('forces mergeScore >= 4 (green) when prior criticals are all resolved and no new ones introduced', async () => {
+    // Pure security-improvement: prior review had 2 criticals on these files,
+    // current review has none. The orchestrator may still return a low
+    // mergeScore based on remaining warnings, but the reconciliation should
+    // override it because the PR clearly improved the security posture.
+    const agentResponse = JSON.stringify({ findings: [] });
+    const summaryResponse = JSON.stringify({ summary: 'Refactor.' });
+    const diagramResponse = '%% overview\nflowchart TD\n  A-->B';
+    const orchestratorResponse = JSON.stringify({
+      findings: [{
+        file: 'foo.ts',
+        line: 3,
+        severity: 'warning',
+        category: 'style',
+        title: 'Minor nit',
+        description: '…',
+        suggestion: '…',
+      }],
+      mergeScore: 2,
+      mergeScoreReason: 'Has a warning.',
+    });
+    const llm = createMockLLM([
+      agentResponse, agentResponse, agentResponse,
+      agentResponse, agentResponse, agentResponse,
+      summaryResponse, diagramResponse, orchestratorResponse,
+    ]);
+
+    const result = await runReviewPipeline(
+      {
+        diff: sampleDiff,
+        context: sampleContext,
+        modelId: 'heavy-model',
+        lightModelId: 'light-model',
+        maxFindings: 25,
+        enabledAgents: allAgentsEnabled,
+        previousFindings: [
+          { file: 'admin.ts', line: 5, title: 'Unauthenticated admin endpoint', severity: 'critical', category: 'security' },
+          { file: 'admin.ts', line: 12, title: 'SQL injection', severity: 'critical', category: 'security' },
+        ],
+      },
+      { llm },
+    );
+
+    expect(result.mergeScore).toBeGreaterThanOrEqual(4);
+    expect(result.mergeScoreReason).toContain('Resolved 2 critical');
+    expect(result.mergeScoreReason).toContain('no new criticals');
+  });
+
+  it('forces mergeScore >= 3 (yellow) when net improvement: more resolved than new criticals', async () => {
+    // Net improvement: 3 prior criticals resolved, but the LLM flagged 1 new
+    // critical on the fix code (could be a real concern or an over-eager
+    // finding). Score should land at yellow, not red — the PR is still a
+    // net positive on security.
+    const agentResponse = JSON.stringify({ findings: [] });
+    const summaryResponse = JSON.stringify({ summary: 'Refactor.' });
+    const diagramResponse = '%% overview\nflowchart TD\n  A-->B';
+    const orchestratorResponse = JSON.stringify({
+      findings: [{
+        file: 'foo.ts',
+        line: 3,
+        severity: 'critical',
+        category: 'errorHandling',
+        title: 'Auth check could throw and propagate as 500',
+        description: '…',
+        suggestion: '…',
+      }],
+      mergeScore: 1,
+      mergeScoreReason: 'Critical error-handling gap.',
+    });
+    const llm = createMockLLM([
+      agentResponse, agentResponse, agentResponse,
+      agentResponse, agentResponse, agentResponse,
+      summaryResponse, diagramResponse, orchestratorResponse,
+    ]);
+
+    const result = await runReviewPipeline(
+      {
+        diff: sampleDiff,
+        context: sampleContext,
+        modelId: 'heavy-model',
+        lightModelId: 'light-model',
+        maxFindings: 25,
+        enabledAgents: allAgentsEnabled,
+        previousFindings: [
+          { file: 'admin.ts', line: 5, title: 'Unauthenticated GET endpoint', severity: 'critical', category: 'security' },
+          { file: 'admin.ts', line: 12, title: 'Unauthenticated POST endpoint', severity: 'critical', category: 'security' },
+          { file: 'admin.ts', line: 18, title: 'SQL injection via concat', severity: 'critical', category: 'security' },
+        ],
+      },
+      { llm },
+    );
+
+    expect(result.mergeScore).toBeGreaterThanOrEqual(3);
+    expect(result.mergeScore).toBeLessThan(4); // yellow, not green
+    expect(result.mergeScoreReason).toContain('Resolved 3 critical');
+    expect(result.mergeScoreReason).toContain('introduced 1 new');
+    expect(result.mergeScoreReason).toContain('net improvement');
+  });
+
+  it('does NOT bump score when net negative: more new criticals than resolved', async () => {
+    // Net negative: 1 critical resolved, 3 new introduced. The PR makes
+    // security worse on balance. Score should stay at orchestrator value
+    // — no improvement bump.
+    const agentResponse = JSON.stringify({ findings: [] });
+    const summaryResponse = JSON.stringify({ summary: 'Refactor.' });
+    const diagramResponse = '%% overview\nflowchart TD\n  A-->B';
+    const orchestratorResponse = JSON.stringify({
+      findings: [
+        { file: 'foo.ts', line: 3, severity: 'critical', category: 'security', title: 'New crit A', description: '…', suggestion: '…' },
+        { file: 'foo.ts', line: 4, severity: 'critical', category: 'security', title: 'New crit B', description: '…', suggestion: '…' },
+        { file: 'foo.ts', line: 5, severity: 'critical', category: 'security', title: 'New crit C', description: '…', suggestion: '…' },
+      ],
+      mergeScore: 1,
+      mergeScoreReason: 'Three criticals.',
+    });
+    const llm = createMockLLM([
+      agentResponse, agentResponse, agentResponse,
+      agentResponse, agentResponse, agentResponse,
+      summaryResponse, diagramResponse, orchestratorResponse,
+    ]);
+
+    const result = await runReviewPipeline(
+      {
+        diff: sampleDiff,
+        context: sampleContext,
+        modelId: 'heavy-model',
+        lightModelId: 'light-model',
+        maxFindings: 25,
+        enabledAgents: allAgentsEnabled,
+        previousFindings: [
+          { file: 'admin.ts', line: 5, title: 'Old crit', severity: 'critical', category: 'security' },
+        ],
+      },
+      { llm },
+    );
+
+    // Net negative — no improvement bump, orchestrator's score stands.
+    expect(result.mergeScore).toBe(1);
+    expect(result.mergeScoreReason).toBe('Three criticals.');
+  });
+
   it('calls LLM for all enabled agents plus orchestrator', async () => {
     // With all agents enabled and no findings, the orchestrator is skipped (0 findings).
     // So we expect 8 LLM calls: 6 finding agents + summary + diagram

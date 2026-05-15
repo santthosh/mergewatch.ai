@@ -1240,7 +1240,17 @@ export async function runReviewPipeline(
   );
   const resolvedCriticals = [...prevCriticalKeys].filter((k) => !currentCriticalKeys.has(k)).length;
   const newCriticals = [...currentCriticalKeys].filter((k) => !prevCriticalKeys.has(k)).length;
-  const isSecurityImprovement = resolvedCriticals > 0 && newCriticals === 0;
+  // Two tiers of reward for security-improving PRs:
+  //   - PURE improvement (resolved > 0, new = 0): score >= 4 (green). The PR
+  //     closed criticals without introducing any new ones — clear win.
+  //   - NET improvement (resolved > new, both > 0): score >= 3 (yellow). The
+  //     PR closed more than it opened, but the LLM did flag some new
+  //     concerns on the fix code. Prevents the cliff from green → red just
+  //     because the agent picked at the fix; reviewer still gets signal
+  //     that something new is worth a look.
+  //   - Otherwise: fall through to orchestrator's verdict (can be red).
+  const isPureSecurityImprovement = resolvedCriticals > 0 && newCriticals === 0;
+  const isNetSecurityImprovement = resolvedCriticals > newCriticals && newCriticals > 0;
 
   let mergeScore: number;
   let mergeScoreReason: string;
@@ -1249,9 +1259,12 @@ export async function runReviewPipeline(
     mergeScoreReason = filteredFindings.length === 0
       ? 'No issues found on changed lines.'
       : 'No action items — only informational notes.';
-  } else if (isSecurityImprovement) {
+  } else if (isPureSecurityImprovement) {
     mergeScore = Math.max(4, orchestratorResult.mergeScore);
     mergeScoreReason = `Resolved ${resolvedCriticals} critical issue${resolvedCriticals === 1 ? '' : 's'} from prior review, no new criticals introduced.`;
+  } else if (isNetSecurityImprovement) {
+    mergeScore = Math.max(3, orchestratorResult.mergeScore);
+    mergeScoreReason = `Resolved ${resolvedCriticals} critical issue${resolvedCriticals === 1 ? '' : 's'} from prior review; introduced ${newCriticals} new — net improvement, but review the new findings.`;
   } else {
     mergeScore = orchestratorResult.mergeScore;
     mergeScoreReason = orchestratorResult.mergeScoreReason;
