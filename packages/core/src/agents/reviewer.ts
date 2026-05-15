@@ -886,6 +886,39 @@ const SYNTAX_KEYWORDS = new Set([
 ]);
 
 /**
+ * Minimum identifier length (≥3 chars). Excludes 1-2 char names that
+ * commonly appear as false-positive matches against arbitrary file content
+ * (e.g. `id`, `fn`, `x`). The +1 in the regex (`{2,}`) follows the first
+ * required character — total identifier length is 3 or more.
+ */
+const MIN_IDENTIFIER_LENGTH = 3;
+
+/**
+ * Hard cap on finding-text length fed to regex extraction. Defense against
+ * ReDoS in case a future agent emits pathological backtick-heavy prose.
+ * Finding titles/descriptions/suggestions are bounded by the orchestrator
+ * prompt but we don't rely on that — 4KB covers any legitimate finding.
+ */
+const FINDING_TEXT_MAX_BYTES = 4096;
+
+/**
+ * Number of lines on either side of the cited anchor to check for the
+ * extracted identifier. Tuned to catch off-by-N anchors where the LLM
+ * placed the finding on a comment line near the actual code, without
+ * being so wide that unrelated code coincidentally matches.
+ */
+const GROUNDING_WINDOW_LINES = 5;
+
+/**
+ * Build a fingerprint for severity-aware delta comparison. Intentionally
+ * excludes line number — the orchestrator may shift the line after a
+ * fix without the underlying issue being the "same" finding.
+ */
+function findingKey(f: { file: string; title: string }): string {
+  return `${f.file}::${f.title}`;
+}
+
+/**
  * Extract identifier-shaped strings from a finding's text that should
  * appear in the cited code for the finding to be grounded. We look for:
  *   - Function/method calls: `someFunc(`
@@ -895,12 +928,19 @@ const SYNTAX_KEYWORDS = new Set([
  * as easy false-positive matches against arbitrary file content.
  */
 export function extractFindingIdentifiers(text: string): string[] {
+  // Cap input length defensively before regex processing — protects against
+  // ReDoS on pathological inputs even though the regexes here are linear.
+  const bounded = text.length > FINDING_TEXT_MAX_BYTES
+    ? text.slice(0, FINDING_TEXT_MAX_BYTES)
+    : text;
   const ids = new Set<string>();
 
-  // Function calls: capture `name(` patterns.
-  const callPattern = /\b([a-zA-Z_$][\w$]{2,})\(/g;
+  // Function calls: capture `name(` patterns. The {n,} clause is one shorter
+  // than MIN_IDENTIFIER_LENGTH because the first `[a-zA-Z_$]` already accounts
+  // for one character.
+  const callPattern = new RegExp(`\\b([a-zA-Z_$][\\w$]{${MIN_IDENTIFIER_LENGTH - 1},})\\(`, 'g');
   let m: RegExpExecArray | null;
-  while ((m = callPattern.exec(text)) !== null) {
+  while ((m = callPattern.exec(bounded)) !== null) {
     if (!SYNTAX_KEYWORDS.has(m[1].toLowerCase())) {
       ids.add(m[1] + '(');
     }
@@ -908,9 +948,13 @@ export function extractFindingIdentifiers(text: string): string[] {
 
   // Backtick-quoted identifiers — strip the ticks and require an identifier-shape.
   const tickPattern = /`([^`\n]+)`/g;
-  while ((m = tickPattern.exec(text)) !== null) {
+  while ((m = tickPattern.exec(bounded)) !== null) {
     const inner = m[1].trim();
-    if (inner.length >= 4 && /^[a-zA-Z_$][\w$.]*\(?\)?$/.test(inner) && !SYNTAX_KEYWORDS.has(inner.toLowerCase())) {
+    if (
+      inner.length >= MIN_IDENTIFIER_LENGTH + 1 &&
+      /^[a-zA-Z_$][\w$.]*\(?\)?$/.test(inner) &&
+      !SYNTAX_KEYWORDS.has(inner.toLowerCase())
+    ) {
       ids.add(inner);
     }
   }
@@ -952,10 +996,9 @@ export function groundFinding(
   const identifiers = extractFindingIdentifiers(`${f.title} ${f.description} ${f.suggestion}`);
   if (identifiers.length === 0) return f; // No identifier to verify against — pass through.
 
-  // ±5 lines around the anchor (inclusive).
-  const WINDOW = 5;
-  const start = Math.max(0, zeroBased - WINDOW);
-  const end = Math.min(lines.length, zeroBased + WINDOW + 1);
+  // ±GROUNDING_WINDOW_LINES around the anchor (inclusive).
+  const start = Math.max(0, zeroBased - GROUNDING_WINDOW_LINES);
+  const end = Math.min(lines.length, zeroBased + GROUNDING_WINDOW_LINES + 1);
   const window = lines.slice(start, end).join('\n');
 
   // Identifier appears near anchor — finding is grounded.
@@ -1006,7 +1049,21 @@ export async function groundFindings(
       fileFetchOptions.maxContextKB,
     );
   } catch (err) {
-    console.warn('Finding grounding: file fetch failed — passing findings through', err);
+    // Deliberate catch-all: grounding is best-effort defense-in-depth. A
+    // transient GitHub API failure (network, rate limit, auth refresh
+    // mid-review) must NOT silently delete findings — passing them
+    // through unchanged is the safe fallback. The warning surfaces in
+    // CloudWatch / stdout for triage; we include enough context (repo,
+    // ref, file count) for monitoring filters to spot a real outage.
+    console.warn(
+      'Finding grounding: file fetch failed — passing %d findings through unchanged for %s/%s@%s (%d unique files)',
+      findings.length,
+      fileFetchOptions.owner,
+      fileFetchOptions.repo,
+      fileFetchOptions.ref,
+      uniqueFiles.length,
+      err,
+    );
     return findings;
   }
 
@@ -1174,12 +1231,12 @@ export async function runReviewPipeline(
   const prevCriticalKeys = new Set(
     (previousFindings ?? [])
       .filter((p) => p.severity === 'critical')
-      .map((p) => `${p.file}::${p.title}`),
+      .map(findingKey),
   );
   const currentCriticalKeys = new Set(
     filteredFindings
       .filter((f) => f.severity === 'critical')
-      .map((f) => `${f.file}::${f.title}`),
+      .map(findingKey),
   );
   const resolvedCriticals = [...prevCriticalKeys].filter((k) => !currentCriticalKeys.has(k)).length;
   const newCriticals = [...currentCriticalKeys].filter((k) => !prevCriticalKeys.has(k)).length;
