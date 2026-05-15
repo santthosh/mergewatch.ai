@@ -261,8 +261,14 @@ No `.mergewatch.yml` needed.
 - [ ] Inline comment includes the hidden `<!-- mergewatch-inline -->` marker (verify via "View source" or curl `gh api .../pulls/N/comments` — needed for thread-root gating in E2E-13/14)
 - [ ] Summary comment shows `🟠 2/5 — Needs fixes` or `🔴 1/5 — Do not merge`
 - [ ] "Requires your attention" table lists the SQL Injection row with 🔴
-- [ ] Formal PR review state = **Changes requested**
-- [ ] Review comment has a body (REQUEST_CHANGES requires non-empty body — different from APPROVE)
+- [ ] Formal PR review state = **Changes requested** (single review event — NOT multiple COMMENTED reviews)
+- [ ] Review body is a single line that points at the summary comment (e.g. `🔴 Critical issues found — see the full review in the summary comment above.`)
+- [ ] Check run conclusion = `failure` with a title like "N critical issues found"
+
+**Failure modes to watch for**
+- ❌ Formal review state is `COMMENTED` instead of `CHANGES_REQUESTED` (regression of #139 — was the bug observed in mergewatch-fixtures PR #3)
+- ❌ Multiple COMMENTED reviews (one per inline comment) instead of one CHANGES_REQUESTED review with bundled inlines
+- ❌ Review body is empty or matches the old multi-section verdict block — both are wrong; a one-line pointer is the target
 
 ---
 
