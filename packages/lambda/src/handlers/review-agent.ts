@@ -19,6 +19,7 @@ import {
   postReviewComment,
   updateReviewComment,
   addPRReaction,
+  removePRReaction,
   getCommentReactions,
   postReplyComment,
   createCheckRun,
@@ -367,7 +368,9 @@ export async function handler(
     };
   }
 
-  await addPRReaction(octokit, owner, repo, prNumber, 'eyes');
+  // Capture the eyes reaction ID so we can clear it once the review completes,
+  // so the PR doesn't stay in a "MergeWatch is still looking" state forever.
+  const eyesReactionId = await addPRReaction(octokit, owner, repo, prNumber, 'eyes');
 
   await createCheckRun(octokit, owner, repo, headSha, {
     status: 'in_progress',
@@ -770,5 +773,11 @@ export async function handler(
         error: error instanceof Error ? error.message : String(error),
       }),
     };
+  } finally {
+    // Always clear the eyes reaction — success or failure — so the PR doesn't
+    // get stuck looking like MergeWatch is still mid-review.
+    if (eyesReactionId != null) {
+      await removePRReaction(octokit, owner, repo, prNumber, eyesReactionId);
+    }
   }
 }

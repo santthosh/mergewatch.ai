@@ -1,6 +1,6 @@
 import type { ReviewJobPayload, IInstallationStore, IReviewStore, IGitHubAuthProvider, ILLMProvider, FileFetchOptions, ReviewDelta, MergeWatchConfig } from '@mergewatch/core';
 import {
-  getPRDiff, getPRContext, addPRReaction, postReviewComment, updateReviewComment,
+  getPRDiff, getPRContext, addPRReaction, removePRReaction, postReviewComment, updateReviewComment,
   findExistingBotComment, getCommentReactions, createCheckRun,
   formatReviewComment, runReviewPipeline, shouldSkipPR, shouldSkipByRules, isAutoReviewOff, extractIncludePatterns,
   filterDiff,
@@ -223,8 +223,15 @@ export async function processReviewJob(
     return;
   }
 
-  // Add eyes reaction
-  await addPRReaction(octokit, owner, repo, prNumber, 'eyes').catch(() => {});
+  // Add eyes reaction — capture the ID so we can clear it in every exit path
+  // (smart skip, rules skip, success, error) and the PR doesn't get stuck in
+  // a "MergeWatch is still looking" state.
+  const eyesReactionId = await addPRReaction(octokit, owner, repo, prNumber, 'eyes');
+  const clearEyes = async () => {
+    if (eyesReactionId != null) {
+      await removePRReaction(octokit, owner, repo, prNumber, eyesReactionId);
+    }
+  };
 
   // In-progress check run
   await createCheckRun(octokit, owner, repo, headSha, {
@@ -250,6 +257,7 @@ export async function processReviewJob(
       summary: skipReason,
     }).catch((err) => console.warn('Failed to create skip check run:', err));
     console.log(`Skipped ${repoFullName}#${prNumber}: ${skipReason}`);
+    await clearEyes();
     return;
   }
 
@@ -309,6 +317,7 @@ export async function processReviewJob(
       summary: rulesSkip.reason,
     }).catch((err) => console.warn('Failed to create rules skip check run:', err));
     console.log(`Rules skip ${repoFullName}#${prNumber} (${rulesSkip.kind}): ${rulesSkip.reason}`);
+    await clearEyes();
     return;
   }
 
@@ -588,5 +597,7 @@ export async function processReviewJob(
       summary: 'MergeWatch encountered an error while reviewing this PR. Please try again or contact support if the issue persists.',
     }).catch((checkErr) => console.warn('Failed to create error check run:', checkErr));
     throw err;
+  } finally {
+    await clearEyes();
   }
 }

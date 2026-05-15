@@ -12,7 +12,8 @@ vi.mock('@mergewatch/core', async (importOriginal) => {
     ...actual,
     getPRContext: vi.fn(),
     getPRDiff: vi.fn(),
-    addPRReaction: vi.fn().mockResolvedValue(undefined),
+    addPRReaction: vi.fn().mockResolvedValue(12345),
+    removePRReaction: vi.fn().mockResolvedValue(undefined),
     createCheckRun: vi.fn().mockResolvedValue(undefined),
     shouldSkipPR: vi.fn().mockReturnValue(null),
     shouldSkipByRules: vi.fn().mockReturnValue(null),
@@ -48,6 +49,7 @@ vi.mock('@mergewatch/core', async (importOriginal) => {
 import {
   getPRContext, getPRDiff, createCheckRun, shouldSkipPR, shouldSkipByRules,
   runReviewPipeline, postReplyComment, fetchRepoConfig, handleInlineReply,
+  addPRReaction, removePRReaction,
 } from '@mergewatch/core';
 import { processReviewJob } from './review-processor.js';
 
@@ -230,6 +232,50 @@ describe('processReviewJob — check runs', () => {
         summary: 'MergeWatch encountered an error while reviewing this PR. Please try again or contact support if the issue persists.',
       }),
     );
+  });
+
+  describe('eyes reaction cleanup', () => {
+    it('clears the eyes reaction after a successful review', async () => {
+      const deps = makeDeps();
+      await processReviewJob(makeJob(), deps);
+
+      expect(addPRReaction).toHaveBeenCalledWith(mockOctokit, 'test', 'repo', 1, 'eyes');
+      expect(removePRReaction).toHaveBeenCalledWith(mockOctokit, 'test', 'repo', 1, 12345);
+    });
+
+    it('clears the eyes reaction even when the pipeline throws', async () => {
+      (runReviewPipeline as any).mockRejectedValue(new Error('LLM timeout'));
+      const deps = makeDeps();
+
+      await expect(processReviewJob(makeJob(), deps)).rejects.toThrow('LLM timeout');
+
+      // finally block must fire — eyes shouldn't get stuck on a failed review
+      expect(removePRReaction).toHaveBeenCalledWith(mockOctokit, 'test', 'repo', 1, 12345);
+    });
+
+    it('clears the eyes reaction on smart skip', async () => {
+      (shouldSkipPR as any).mockReturnValue('Only docs changed');
+      const deps = makeDeps();
+      await processReviewJob(makeJob(), deps);
+
+      expect(removePRReaction).toHaveBeenCalledWith(mockOctokit, 'test', 'repo', 1, 12345);
+    });
+
+    it('clears the eyes reaction on rules skip', async () => {
+      (shouldSkipByRules as any).mockReturnValue({ kind: 'draft', reason: 'Draft PR' });
+      const deps = makeDeps();
+      await processReviewJob(makeJob(), deps);
+
+      expect(removePRReaction).toHaveBeenCalledWith(mockOctokit, 'test', 'repo', 1, 12345);
+    });
+
+    it('does not attempt to remove the reaction when addPRReaction returned null', async () => {
+      (addPRReaction as any).mockResolvedValueOnce(null);
+      const deps = makeDeps();
+      await processReviewJob(makeJob(), deps);
+
+      expect(removePRReaction).not.toHaveBeenCalled();
+    });
   });
 
   describe('completion check run', () => {

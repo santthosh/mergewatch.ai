@@ -83,6 +83,7 @@ export {
   getPRDiff,
   getPRContext,
   addPRReaction,
+  removePRReaction,
   postReviewComment,
   updateReviewComment,
   findExistingBotComment,
