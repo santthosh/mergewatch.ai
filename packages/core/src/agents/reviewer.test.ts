@@ -361,6 +361,31 @@ describe('runDiagramAgent', () => {
     // defense-in-depth substitution.
     expect(result.diagram).toMatch(/A\["invoke&lpar;&rpar;"\]/);
   });
+
+  it('does not double-escape pre-encoded HTML entities from the LLM', async () => {
+    // Repro for E2E-15a: when the LLM emits `&lt;Title&gt;` already escaped,
+    // the previous escape function ran `&` → `&amp;` first and turned the
+    // entity into `&amp;lt;Title&amp;gt;`. After idempotency, we should
+    // re-emit clean `&lt;Title&gt;`.
+    const mermaid = 'flowchart TD\n  A["&lt;Title&gt;"]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    expect(result.diagram).toContain('&lt;Title&gt;');
+    expect(result.diagram).not.toContain('&amp;lt;');
+    expect(result.diagram).not.toContain('&amp;gt;');
+  });
+
+  it('is idempotent — running through the escape twice produces the same output', async () => {
+    // Round-tripping a label that mixes raw and pre-encoded chars should
+    // not progressively mangle the output.
+    const mermaid = 'flowchart TD\n  A["Foo &amp; <Bar>"]';
+    const llm = createMockLLM([mermaid]);
+    const result = await runDiagramAgent(sampleDiff, sampleContext, 'model-1', llm);
+    // After decode + re-encode: `&` → `&amp;`, `<` → `&lt;`, `>` → `&gt;`.
+    expect(result.diagram).toContain('Foo &amp; &lt;Bar&gt;');
+    expect(result.diagram).not.toContain('&amp;amp;');
+    expect(result.diagram).not.toContain('&amp;lt;');
+  });
 });
 
 // ─── runErrorHandlingAgent ──────────────────────────────────────────────────

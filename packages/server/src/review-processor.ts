@@ -181,7 +181,11 @@ export async function processReviewJob(
   // we go fully silent: no reactions, no check runs, no storage write.
   // Other skip kinds (draft, maxFiles, labels) still surface a check run
   // via shouldSkipByRules below; only autoReviewOff goes silent.
-  const yamlConfig = await fetchRepoConfig(octokit, owner, repo).catch((err) => {
+  //
+  // Read at the PR's headSha when we have it, so config changes on the PR
+  // branch take effect. Falls back to the default branch when headSha is
+  // absent (e.g. legacy job payloads in flight from before this change).
+  const yamlConfig = await fetchRepoConfig(octokit, owner, repo, job.headSha).catch((err) => {
     // Static format string; user-controlled values pass as separate args
     // to avoid feeding repo names through Node's printf-style formatter.
     console.warn('Failed to fetch .mergewatch.yml — proceeding without YAML config:', `${repoFullName}#${prNumber}`, err);

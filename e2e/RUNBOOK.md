@@ -422,20 +422,32 @@ Open the PR as a **draft**: `gh pr create --draft`.
 
 **Behavior**: a PR carrying a label in `rules.ignoreLabels` is skipped.
 
+> **Important**: MergeWatch only re-evaluates skip rules on `pull_request` events with action `opened` / `synchronize` / `ready_for_review` / `reopened` (see `REVIEW_TRIGGERING_ACTIONS`). The `labeled` action is **not** in that list — adding a label to an already-reviewed PR will NOT cancel the in-flight review or supersede the existing verdict. To test this fixture correctly, add the label **before** the first commit lands, or follow the label add with a synchronize event (push any commit) so the rules-skip path actually runs.
+
 **Setup**
 
-Branch: `fixture/10-skip-review-label`. Any non-trivial source change. Open the PR, then add the `skip-review` label (default `ignoreLabels` entry):
+Branch: `fixture/10-skip-review-label`. Make any non-trivial source change but **do not push yet**. Open the PR as draft → add the `skip-review` label → mark ready-for-review (which fires `ready_for_review` and re-evaluates the skip rules). Alternatively:
 
 ```bash
+# Path A: label first, then push a commit (synchronize triggers re-evaluation)
+gh pr create --title 'E2E-10' --body '...'
 gh pr edit <N> --add-label skip-review
-gh pr edit <N> --remove-label skip-review && gh pr edit <N> --add-label skip-review  # trigger synchronize
-```
+git commit --allow-empty -m 'trigger synchronize'
+git push
 
-Or push a fresh commit after adding the label.
+# Path B: open as draft, label, then mark ready
+gh pr create --draft --title 'E2E-10' --body '...'
+gh pr edit <N> --add-label skip-review
+gh pr ready <N>
+```
 
 **Expected outcomes**
 
 - [ ] Visible "Review skipped" check run with summary like `PR has label "skip-review" which is in ignoreLabels`
+- [ ] If a prior MergeWatch review was already submitted, it is **dismissed** by the new skip evaluation
+
+**Known gap**
+- ❌ Adding the `skip-review` label to a PR that's already mid-review (or already reviewed) does **not** cancel/supersede the existing review. The webhook only fires for the actions listed above. Tracked as a deliberate limitation — opening a code-side fix would require handling `labeled` / `unlabeled` actions specifically and is non-trivial.
 
 ---
 

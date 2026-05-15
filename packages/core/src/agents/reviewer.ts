@@ -336,7 +336,29 @@ ${previousDiagram}
  * confused JSON-escape and Mermaid line-break syntax) into `<br/>`.
  */
 function escapeMermaidLabelChars(label: string): string {
-  // Order matters in two places:
+  // Step 1: decode any pre-existing HTML entities. LLMs sometimes emit
+  // already-escaped Mermaid (e.g. `&lt;Title&gt;`) thinking the output will
+  // be HTML-rendered. Without this decode pass, the `&` → `&amp;` step
+  // below would re-escape those entities into `&amp;lt;Title&amp;gt;`,
+  // which Mermaid then renders as literal `&lt;Title&gt;` instead of
+  // `<Title>`. Decoding first makes the function idempotent.
+  //
+  // `&amp;` MUST decode LAST — otherwise `&amp;lt;` would prematurely become
+  // `&lt;` and get re-decoded to `<` on the next pass, dropping the literal
+  // `&` that was actually in the source.
+  const decoded = label
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&lbrace;/g, '{')
+    .replace(/&rbrace;/g, '}')
+    .replace(/&lpar;/g, '(')
+    .replace(/&rpar;/g, ')')
+    .replace(/&lsqb;/g, '[')
+    .replace(/&rsqb;/g, ']')
+    .replace(/&amp;/g, '&');
+
+  // Step 2: encode. Order matters in two places:
   //   1. `&amp;` MUST run first — otherwise the `&` we introduce in every
   //      other replacement gets re-escaped to `&amp;…;`.
   //   2. `\\n → <br/>` MUST run AFTER the angle-bracket escapes, so the
@@ -348,7 +370,7 @@ function escapeMermaidLabelChars(label: string): string {
   // reliably suppress shape-delimiter interpretation inside `"..."` regions,
   // so escaping them all is the only durable fix. `"` is also escaped so
   // an embedded quote can't break out of the quoted-label region.
-  return label
+  return decoded
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')

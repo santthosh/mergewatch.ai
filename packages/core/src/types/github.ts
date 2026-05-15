@@ -279,6 +279,15 @@ export interface ReviewJobPayload {
   changedFileCount?: number;
   /** True when triggered by an @mergewatch comment (force-bypasses skip logic). */
   mentionTriggered?: boolean;
+  /**
+   * Head commit SHA of the PR. Passed from the webhook so the review-agent
+   * can fetch `.mergewatch.yml` at the PR's head (not the repo's default
+   * branch) — required for the silent autoReview-off gate to honor config
+   * changes made on the PR branch. Optional because pre-existing job payloads
+   * in flight won't carry it; the silent-skip fetch falls back to the default
+   * branch in that case.
+   */
+  headSha?: string;
   /** For "respond" mode: the user's comment body that triggered the response. */
   userComment?: string;
   /** For "respond" mode: the login of the user who commented. */

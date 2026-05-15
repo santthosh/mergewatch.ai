@@ -219,6 +219,12 @@ Guidelines:
 - Use subgraphs to group related files or modules when helpful.
 - If the diff is too trivial for a useful diagram (e.g. a one-line config change, a typo fix, or a single variable rename), return EMPTY (nothing at all).
 
+CRITICAL — accuracy rules:
+- Every node that references a file path MUST point to a file that actually appears in the diff. Do NOT invent paths like \`src/utils/index.ts\` or \`src/lib/helper.ts\` if they aren't in the diff.
+- Every function name in a node label MUST be a function that actually exists in the diff. Do NOT fabricate \`foo()\` if \`foo\` isn't defined or called in the changed code.
+- If you cannot verify a node from the diff, leave it out. A smaller accurate diagram is always better than a larger one with hallucinations.
+- Do not output HTML entities (\`&lt;\`, \`&gt;\`, \`&amp;\`) in labels — write the literal characters and rely on the diagram tooling to escape them. Double-encoded labels render as garbled text.
+
 ${PREVIOUS_DIAGRAM_PLACEHOLDER}
 
 Return ONLY raw Mermaid code — no JSON, no fences, no explanation.

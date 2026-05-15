@@ -118,6 +118,7 @@ async function handlePullRequest(payload: PullRequestEvent, deps: WebhookDeps) {
     changedFileCount: pull_request.changed_files,
     source,
     agentKind,
+    headSha: pull_request.head?.sha,
   };
 
   // Process in background
@@ -240,6 +241,7 @@ async function handleCheckRun(payload: CheckRunEvent, deps: WebhookDeps) {
     changedFileCount: pr.changed_files,
     source: classification.source,
     agentKind: classification.agentKind,
+    headSha: pr.head?.sha,
   };
 
   processReviewJob(job, deps).catch((err) => {
