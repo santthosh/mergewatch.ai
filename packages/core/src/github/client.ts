@@ -904,16 +904,24 @@ export function parseRepoConfigYaml(content: string): Partial<MergeWatchConfig> 
   return config;
 }
 
+/**
+ * Fetch `.mergewatch.yml` from a repo. When `ref` is provided, reads the file
+ * at that commit / branch — required for the silent autoReview-off gate to
+ * honor changes made on the PR branch, since GitHub's default is to read from
+ * the repo's default branch.
+ */
 export async function fetchRepoConfig(
   octokit: Octokit,
   owner: string,
   repo: string,
+  ref?: string,
 ): Promise<Partial<MergeWatchConfig> | null> {
   try {
     const { data } = await octokit.repos.getContent({
       owner,
       repo,
       path: '.mergewatch.yml',
+      ...(ref ? { ref } : {}),
     });
 
     if (Array.isArray(data) || data.type !== 'file' || !data.content) {

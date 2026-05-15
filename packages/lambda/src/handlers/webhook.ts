@@ -196,6 +196,7 @@ async function handlePullRequestEvent(
     changedFileCount: pr.changed_files,
     source: classification.source,
     agentKind: classification.agentKind,
+    headSha: pr.head?.sha,
   });
 
   console.log(
@@ -381,6 +382,7 @@ async function handleCheckRunEvent(event: CheckRunEvent): Promise<void> {
     changedFileCount: pr.changed_files,
     source: classification.source,
     agentKind: classification.agentKind,
+    headSha: pr.head?.sha,
   });
 
   console.log(
