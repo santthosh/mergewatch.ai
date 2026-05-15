@@ -159,7 +159,12 @@ export const DEFAULT_INSTALLATION_SETTINGS: InstallationSettings = {
   maxComments: 10,
   summary: {
     prSummary: true,
-    confidenceScore: true,
+    // Confidence scores are LLM-self-reported and not well-calibrated against
+    // actual hit rate. A "85% confidence" finding has been observed to be 0%
+    // true in production. Hidden by default; users who want them can opt in
+    // via the dashboard. The score is still stored on each finding for
+    // internal sorting / future threshold-based filtering.
+    confidenceScore: false,
     issuesTable: true,
     diagram: true,
   },

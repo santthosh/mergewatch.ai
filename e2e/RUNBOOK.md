@@ -143,6 +143,10 @@ Run these in order — they cover all current behaviors. ~30 minutes end-to-end.
 | [E2E-14](#e2e-14-inline-reply-skips-third-party-bot-thread) | Human replies in a non-MergeWatch inline thread → no engagement | 2m | 60s | #133 |
 | [E2E-15](#e2e-15-mermaid-diagram-renders) | Complex diff produces a renderable Mermaid diagram | 2m | 60s | #128–#130 |
 | [E2E-16](#e2e-16-agent-authored-pr-detection) | PR from `claude/*` branch → flagged as agent-authored | 1m | 60s | core |
+| [E2E-17](#e2e-17-finding-grounding-drops-hallucinated-anchors) | Critical finding anchored at a comment line gets dropped or snapped | 2m | 60s | tier-1 |
+| [E2E-18](#e2e-18-delta-aware-verdict-on-security-improvement) | PR that resolves prior criticals → green verdict (≥4/5), not orange | 3m | 90s | tier-1 |
+| [E2E-19](#e2e-19-confidence-scores-hidden-by-default) | New install sees no `85%` etc. badges in finding rows | 30s | 60s | tier-1 |
+| [E2E-20](#e2e-20-pr-description-vs-code-drift-catch) | Stale "we now use X" in PR body → reviewer flags the mismatch | 2m | 60s | feedback |
 
 ---
 
@@ -609,6 +613,210 @@ aws dynamodb get-item --table-name mergewatch-reviews \
   --key '{"repoFullName":{"S":"<owner>/mergewatch-fixtures"},"prNumberCommitSha":{"S":"<N>#<shortSha>"}}' \
   --profile mergewatch
 ```
+
+---
+
+### E2E-17: Finding grounding drops hallucinated anchors
+
+**Behavior**: a finding whose cited anchor line doesn't actually contain the code it describes is dropped (critical) or downgraded (warning → info). The grounding step in `runReviewPipeline` re-fetches the file at the PR's headSha and verifies that an identifier from the finding's description appears within ±5 lines of the anchor; if not, it snaps to the first matching line in the file or drops the finding.
+
+Verifies the regression flagged in user feedback: "the bot anchored a critical 'race condition' at lines 89–91 (which are comment lines), when the actual `await createChatSession()` was on line 92."
+
+**Setup**
+
+Branch: `fixture/17-grounding-hallucinated-anchor`. Add a file deliberately crafted so the LLM is likely to anchor a finding at a comment line:
+
+`src/race-trap.ts`:
+
+```ts
+// This function persists chat state to two stores.
+// IMPORTANT: the writes happen serially below — the comment block
+// runs from line 1 to line 8 and contains words like "await",
+// "race condition", and "fire-and-forget" so the reviewer might be
+// tempted to anchor a finding inside this comment region.
+//
+// The actual code is below.
+
+export async function persistChat(userId: string, msg: string): Promise<void> {
+  const session = await createChatSession(userId);
+  await addChatMessage(session.id, msg);
+}
+
+declare function createChatSession(userId: string): Promise<{ id: string }>;
+declare function addChatMessage(id: string, msg: string): Promise<void>;
+```
+
+No `.mergewatch.yml` needed.
+
+**Expected outcomes**
+
+- [ ] If a critical finding is produced about race conditions or fire-and-forget writes, its `line` field points at line **10 or 11** (the `await createChatSession` / `await addChatMessage` lines) — NOT at lines 1–8
+- [ ] If the orchestrator emitted such a finding anchored in the comment region (1–8), the grounding pass snapped the line to the actual code OR dropped the finding entirely
+- [ ] No finding's anchor line is on a `//`-only line in the rendered "Requires your attention" table
+- [ ] The dashboard review record (or DynamoDB `findings`) shows snapped line numbers, not the original orchestrator output
+
+**Failure modes to watch for**
+- ❌ Critical finding rendered at lines 1–8 (anchor still on a comment line)
+- ❌ Critical finding describing functions that don't appear in `src/race-trap.ts` at all (full hallucination — the grounding pass should have dropped it)
+
+**Note**: this fixture is stochastic — the LLM may not always anchor on a comment line on a small file. To force the failure mode pre-fix, you can manually inject `{ "file": "src/race-trap.ts", "line": 3, "severity": "critical", "title": "Race condition", "description": "createChatSession() and addChatMessage() are not awaited together." }` into the orchestrator response in a local self-hosted run.
+
+---
+
+### E2E-18: Delta-aware verdict on security improvement
+
+**Behavior**: a PR that resolves critical findings from a prior review without introducing new criticals should produce a green verdict (≥4/5 "Generally safe" / "Safe to merge"), not the same orange "Needs fixes" face the original buggy commit got. Verifies the reconciliation rule added with the grounding fix.
+
+User feedback motivating this: "PR #18 had real exploitable issues, PR #19 closed them — both landed at 2/5. When a PR is a security improvement, the verdict should reflect that."
+
+**Setup**
+
+Use a two-PR sequence on the fixtures repo.
+
+**Step 1** — open a PR that produces critical findings:
+
+Branch: `fixture/18a-introduce-criticals`. Add `src/admin-api.ts`:
+
+```ts
+import type { NextRequest } from 'next/server';
+
+// No authentication — anyone can hit this admin endpoint.
+export async function GET(_req: NextRequest) {
+  const transcripts = await fetchAllTranscripts();
+  return Response.json({ transcripts });
+}
+
+// User-controlled SQL.
+export async function POST(req: NextRequest) {
+  const { id } = await req.json();
+  const result = await db.raw(`SELECT * FROM users WHERE id = '${id}'`);
+  return Response.json(result);
+}
+
+declare const db: { raw(sql: string): Promise<unknown> };
+declare function fetchAllTranscripts(): Promise<unknown[]>;
+```
+
+Open the PR, let MergeWatch review. Confirm it produces ≥1 critical findings and lands at 1/5 or 2/5 (orange/red). **Do not merge.**
+
+**Step 2** — push a follow-up commit that fixes the criticals:
+
+```ts
+import type { NextRequest } from 'next/server';
+import { requireAdmin } from '@/auth';
+
+export async function GET(req: NextRequest) {
+  await requireAdmin(req);
+  const transcripts = await fetchAllTranscripts();
+  return Response.json({ transcripts });
+}
+
+export async function POST(req: NextRequest) {
+  await requireAdmin(req);
+  const { id } = await req.json();
+  // Parameterized query.
+  const result = await db.prepare('SELECT * FROM users WHERE id = ?', [id]);
+  return Response.json(result);
+}
+
+declare const db: { prepare(sql: string, params: unknown[]): Promise<unknown> };
+declare function fetchAllTranscripts(): Promise<unknown[]>;
+declare function requireAdmin(req: NextRequest): Promise<void>;
+```
+
+Push to the same branch. MergeWatch will re-review with the fix-commit context.
+
+**Expected outcomes (on the second review)**
+
+- [ ] The "📎 Previously reported findings" section shows the ≥1 criticals from step 1 marked as **✅ Resolved**
+- [ ] No new critical findings are introduced
+- [ ] Verdict line shows `🟢 4/5 — Generally safe` or `🟢 5/5 — Safe to merge` — NOT `🟠 2/5 — Needs fixes`
+- [ ] Verdict reason mentions resolved criticals: something like `Resolved N critical issues from prior review, no new criticals introduced.`
+- [ ] Formal PR review state = **Approved** (empty body — APPROVE event)
+- [ ] Delta caption summarises the resolution: e.g., "Replaced unauthenticated admin endpoints with `requireAdmin` guards and parameterized the SQL query."
+
+**Failure modes**
+- ❌ Score still orange/red despite zero new criticals (delta-aware reconciliation regressed)
+- ❌ Resolved criticals counted as still-open in the verdict reason
+
+---
+
+### E2E-19: Confidence scores hidden by default
+
+**Behavior**: a fresh MergeWatch install should NOT render `XX%` confidence badges next to findings. The flag still exists (`InstallationSettings.summary.confidenceScore`) and users can opt back in via the dashboard, but the default is off because LLM-self-reported confidence has been observed to be miscalibrated against actual hit rate.
+
+**Setup**
+
+Branch: `fixture/19-confidence-default-off`. Make any change that's likely to produce a finding with non-empty confidence (e.g., add code with a clearly-named TODO that triggers the bug agent):
+
+`src/cache.ts`:
+
+```ts
+export function getCached<T>(key: string): T | null {
+  // TODO: this currently returns stale data after invalidation — fix me.
+  return cache.get(key) ?? null;
+}
+
+declare const cache: Map<string, unknown>;
+```
+
+No `.mergewatch.yml`. Don't touch any dashboard settings.
+
+**Expected outcomes**
+
+- [ ] Summary comment includes a "Requires your attention" or "Info" section with at least one finding
+- [ ] **No finding row contains a `XX%` badge** — neither in the action-items table nor in the collapsible Info section
+- [ ] If you turn the setting back on (Settings → Summary → "Show confidence scores"), the next review's findings DO show the badge
+
+**Failure modes**
+- ❌ `85%`, `90%`, etc. badges appear in finding rows on a default install (regression of the default flip)
+- ❌ The setting toggle in the dashboard doesn't have any effect
+
+---
+
+### E2E-20: PR description vs code drift catch
+
+**Behavior**: when a PR's description claims behavior that the diff has since dropped or changed, the reviewer flags the discrepancy. This is a genuine catch the bot got right in user testing ("PR #18 description still said 'localStorage persistence' after I'd dropped it in commit c1e3a06").
+
+This is more of a *spot-check* than a hard pass/fail — the LLM doesn't always catch description drift, but it should at least notice on obvious cases.
+
+**Setup**
+
+Branch: `fixture/20-description-drift`. Make TWO commits:
+
+**Commit 1** — implement the behavior the description will describe:
+
+`src/persistence.ts`:
+
+```ts
+export function savePref(key: string, value: string): void {
+  localStorage.setItem(`pref:${key}`, value);
+}
+```
+
+**Commit 2** — drop the localStorage usage in favor of an in-memory map:
+
+```ts
+const memCache = new Map<string, string>();
+export function savePref(key: string, value: string): void {
+  memCache.set(`pref:${key}`, value);
+}
+```
+
+Open the PR with this body — **deliberately stale**:
+
+```markdown
+This PR adds preference persistence using `localStorage.setItem` so
+user choices survive page reloads. The key format is `pref:<name>`.
+```
+
+**Expected outcomes** (spot-check, not strict pass/fail)
+
+- [ ] At least one info or warning finding mentions that the PR description references `localStorage` but the diff has dropped it
+- [ ] The mismatch surfaces in the summary text or the "Requires your attention" table
+- [ ] Bonus: the reviewer's verdict reason or summary notes the description should be updated
+
+**Note**: this is the only fixture where a miss isn't necessarily a bug. PR-description drift detection is best-effort. If MergeWatch never catches it, that's a quality-bar to raise; if it catches some but not all, log the misses for prompt tuning.
 
 ---
 

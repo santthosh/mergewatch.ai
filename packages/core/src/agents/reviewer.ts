@@ -38,6 +38,7 @@ import type { ReviewDelta } from '../review-delta.js';
 import { computeReviewDelta } from '../review-delta.js';
 import { FILE_REQUEST_INSTRUCTION, invokeWithFileFetching } from '../context/agentic-fetcher.js';
 import type { FileFetchOptions } from '../context/agentic-fetcher.js';
+import { fetchFileContents } from '../context/file-fetcher.js';
 import { extractChangedLines, isLineNearChange } from '../diff-filter.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -871,6 +872,149 @@ export interface ReviewPipelineResult {
   deltaCaption: string | null;
 }
 
+// ─── Finding grounding ─────────────────────────────────────────────────────
+
+/**
+ * Words that look like function-call identifiers but are syntax keywords.
+ * Used by extractFindingIdentifiers to avoid producing useless verification
+ * targets like `if(` or `for(`.
+ */
+const SYNTAX_KEYWORDS = new Set([
+  'if', 'for', 'while', 'switch', 'catch', 'try', 'function', 'return',
+  'do', 'else', 'finally', 'throw', 'typeof', 'instanceof', 'new',
+  'async', 'await', 'yield', 'super', 'in', 'of', 'void', 'delete',
+]);
+
+/**
+ * Extract identifier-shaped strings from a finding's text that should
+ * appear in the cited code for the finding to be grounded. We look for:
+ *   - Function/method calls: `someFunc(`
+ *   - Backtick-quoted code names: `` `someIdentifier` ``
+ *
+ * Common English words and JS keywords are filtered out so they don't act
+ * as easy false-positive matches against arbitrary file content.
+ */
+export function extractFindingIdentifiers(text: string): string[] {
+  const ids = new Set<string>();
+
+  // Function calls: capture `name(` patterns.
+  const callPattern = /\b([a-zA-Z_$][\w$]{2,})\(/g;
+  let m: RegExpExecArray | null;
+  while ((m = callPattern.exec(text)) !== null) {
+    if (!SYNTAX_KEYWORDS.has(m[1].toLowerCase())) {
+      ids.add(m[1] + '(');
+    }
+  }
+
+  // Backtick-quoted identifiers — strip the ticks and require an identifier-shape.
+  const tickPattern = /`([^`\n]+)`/g;
+  while ((m = tickPattern.exec(text)) !== null) {
+    const inner = m[1].trim();
+    if (inner.length >= 4 && /^[a-zA-Z_$][\w$.]*\(?\)?$/.test(inner) && !SYNTAX_KEYWORDS.has(inner.toLowerCase())) {
+      ids.add(inner);
+    }
+  }
+
+  return Array.from(ids);
+}
+
+/**
+ * Verify a single finding against the actual file contents at the PR head.
+ * Returns null when the finding can't be grounded (drop critical / warning;
+ * keep info pass-through when no identifiers were extractable so we don't
+ * silently delete advisory notes).
+ *
+ * When the identifier appears in the file but not within ±5 lines of the
+ * cited anchor, the finding is "snapped" — its `line` is updated to point
+ * at the first occurrence. This salvages findings the orchestrator got
+ * mostly right but anchored to a comment line near the actual code.
+ */
+export function groundFinding(
+  f: OrchestratedFinding,
+  fileContent: string | undefined,
+): OrchestratedFinding | null {
+  // No file content available — pass through. The grounding check is an
+  // optional defense-in-depth layer, not a hard gate; we never want a
+  // GitHub API hiccup to silently delete real findings.
+  if (!fileContent) return f;
+
+  const lines = fileContent.split('\n');
+  const zeroBased = f.line - 1;
+
+  // Out-of-range anchor — definitely wrong. Drop critical, downgrade
+  // warning to info, drop info outright.
+  if (zeroBased < 0 || zeroBased >= lines.length) {
+    if (f.severity === 'critical') return null;
+    if (f.severity === 'warning') return { ...f, severity: 'info' };
+    return null;
+  }
+
+  const identifiers = extractFindingIdentifiers(`${f.title} ${f.description} ${f.suggestion}`);
+  if (identifiers.length === 0) return f; // No identifier to verify against — pass through.
+
+  // ±5 lines around the anchor (inclusive).
+  const WINDOW = 5;
+  const start = Math.max(0, zeroBased - WINDOW);
+  const end = Math.min(lines.length, zeroBased + WINDOW + 1);
+  const window = lines.slice(start, end).join('\n');
+
+  // Identifier appears near anchor — finding is grounded.
+  if (identifiers.some((id) => window.includes(id))) return f;
+
+  // Identifier appears somewhere else in the file — snap to first occurrence.
+  // This handles the common "anchor is on a comment line, actual code is 1-3
+  // lines below" failure mode without dropping otherwise-correct findings.
+  for (let i = 0; i < lines.length; i++) {
+    if (identifiers.some((id) => lines[i].includes(id))) {
+      return { ...f, line: i + 1 };
+    }
+  }
+
+  // Identifier nowhere in file. The orchestrator likely hallucinated the
+  // finding (e.g. described `createChatSession()` on a file that doesn't
+  // call it). Drop critical, downgrade warning, drop info.
+  if (f.severity === 'critical') return null;
+  if (f.severity === 'warning') return { ...f, severity: 'info' };
+  return null;
+}
+
+/**
+ * Ground every finding against the actual file at the PR head, dropping or
+ * downgrading those whose anchor doesn't survive a ±5-line check. Reduces
+ * the highest-trust-damage class of false positive: a critical-severity
+ * finding cited at a line that doesn't even contain the code it describes.
+ *
+ * Best-effort: when fileFetchOptions isn't provided (e.g. self-hosted with
+ * no octokit available, or a fetch fails), the findings pass through
+ * unchanged. We never block on grounding errors.
+ */
+export async function groundFindings(
+  findings: OrchestratedFinding[],
+  fileFetchOptions: FileFetchOptions | undefined,
+): Promise<OrchestratedFinding[]> {
+  if (!fileFetchOptions || findings.length === 0) return findings;
+
+  const uniqueFiles = Array.from(new Set(findings.map((f) => f.file)));
+  let fileContents: Record<string, string> = {};
+  try {
+    fileContents = await fetchFileContents(
+      fileFetchOptions.octokit,
+      fileFetchOptions.owner,
+      fileFetchOptions.repo,
+      fileFetchOptions.ref,
+      uniqueFiles,
+      fileFetchOptions.maxContextKB,
+    );
+  } catch (err) {
+    console.warn('Finding grounding: file fetch failed — passing findings through', err);
+    return findings;
+  }
+
+  return findings
+    .map((f) => groundFinding(f, fileContents[f.file]))
+    .filter((f): f is OrchestratedFinding => f !== null);
+}
+
 /**
  * Execute the full multi-agent review pipeline.
  * All independent agents run in parallel; the orchestrator runs after they complete.
@@ -990,10 +1134,16 @@ export async function runReviewPipeline(
   ];
   const enabledAgentCount = findingAgentFlags.filter(Boolean).length + enabledCustomAgents.length;
 
+  // Ground each finding against the actual file at the PR head, dropping
+  // hallucinated criticals whose cited line doesn't contain the code they
+  // describe. Runs before the line-proximity filter so snapped lines benefit
+  // from filtering too.
+  const groundedFindings = await groundFindings(orchestratorResult.findings, fileFetchOptions);
+
   // Filter findings to only those on or near actually changed lines
   const changedLines = extractChangedLines(diff);
   const CHANGED_LINE_TOLERANCE = 3;
-  const filteredFindings = orchestratorResult.findings.filter(
+  const filteredFindings = groundedFindings.filter(
     (f) => isLineNearChange(changedLines, f.file, f.line, CHANGED_LINE_TOLERANCE),
   );
 
@@ -1005,24 +1155,50 @@ export async function runReviewPipeline(
     : null;
 
   // Reconcile the orchestrator's verdict with the post-filter findings.
-  // The orchestrator scores based on pre-filter findings (and stays
-  // conservative when prior findings exist via carry-forward context) — so
-  // a 3/5 verdict can land next to an "All clear!" message when the
-  // changed-line filter strips every finding. Force 5/5 in two cases:
-  //   1. No findings at all → genuinely clean.
-  //   2. Only info findings → comment-formatter renders "All clear!" because
-  //      info findings aren't action items. Info is advisory; it shouldn't
-  //      drag the merge score down or contradict the rendered verdict.
+  // Three cases force the score upward:
+  //   1. No findings at all → 5/5. Genuinely clean.
+  //   2. Only info findings → 5/5. Comment-formatter renders "All clear!"
+  //      since info findings aren't action items; the score should match.
+  //   3. PR closes critical findings from a prior review and introduces
+  //      none → score is clamped to >= 4. The orchestrator scores based
+  //      on the current finding count alone and doesn't reward "fixed 3
+  //      criticals, still have 2 warnings". Without this, a security-
+  //      improvement PR gets the same orange face as the broken commit
+  //      it fixed (per the feedback: "fixing things should not get the
+  //      same emoji as ignoring them").
   const actionFindings = filteredFindings.filter(
     (f) => f.severity === 'critical' || f.severity === 'warning',
   );
   const noActionItems = actionFindings.length === 0;
-  const mergeScore = noActionItems ? 5 : orchestratorResult.mergeScore;
-  const mergeScoreReason = noActionItems
-    ? filteredFindings.length === 0
+
+  const prevCriticalKeys = new Set(
+    (previousFindings ?? [])
+      .filter((p) => p.severity === 'critical')
+      .map((p) => `${p.file}::${p.title}`),
+  );
+  const currentCriticalKeys = new Set(
+    filteredFindings
+      .filter((f) => f.severity === 'critical')
+      .map((f) => `${f.file}::${f.title}`),
+  );
+  const resolvedCriticals = [...prevCriticalKeys].filter((k) => !currentCriticalKeys.has(k)).length;
+  const newCriticals = [...currentCriticalKeys].filter((k) => !prevCriticalKeys.has(k)).length;
+  const isSecurityImprovement = resolvedCriticals > 0 && newCriticals === 0;
+
+  let mergeScore: number;
+  let mergeScoreReason: string;
+  if (noActionItems) {
+    mergeScore = 5;
+    mergeScoreReason = filteredFindings.length === 0
       ? 'No issues found on changed lines.'
-      : 'No action items — only informational notes.'
-    : orchestratorResult.mergeScoreReason;
+      : 'No action items — only informational notes.';
+  } else if (isSecurityImprovement) {
+    mergeScore = Math.max(4, orchestratorResult.mergeScore);
+    mergeScoreReason = `Resolved ${resolvedCriticals} critical issue${resolvedCriticals === 1 ? '' : 's'} from prior review, no new criticals introduced.`;
+  } else {
+    mergeScore = orchestratorResult.mergeScore;
+    mergeScoreReason = orchestratorResult.mergeScoreReason;
+  }
 
   return {
     summary,

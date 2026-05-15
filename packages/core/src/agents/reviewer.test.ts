@@ -15,6 +15,8 @@ import {
   runOrchestratorAgent,
   runDeltaCaptionAgent,
   runReviewPipeline,
+  extractFindingIdentifiers,
+  groundFinding,
   type ReviewContext,
   type AgentFinding,
   type ReviewPipelineOptions,
@@ -1067,5 +1069,118 @@ describe('agentAuthored flag', () => {
     const llm = createMockLLM([emptyAgentResponse]);
     await runCustomAgent(agentDef, sampleDiff, sampleContext, 'model-1', llm, undefined, undefined, true);
     expect(llm.calls[0].prompt).toContain(AGENT_MODE_SUFFIX);
+  });
+});
+
+// ─── extractFindingIdentifiers ──────────────────────────────────────────────
+
+describe('extractFindingIdentifiers', () => {
+  it('extracts function-call identifiers from prose', () => {
+    const ids = extractFindingIdentifiers('Race condition: `createChatSession()` and `addChatMessage()` are not awaited together.');
+    expect(ids).toContain('createChatSession(');
+    expect(ids).toContain('addChatMessage(');
+  });
+
+  it('extracts backtick-quoted identifiers', () => {
+    const ids = extractFindingIdentifiers('The `userId` field is not validated.');
+    expect(ids).toContain('userId');
+  });
+
+  it('ignores JS syntax keywords that look like calls', () => {
+    const ids = extractFindingIdentifiers('Use `if (x)` instead of `for (y)`.');
+    expect(ids).not.toContain('if(');
+    expect(ids).not.toContain('for(');
+  });
+
+  it('returns empty for prose with no identifiers', () => {
+    const ids = extractFindingIdentifiers('Consider adding error handling.');
+    expect(ids).toEqual([]);
+  });
+
+  it('skips very short identifiers (likely noise)', () => {
+    // 2-char ids are common false positives in prose
+    const ids = extractFindingIdentifiers('Method `do()` is wrong.');
+    expect(ids).not.toContain('do(');
+  });
+});
+
+// ─── groundFinding ──────────────────────────────────────────────────────────
+
+describe('groundFinding', () => {
+  const baseFinding = {
+    file: 'src/chat-handler.ts',
+    line: 89,
+    severity: 'critical' as const,
+    confidence: 85,
+    category: 'concurrency',
+    title: 'Race condition in chat session persistence',
+    description: 'The call to `createChatSession()` is not awaited before `addChatMessage()` runs.',
+    suggestion: 'await both calls in order.',
+  };
+
+  it('passes findings through unchanged when no file content is available', () => {
+    expect(groundFinding(baseFinding, undefined)).toEqual(baseFinding);
+  });
+
+  it('passes findings through when no identifiers can be extracted', () => {
+    const f = { ...baseFinding, line: 1, title: 'Style issue', description: 'Consider refactoring.', suggestion: '' };
+    const file = '// line 1\n// line 2';
+    expect(groundFinding(f, file)).toEqual(f);
+  });
+
+  it('keeps the finding when the cited line is within ±5 of the identifier', () => {
+    // anchor line 5, identifier at line 7 — within window
+    const file = [
+      'function handle() {',
+      '  // line 2',
+      '  // line 3',
+      '  // line 4',
+      '  // line 5 (anchor)',
+      '  prepare();',
+      '  await createChatSession();',
+      '  return ok;',
+      '}',
+    ].join('\n');
+    const f = { ...baseFinding, line: 5 };
+    expect(groundFinding(f, file)).toEqual(f);
+  });
+
+  it('snaps the line number when the identifier exists in the file but outside the ±5 window', () => {
+    // anchor line 2 (a comment), identifier 10 lines down
+    const lines = [
+      '// header comment',
+      '// anchor comment line', // line 2
+      '', '', '', '', '', '', '', '',
+      'const s = await createChatSession();', // line 11
+    ];
+    const result = groundFinding({ ...baseFinding, line: 2 }, lines.join('\n'));
+    expect(result).not.toBeNull();
+    expect(result!.line).toBe(11);
+  });
+
+  it('drops a critical finding when the identifier nowhere appears in the file', () => {
+    // Reproduces the prod hallucination: line 89-91 are comments, file
+    // never even calls createChatSession() — drop the critical.
+    const file = ['// only comments here', 'const x = 1;', 'export default x;'].join('\n');
+    const result = groundFinding(baseFinding, file);
+    expect(result).toBeNull();
+  });
+
+  it('downgrades a warning to info when the identifier is missing (less destructive than dropping)', () => {
+    const file = 'const a = 1;\nconst b = 2;';
+    const warning = { ...baseFinding, severity: 'warning' as const, line: 1 };
+    const result = groundFinding(warning, file);
+    expect(result?.severity).toBe('info');
+  });
+
+  it('drops an info finding when the identifier is missing', () => {
+    const file = 'const a = 1;';
+    const info = { ...baseFinding, severity: 'info' as const, line: 1 };
+    expect(groundFinding(info, file)).toBeNull();
+  });
+
+  it('drops a critical when the anchor is past EOF', () => {
+    const file = 'one\ntwo\nthree';
+    expect(groundFinding({ ...baseFinding, line: 999 }, file)).toBeNull();
   });
 });
